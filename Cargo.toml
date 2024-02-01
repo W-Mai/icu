@@ -8,3 +8,4 @@ homepage = "https://github.com/W-Mai/icu"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+icu_lib = {path = "icu_lib"}

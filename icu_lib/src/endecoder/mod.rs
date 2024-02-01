@@ -1,3 +1,5 @@
+pub mod common;
+
 use crate::midata::MiData;
 
 pub trait EnDecoder {

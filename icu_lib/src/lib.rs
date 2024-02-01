@@ -1,5 +1,5 @@
-mod endecoder;
-mod midata;
+pub mod endecoder;
+pub mod midata;
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right

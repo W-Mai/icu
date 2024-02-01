@@ -8,12 +8,12 @@ pub enum MiData {
 }
 
 impl MiData {
-    fn from(endecoder: &dyn EnDecoder, data: Vec<u8>) -> Self {
+    pub fn decode_from(endecoder: &dyn EnDecoder, data: Vec<u8>) -> Self {
         endecoder.decode(data)
     }
 
-    fn into(endecoder: &dyn EnDecoder, data: &Self) -> Vec<u8> {
-        endecoder.encode(data)
+    pub fn encode_into(&self, endecoder: &dyn EnDecoder) -> Vec<u8> {
+        endecoder.encode(self)
     }
 }
 
