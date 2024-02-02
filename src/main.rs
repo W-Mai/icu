@@ -4,8 +4,9 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use icu_lib::endecoder::common::PNG;
+    use icu_lib::endecoder::common::{PNG, PPM};
     use icu_lib::midata::MiData;
+    use std::fs;
 
     #[test]
     fn it_works() {
@@ -26,5 +27,8 @@ mod tests {
 
         assert_eq!(image_buffer_before.width(), 285);
         assert_eq!(image_buffer_before, image_buffer_after);
+
+        // use fs write to file
+        // fs::write("img_0.pbm", mid_after.encode_into::<PPM>()).expect("Unable to write file");
     }
 }
