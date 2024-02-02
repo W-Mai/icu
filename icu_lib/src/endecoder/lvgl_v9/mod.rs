@@ -78,7 +78,7 @@ pub struct ColorFormatA2 {}
 
 pub struct ColorFormatA4 {}
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u16)]
 pub enum Flags {
     NONE = 0,
@@ -97,6 +97,7 @@ pub enum Flags {
     USER8 = 0x0800,
 }
 
+#[derive(Debug)]
 #[repr(C, packed)]
 pub struct ImageHeader {
     // Magic number. Must be LV_IMAGE_HEADER_MAGIC
@@ -167,6 +168,7 @@ impl ImageHeader {
     const uint8_t * data;   /**< Pointer to the data of the image*/
 } lv_image_dsc_t;*/
 
+#[allow(dead_code)]
 pub struct ImageDescriptor {
     header: ImageHeader,
     data_size: u32,
@@ -185,7 +187,6 @@ impl ImageDescriptor {
     pub fn encode(&self) -> Vec<u8> {
         let mut buf = Cursor::new(Vec::new());
         buf.write_all(self.header.encode().as_slice()).unwrap();
-        buf.write_all(&self.data_size.to_le_bytes()).unwrap();
         buf.write_all(self.data.as_slice()).unwrap();
         buf.into_inner()
     }
@@ -193,8 +194,23 @@ impl ImageDescriptor {
     pub fn decode(data: Vec<u8>) -> Self {
         let header = ImageHeader::decode(data.clone());
         let header_size = std::mem::size_of::<ImageHeader>();
-        let data_size = u32::from_le_bytes(data[header_size..header_size + 4].try_into().unwrap());
-        let data = data[header_size + 4..].to_vec();
+        let data = data[header_size..].to_vec();
+        let data_size = data.len() as u32;
+
+        let mut idea_data_size =
+            header.stride as u32 * header.h as u32 * header.cf.get_size() as u32;
+        if [
+            ColorFormat::I1,
+            ColorFormat::I2,
+            ColorFormat::I4,
+            ColorFormat::I8,
+        ]
+        .contains(&header.cf)
+        {
+            idea_data_size +=
+                (1u32 << header.cf.get_bpp()) * ColorFormat::ARGB8888.get_size() as u32;
+        }
+        assert_eq!(idea_data_size, data_size, "Data size mismatch {:?}", header);
 
         Self {
             header,
@@ -226,12 +242,7 @@ impl ColorFormat {
     }
 
     pub fn get_size(&self) -> u16 {
-        let size = self.get_bpp() / 8;
-        if size == 0 {
-            1
-        } else {
-            size
-        }
+        (self.get_bpp() + 7) >> 3
     }
 }
 
@@ -264,7 +275,7 @@ pub(crate) fn common_encode_function(data: &MiData, color_format: ColorFormat) -
                         Flags::NONE,
                         img.width() as u16,
                         img.height() as u16,
-                        img.width() as u16 * color_format.get_size(),
+                        (img.width() as u16 * color_format.get_bpp() + 7) >> 3,
                     ),
                     img_data,
                 )
