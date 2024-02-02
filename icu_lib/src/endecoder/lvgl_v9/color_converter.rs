@@ -54,6 +54,27 @@ pub fn rgba8888_to(data: &[u8], color_format: ColorFormat) -> Vec<u8> {
             tmp.extend(alpha_iter);
             tmp
         }
+        ColorFormat::A1 | ColorFormat::A2 | ColorFormat::A4 | ColorFormat::A8 => {
+            let bpp = match color_format {
+                ColorFormat::A1 => 1,
+                ColorFormat::A2 => 2,
+                ColorFormat::A4 => 4,
+                ColorFormat::A8 => 8,
+                _ => return Vec::new(),
+            };
+
+            let alpha_iter = data.chunks_exact(4).map(|chunk| chunk[3]);
+
+            let mut tmp = Vec::new();
+            for (i, alpha) in alpha_iter.enumerate() {
+                if i % (8 / bpp) == 0 {
+                    tmp.push(0);
+                }
+                let byte = tmp.last_mut().unwrap();
+                *byte |= (alpha >> (8 - bpp)) << (i % (8 / bpp));
+            }
+            tmp
+        }
         _ => {
             unimplemented!()
         }
@@ -112,6 +133,28 @@ pub fn rgba8888_from(data: &[u8], color_format: ColorFormat) -> Vec<u8> {
                 pixel.push(alpha);
                 pixel
             });
+            rgba_iter.flatten().collect()
+        }
+        ColorFormat::A1 | ColorFormat::A2 | ColorFormat::A4 | ColorFormat::A8 => {
+            let bpp = match color_format {
+                ColorFormat::A1 => 1,
+                ColorFormat::A2 => 2,
+                ColorFormat::A4 => 4,
+                ColorFormat::A8 => 8,
+                _ => return Vec::new(),
+            };
+
+            let alpha_iter = data.chunks_exact(1).map(|chunk| chunk[0]);
+
+            let alpha_iter = alpha_iter.flat_map(|alpha| {
+                (0u8..8u8 / bpp).map(move |i| {
+                    ((((alpha as u16) >> ((8 / bpp - i - 1) * bpp)) & ((1 << bpp) - 1))
+                        << (8 / bpp)) as u8
+                })
+            });
+
+            let rgba_iter = alpha_iter.map(|alpha| vec![0, 0, 0, alpha]);
+
             rgba_iter.flatten().collect()
         }
         _ => {
