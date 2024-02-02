@@ -186,6 +186,90 @@ impl ImageDescriptor {
     }
 }
 
+impl EnDecoder for ColorFormatRGB565 {
+    fn encode(data: &MiData) -> Vec<u8> {
+        match data {
+            MiData::RGBA(img) => {
+                let mut img_data = img.clone();
+                let img_data = rgba8888_to(img_data.as_mut(), ColorFormat::RGB565);
+
+                let mut buf = Cursor::new(Vec::new());
+                buf.write_all(
+                    &ImageDescriptor::new(
+                        ImageHeader::new(
+                            ColorFormat::RGB565,
+                            Flags::NONE,
+                            img.width() as u16,
+                            img.height() as u16,
+                            img.width() as u16 * 2,
+                        ),
+                        img_data,
+                    )
+                    .encode(),
+                )
+                .unwrap();
+
+                buf.into_inner()
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    fn decode(data: Vec<u8>) -> MiData {
+        let img_desc = ImageDescriptor::decode(data);
+        let img_buffer = RgbaImage::from_vec(
+            img_desc.header.h as u32,
+            img_desc.header.w as u32,
+            rgba8888_from(img_desc.data.clone().as_mut(), ColorFormat::RGB565),
+        )
+        .unwrap();
+
+        MiData::RGBA(img_buffer)
+    }
+}
+
+impl EnDecoder for ColorFormatRGB565A8 {
+    fn encode(data: &MiData) -> Vec<u8> {
+        match data {
+            MiData::RGBA(img) => {
+                let mut img_data = img.clone();
+                let img_data = rgba8888_to(img_data.as_mut(), ColorFormat::RGB565A8);
+
+                let mut buf = Cursor::new(Vec::new());
+                buf.write_all(
+                    &ImageDescriptor::new(
+                        ImageHeader::new(
+                            ColorFormat::RGB565A8,
+                            Flags::NONE,
+                            img.width() as u16,
+                            img.height() as u16,
+                            img.width() as u16 * 2,
+                        ),
+                        img_data,
+                    )
+                    .encode(),
+                )
+                .unwrap();
+
+                buf.into_inner()
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    fn decode(data: Vec<u8>) -> MiData {
+        let img_desc = ImageDescriptor::decode(data);
+        let img_buffer = RgbaImage::from_vec(
+            img_desc.header.h as u32,
+            img_desc.header.w as u32,
+            rgba8888_from(img_desc.data.clone().as_mut(), ColorFormat::RGB565A8),
+        )
+        .unwrap();
+
+        MiData::RGBA(img_buffer)
+    }
+}
+
 impl EnDecoder for ColorFormatRGB888 {
     fn encode(data: &MiData) -> Vec<u8> {
         match data {
@@ -222,7 +306,7 @@ impl EnDecoder for ColorFormatRGB888 {
             img_desc.header.w as u32,
             rgba8888_from(img_desc.data.clone().as_mut(), ColorFormat::RGB888),
         )
-            .unwrap();
+        .unwrap();
 
         MiData::RGBA(img_buffer)
     }
@@ -263,6 +347,48 @@ impl EnDecoder for ColorFormatARGB8888 {
             img_desc.header.h as u32,
             img_desc.header.w as u32,
             rgba8888_from(img_desc.data.clone().as_mut(), ColorFormat::ARGB8888),
+        )
+        .unwrap();
+
+        MiData::RGBA(img_buffer)
+    }
+}
+
+impl EnDecoder for ColorFormatXRGB8888 {
+    fn encode(data: &MiData) -> Vec<u8> {
+        match data {
+            MiData::RGBA(img) => {
+                let mut img_data = img.clone();
+                let img_data = rgba8888_to(img_data.as_mut(), ColorFormat::XRGB8888);
+
+                let mut buf = Cursor::new(Vec::new());
+                buf.write_all(
+                    &ImageDescriptor::new(
+                        ImageHeader::new(
+                            ColorFormat::XRGB8888,
+                            Flags::NONE,
+                            img.width() as u16,
+                            img.height() as u16,
+                            img.width() as u16 * 4,
+                        ),
+                        img_data,
+                    )
+                    .encode(),
+                )
+                .unwrap();
+
+                buf.into_inner()
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    fn decode(data: Vec<u8>) -> MiData {
+        let img_desc = ImageDescriptor::decode(data);
+        let img_buffer = RgbaImage::from_vec(
+            img_desc.header.h as u32,
+            img_desc.header.w as u32,
+            rgba8888_from(img_desc.data.clone().as_mut(), ColorFormat::XRGB8888),
         )
         .unwrap();
 
