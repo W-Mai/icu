@@ -1,6 +1,7 @@
 use crate::endecoder::EnDecoder;
 use crate::midata::MiData;
-use std::io::{Cursor, Write};
+use image::RgbaImage;
+use std::io::{Cursor, Read, Write};
 
 #[derive(Copy, Clone)]
 #[repr(u8)]
@@ -118,6 +119,25 @@ impl ImageHeader {
         buf.write_all(&self.reserved_2.to_le_bytes()).unwrap();
         buf.into_inner()
     }
+
+    pub fn decode(data: Vec<u8>) -> Self {
+        let header_size = std::mem::size_of::<ImageHeader>();
+        let mut header = ImageHeader::new(ColorFormat::RGB888, Flags::NONE, 0, 0, 0);
+
+        if data.len() < header_size {
+            return header;
+        }
+
+        let mut buf = Cursor::new(data);
+
+        unsafe {
+            let header_ptr = &mut header as *mut ImageHeader as *mut u8;
+            buf.read_exact(std::slice::from_raw_parts_mut(header_ptr, header_size))
+                .unwrap();
+        }
+
+        header
+    }
 }
 
 /*typedef struct {
@@ -147,6 +167,19 @@ impl ImageDescriptor {
         buf.write_all(&self.data_size.to_le_bytes()).unwrap();
         buf.write_all(self.data.as_slice()).unwrap();
         buf.into_inner()
+    }
+
+    pub fn decode(data: Vec<u8>) -> Self {
+        let header = ImageHeader::decode(data.clone());
+        let header_size = std::mem::size_of::<ImageHeader>();
+        let data_size = u32::from_le_bytes(data[header_size..header_size + 4].try_into().unwrap());
+        let data = data[header_size + 4..].to_vec();
+
+        Self {
+            header,
+            data_size,
+            data,
+        }
     }
 }
 
@@ -235,7 +268,15 @@ impl EnDecoder for ColorFormatARGB8888 {
         }
     }
 
-    fn decode(_data: Vec<u8>) -> MiData {
-        todo!()
+    fn decode(data: Vec<u8>) -> MiData {
+        let img_desc = ImageDescriptor::decode(data);
+        let img_buffer = RgbaImage::from_vec(
+            img_desc.header.h as u32,
+            img_desc.header.w as u32,
+            img_desc.data.clone(),
+        )
+        .unwrap();
+
+        MiData::RGBA(img_buffer)
     }
 }
