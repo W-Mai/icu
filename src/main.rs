@@ -45,7 +45,7 @@ mod tests {
         fs::write("img_0.bin", data).expect("Unable to write file");
 
         let data = fs::read("img_0.bin").expect("Unable to read file");
-        let mid_after = MiData::decode_from::<lvgl_v9::ColorFormatRGB565A8>(data);
+        let mid_after = MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
         let data = mid_after.encode_into::<JPEG>();
 
         fs::write("img_0_after.jpeg", data).expect("Unable to write file");
