@@ -22,7 +22,7 @@ mod cf_rgb888;
 mod cf_xrgb8888;
 mod color_converter;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 #[repr(u8)]
 pub enum ColorFormat {
     // 1 byte (+alpha) formats
@@ -227,6 +227,9 @@ impl ColorFormat {
 
 pub(crate) fn common_decode_function(data: Vec<u8>, color_format: ColorFormat) -> MiData {
     let img_desc = ImageDescriptor::decode(data);
+
+    assert_eq!(img_desc.header.cf, color_format, "Color format mismatch");
+
     let img_buffer = RgbaImage::from_vec(
         img_desc.header.h as u32,
         img_desc.header.w as u32,
