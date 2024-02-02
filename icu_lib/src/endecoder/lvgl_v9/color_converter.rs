@@ -71,7 +71,7 @@ pub fn rgba8888_to(data: &[u8], color_format: ColorFormat) -> Vec<u8> {
                     tmp.push(0);
                 }
                 let byte = tmp.last_mut().unwrap();
-                *byte |= (alpha >> (8 - bpp)) << (i % (8 / bpp));
+                *byte |= (alpha >> (8 - bpp)) << (i % (8 / bpp) * bpp);
             }
             tmp
         }
@@ -147,10 +147,7 @@ pub fn rgba8888_from(data: &[u8], color_format: ColorFormat) -> Vec<u8> {
             let alpha_iter = data.chunks_exact(1).map(|chunk| chunk[0]);
 
             let alpha_iter = alpha_iter.flat_map(|alpha| {
-                (0u8..8u8 / bpp).map(move |i| {
-                    ((((alpha as u16) >> ((8 / bpp - i - 1) * bpp)) & ((1 << bpp) - 1))
-                        << (8 / bpp)) as u8
-                })
+                (0u8..8u8 / bpp).map(move |i| (alpha >> ((8 / bpp - 1 - i) * bpp)) << (8 - bpp))
             });
 
             let rgba_iter = alpha_iter.map(|alpha| vec![0, 0, 0, alpha]);
