@@ -75,6 +75,20 @@ pub fn rgba8888_to(data: &[u8], color_format: ColorFormat) -> Vec<u8> {
             }
             tmp
         }
+        ColorFormat::L8 => {
+            // (R+R+R+B+G+G+G+G) >> 3
+            let argb_iter = data.chunks_exact(4).map(|chunk| {
+                let r = chunk[0] as u16;
+                let g = chunk[1] as u16;
+                let b = chunk[2] as u16;
+                let a = chunk[3] as u16;
+                let l = ((r + r + r + b + g + g + g + g) >> 3) * a / 0xFF;
+
+                l as u8
+            });
+
+            argb_iter.collect()
+        }
         _ => {
             unimplemented!()
         }
@@ -153,6 +167,14 @@ pub fn rgba8888_from(data: &[u8], color_format: ColorFormat) -> Vec<u8> {
             let rgba_iter = alpha_iter.map(|alpha| vec![0, 0, 0, alpha]);
 
             rgba_iter.flatten().collect()
+        }
+        ColorFormat::L8 => {
+            let argb_iter = data.chunks_exact(1).map(|chunk| {
+                let l = chunk[0];
+                vec![l, l, l, 0xFF]
+            });
+
+            argb_iter.flatten().collect()
         }
         _ => {
             unimplemented!()

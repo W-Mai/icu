@@ -15,7 +15,7 @@ mod cf_i1;
 mod cf_i2;
 mod cf_i4;
 mod cf_i8;
-mod cf_l1;
+mod cf_l8;
 mod cf_rgb565;
 mod cf_rgb565a8;
 mod cf_rgb888;
@@ -50,7 +50,7 @@ pub enum ColorFormat {
 
 pub struct ColorFormatAutoDectect {}
 
-pub struct ColorFormatL1 {}
+pub struct ColorFormatL8 {}
 
 pub struct ColorFormatI1 {}
 
