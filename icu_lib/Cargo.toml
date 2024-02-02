@@ -9,3 +9,4 @@ homepage = "https://github.com/W-Mai/icu"
 
 [dependencies]
 image = "0.24.8"
+color_quant = "1.1.0"

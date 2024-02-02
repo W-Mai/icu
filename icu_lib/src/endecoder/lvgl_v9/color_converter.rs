@@ -84,6 +84,15 @@ pub fn rgba8888_to(data: &[u8], color_format: ColorFormat) -> Vec<u8> {
 
             argb_iter.collect()
         }
+        ColorFormat::I8 => {
+            let nq = color_quant::NeuQuant::new(30, 256, data);
+            let color_map = nq.color_map_rgba();
+            let mut color_map = rgba8888_to(&color_map, ColorFormat::ARGB8888);
+            let indexes: Vec<u8> = data.chunks(4).map(|pix| nq.index_of(pix) as u8).collect();
+
+            color_map.extend(indexes);
+            color_map
+        }
         _ => {
             unimplemented!()
         }
@@ -164,6 +173,19 @@ pub fn rgba8888_from(data: &[u8], color_format: ColorFormat) -> Vec<u8> {
             });
 
             argb_iter.flatten().collect()
+        }
+        ColorFormat::I8 => {
+            let color_map = &data[0..256 * 4];
+            let color_map = rgba8888_from(color_map, ColorFormat::ARGB8888);
+            let indexes = &data[256 * 4..];
+
+            let rgba_iter = indexes.chunks_exact(1).map(|index| {
+                let index = index[0] as usize;
+                let color = &color_map[index * 4..index * 4 + 4];
+                color.to_vec()
+            });
+
+            rgba_iter.flatten().collect()
         }
         _ => {
             unimplemented!()
