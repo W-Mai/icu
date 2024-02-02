@@ -1,3 +1,10 @@
+use std::io::{Cursor, Read, Write};
+
+use image::RgbaImage;
+
+use crate::endecoder::lvgl_v9::color_converter::{rgba8888_from, rgba8888_to};
+use crate::midata::MiData;
+
 mod cf_a1;
 mod cf_a2;
 mod cf_a4;
@@ -14,9 +21,6 @@ mod cf_rgb565a8;
 mod cf_rgb888;
 mod cf_xrgb8888;
 mod color_converter;
-
-use crate::endecoder::EnDecoder;
-use std::io::{Cursor, Read, Write};
 
 #[derive(Copy, Clone)]
 #[repr(u8)]
@@ -197,5 +201,66 @@ impl ImageDescriptor {
             data_size,
             data,
         }
+    }
+}
+
+impl ColorFormat {
+    pub fn get_bytes_per_pixel(&self) -> u16 {
+        match self {
+            ColorFormat::L8 => 1,
+            ColorFormat::I1 => 1,
+            ColorFormat::I2 => 1,
+            ColorFormat::I4 => 1,
+            ColorFormat::I8 => 1,
+            ColorFormat::A8 => 1,
+            ColorFormat::RGB565 => 2,
+            ColorFormat::RGB565A8 => 2,
+            ColorFormat::RGB888 => 3,
+            ColorFormat::ARGB8888 => 4,
+            ColorFormat::XRGB8888 => 4,
+            ColorFormat::A1 => 1,
+            ColorFormat::A2 => 1,
+            ColorFormat::A4 => 1,
+        }
+    }
+}
+
+pub(crate) fn common_decode_function(data: Vec<u8>, color_format: ColorFormat) -> MiData {
+    let img_desc = ImageDescriptor::decode(data);
+    let img_buffer = RgbaImage::from_vec(
+        img_desc.header.h as u32,
+        img_desc.header.w as u32,
+        rgba8888_from(img_desc.data.clone().as_mut(), color_format),
+    )
+    .unwrap();
+
+    MiData::RGBA(img_buffer)
+}
+
+pub(crate) fn common_encode_function(data: &MiData, color_format: ColorFormat) -> Vec<u8> {
+    match data {
+        MiData::RGBA(img) => {
+            let mut img_data = img.clone();
+            let img_data = rgba8888_to(img_data.as_mut(), color_format);
+
+            let mut buf = Cursor::new(Vec::new());
+            buf.write_all(
+                &ImageDescriptor::new(
+                    ImageHeader::new(
+                        color_format,
+                        Flags::NONE,
+                        img.width() as u16,
+                        img.height() as u16,
+                        img.width() as u16 * color_format.get_bytes_per_pixel(),
+                    ),
+                    img_data,
+                )
+                .encode(),
+            )
+            .unwrap();
+
+            buf.into_inner()
+        }
+        _ => Vec::new(),
     }
 }
