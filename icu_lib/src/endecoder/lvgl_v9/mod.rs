@@ -59,6 +59,7 @@ pub struct ColorFormatA4 {}
 #[derive(Copy, Clone)]
 #[repr(u16)]
 pub enum Flags {
+    NONE = 0,
     PREMULTIPLIED = 1 << 0,
     MODIFIABLE = 1 << 1,
     VECTORS = 1 << 2,
@@ -158,6 +159,53 @@ fn rgba8888_to_argb8888(bytes: &mut Vec<u8>) {
     }
 }
 
+fn rgba8888_to_rgb888(bytes: &mut Vec<u8>) {
+    let mut drop_indexes = (0..bytes.len()).map(|x| x % 4 != 3);
+
+    bytes.retain(|_| drop_indexes.next().unwrap());
+
+    for i in (0..bytes.len()).step_by(3) {
+        let end = std::cmp::min(i + 3, bytes.len());
+        let slice_to_convert = &mut bytes[i..end];
+        slice_to_convert.rotate_right(1);
+        slice_to_convert.reverse();
+    }
+}
+
+impl EnDecoder for ColorFormatRGB888 {
+    fn encode(data: &MiData) -> Vec<u8> {
+        match data {
+            MiData::RGBA(img) => {
+                let mut img_data = img.clone().to_vec();
+                rgba8888_to_rgb888(&mut img_data);
+
+                let mut buf = Cursor::new(Vec::new());
+                buf.write_all(
+                    &ImageDescriptor::new(
+                        ImageHeader::new(
+                            ColorFormat::RGB888,
+                            Flags::NONE,
+                            img.width() as u16,
+                            img.height() as u16,
+                            img.width() as u16 * 3,
+                        ),
+                        img_data,
+                    )
+                    .encode(),
+                )
+                .unwrap();
+
+                buf.into_inner()
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    fn decode(_data: Vec<u8>) -> MiData {
+        todo!()
+    }
+}
+
 impl EnDecoder for ColorFormatARGB8888 {
     fn encode(data: &MiData) -> Vec<u8> {
         match data {
@@ -170,7 +218,7 @@ impl EnDecoder for ColorFormatARGB8888 {
                     &ImageDescriptor::new(
                         ImageHeader::new(
                             ColorFormat::ARGB8888,
-                            Flags::ALLOCATED,
+                            Flags::NONE,
                             img.width() as u16,
                             img.height() as u16,
                             img.width() as u16 * 4,
