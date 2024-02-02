@@ -4,7 +4,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use icu_lib::endecoder::common::{JPEG, PNG};
+    use icu_lib::endecoder::common::{AutoDectect, JPEG, PNG};
     use icu_lib::endecoder::lvgl_v9;
     use icu_lib::midata::MiData;
     use std::fs;
@@ -39,7 +39,7 @@ mod tests {
 
         ///////////////
         let data = include_bytes!("../res/img_0.png");
-        let mid_after = MiData::decode_from::<PNG>(Vec::from(*data));
+        let mid_after = MiData::decode_from::<AutoDectect>(Vec::from(*data));
         let data = mid_after.encode_into::<lvgl_v9::ColorFormatRGB565A8>();
 
         fs::write("img_0.bin", data).expect("Unable to write file");

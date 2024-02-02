@@ -3,18 +3,41 @@ use std::io::Cursor;
 use crate::endecoder::EnDecoder;
 use crate::midata::MiData;
 
+pub struct AutoDectect {}
+
 pub struct PNG {}
+
 pub struct JPEG {}
+
 pub struct BMP {}
+
 pub struct GIF {}
+
 pub struct TIFF {}
+
 pub struct WEBP {}
+
 pub struct ICO {}
+
 pub struct PBM {}
+
 pub struct PGM {}
+
 pub struct PPM {}
+
 pub struct PAM {}
+
 pub struct TGA {}
+
+impl EnDecoder for AutoDectect {
+    fn encode(_data: &MiData) -> Vec<u8> {
+        unimplemented!()
+    }
+
+    fn decode(data: Vec<u8>) -> MiData {
+        MiData::RGBA(image::load_from_memory(&data).unwrap().to_rgba8())
+    }
+}
 
 impl EnDecoder for PNG {
     fn encode(data: &MiData) -> Vec<u8> {
