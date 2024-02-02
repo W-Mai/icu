@@ -108,13 +108,13 @@ impl ImageHeader {
 
     pub fn encode(&self) -> Vec<u8> {
         let mut buf = Cursor::new(Vec::new());
-        buf.write(&self.magic.to_le_bytes()).unwrap();
-        buf.write(&(self.cf as u8).to_le_bytes()).unwrap();
-        buf.write(&(self.flags as u16).to_le_bytes()).unwrap();
-        buf.write(&self.w.to_le_bytes()).unwrap();
-        buf.write(&self.h.to_le_bytes()).unwrap();
-        buf.write(&self.stride.to_le_bytes()).unwrap();
-        buf.write(&self.reserved_2.to_le_bytes()).unwrap();
+        buf.write_all(&self.magic.to_le_bytes()).unwrap();
+        buf.write_all(&(self.cf as u8).to_le_bytes()).unwrap();
+        buf.write_all(&(self.flags as u16).to_le_bytes()).unwrap();
+        buf.write_all(&self.w.to_le_bytes()).unwrap();
+        buf.write_all(&self.h.to_le_bytes()).unwrap();
+        buf.write_all(&self.stride.to_le_bytes()).unwrap();
+        buf.write_all(&self.reserved_2.to_le_bytes()).unwrap();
         buf.into_inner()
     }
 }
@@ -142,9 +142,9 @@ impl ImageDescriptor {
 
     pub fn encode(&self) -> Vec<u8> {
         let mut buf = Cursor::new(Vec::new());
-        buf.write(self.header.encode().as_slice()).unwrap();
-        buf.write(&self.data_size.to_le_bytes()).unwrap();
-        buf.write(self.data.as_slice()).unwrap();
+        buf.write_all(self.header.encode().as_slice()).unwrap();
+        buf.write_all(&self.data_size.to_le_bytes()).unwrap();
+        buf.write_all(self.data.as_slice()).unwrap();
         buf.into_inner()
     }
 }
@@ -166,7 +166,7 @@ impl EnDecoder for ColorFormatARGB8888 {
                 rgba8888_to_argb8888(&mut img_data);
 
                 let mut buf = Cursor::new(Vec::new());
-                buf.write(
+                buf.write_all(
                     &ImageDescriptor::new(
                         ImageHeader::new(
                             ColorFormat::ARGB8888,
