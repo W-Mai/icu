@@ -205,22 +205,32 @@ impl ImageDescriptor {
 }
 
 impl ColorFormat {
-    pub fn get_bytes_per_pixel(&self) -> u16 {
+    /// Get the number of bits per pixel
+    pub fn get_bpp(&self) -> u16 {
         match self {
-            ColorFormat::L8 => 1,
+            ColorFormat::L8 => 8,
             ColorFormat::I1 => 1,
-            ColorFormat::I2 => 1,
-            ColorFormat::I4 => 1,
-            ColorFormat::I8 => 1,
-            ColorFormat::A8 => 1,
-            ColorFormat::RGB565 => 2,
-            ColorFormat::RGB565A8 => 2,
-            ColorFormat::RGB888 => 3,
-            ColorFormat::ARGB8888 => 4,
-            ColorFormat::XRGB8888 => 4,
+            ColorFormat::I2 => 2,
+            ColorFormat::I4 => 4,
+            ColorFormat::I8 => 8,
+            ColorFormat::A8 => 8,
+            ColorFormat::RGB565 => 16,
+            ColorFormat::RGB565A8 => 24,
+            ColorFormat::RGB888 => 24,
+            ColorFormat::ARGB8888 => 32,
+            ColorFormat::XRGB8888 => 32,
             ColorFormat::A1 => 1,
-            ColorFormat::A2 => 1,
-            ColorFormat::A4 => 1,
+            ColorFormat::A2 => 2,
+            ColorFormat::A4 => 4,
+        }
+    }
+
+    pub fn get_size(&self) -> u16 {
+        let size = self.get_bpp() / 8;
+        if size == 0 {
+            1
+        } else {
+            size
         }
     }
 }
@@ -254,7 +264,7 @@ pub(crate) fn common_encode_function(data: &MiData, color_format: ColorFormat) -
                         Flags::NONE,
                         img.width() as u16,
                         img.height() as u16,
-                        img.width() as u16 * color_format.get_bytes_per_pixel(),
+                        img.width() as u16 * color_format.get_size(),
                     ),
                     img_data,
                 )

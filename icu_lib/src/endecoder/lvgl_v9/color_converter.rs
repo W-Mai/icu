@@ -55,18 +55,13 @@ pub fn rgba8888_to(data: &[u8], color_format: ColorFormat) -> Vec<u8> {
             tmp
         }
         ColorFormat::A1 | ColorFormat::A2 | ColorFormat::A4 | ColorFormat::A8 => {
-            let bpp = match color_format {
-                ColorFormat::A1 => 1,
-                ColorFormat::A2 => 2,
-                ColorFormat::A4 => 4,
-                ColorFormat::A8 => 8,
-                _ => return Vec::new(),
-            };
+            let bpp = color_format.get_bpp();
 
             let alpha_iter = data.chunks_exact(4).map(|chunk| chunk[3]);
 
             let mut tmp = Vec::new();
             for (i, alpha) in alpha_iter.enumerate() {
+                let i = i as u16;
                 if i % (8 / bpp) == 0 {
                     tmp.push(0);
                 }
@@ -150,13 +145,7 @@ pub fn rgba8888_from(data: &[u8], color_format: ColorFormat) -> Vec<u8> {
             rgba_iter.flatten().collect()
         }
         ColorFormat::A1 | ColorFormat::A2 | ColorFormat::A4 | ColorFormat::A8 => {
-            let bpp = match color_format {
-                ColorFormat::A1 => 1,
-                ColorFormat::A2 => 2,
-                ColorFormat::A4 => 4,
-                ColorFormat::A8 => 8,
-                _ => return Vec::new(),
-            };
+            let bpp = color_format.get_bpp() as u8;
 
             let alpha_iter = data.chunks_exact(1).map(|chunk| chunk[0]);
 
