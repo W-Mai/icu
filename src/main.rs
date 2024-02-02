@@ -40,12 +40,12 @@ mod tests {
         ///////////////
         let data = include_bytes!("../res/img_0.png");
         let mid_after = MiData::decode_from::<PNG>(Vec::from(*data));
-        let data = mid_after.encode_into::<lvgl_v9::ColorFormatARGB8888>();
+        let data = mid_after.encode_into::<lvgl_v9::ColorFormatRGB888>();
 
         fs::write("img_0.bin", data).expect("Unable to write file");
 
         let data = fs::read("img_0.bin").expect("Unable to read file");
-        let mid_after = MiData::decode_from::<lvgl_v9::ColorFormatARGB8888>(data);
+        let mid_after = MiData::decode_from::<lvgl_v9::ColorFormatRGB888>(data);
         let data = mid_after.encode_into::<JPEG>();
 
         fs::write("img_0_after.jpeg", data).expect("Unable to write file");

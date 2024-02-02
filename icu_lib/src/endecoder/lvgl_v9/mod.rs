@@ -1,3 +1,6 @@
+mod color_converter;
+
+use crate::endecoder::lvgl_v9::color_converter::{rgba8888_from, rgba8888_to};
 use crate::endecoder::EnDecoder;
 use crate::midata::MiData;
 use image::RgbaImage;
@@ -183,34 +186,12 @@ impl ImageDescriptor {
     }
 }
 
-fn rgba8888_to_argb8888(bytes: &mut Vec<u8>) {
-    for i in (0..bytes.len()).step_by(4) {
-        let end = std::cmp::min(i + 4, bytes.len());
-        let slice_to_convert = &mut bytes[i..end];
-        slice_to_convert.rotate_right(1);
-        slice_to_convert.reverse();
-    }
-}
-
-fn rgba8888_to_rgb888(bytes: &mut Vec<u8>) {
-    let mut drop_indexes = (0..bytes.len()).map(|x| x % 4 != 3);
-
-    bytes.retain(|_| drop_indexes.next().unwrap());
-
-    for i in (0..bytes.len()).step_by(3) {
-        let end = std::cmp::min(i + 3, bytes.len());
-        let slice_to_convert = &mut bytes[i..end];
-        slice_to_convert.rotate_right(1);
-        slice_to_convert.reverse();
-    }
-}
-
 impl EnDecoder for ColorFormatRGB888 {
     fn encode(data: &MiData) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
-                let mut img_data = img.clone().to_vec();
-                rgba8888_to_rgb888(&mut img_data);
+                let mut img_data = img.clone();
+                let img_data = rgba8888_to(img_data.as_mut(), ColorFormat::RGB888);
 
                 let mut buf = Cursor::new(Vec::new());
                 buf.write_all(
@@ -234,8 +215,16 @@ impl EnDecoder for ColorFormatRGB888 {
         }
     }
 
-    fn decode(_data: Vec<u8>) -> MiData {
-        todo!()
+    fn decode(data: Vec<u8>) -> MiData {
+        let img_desc = ImageDescriptor::decode(data);
+        let img_buffer = RgbaImage::from_vec(
+            img_desc.header.h as u32,
+            img_desc.header.w as u32,
+            rgba8888_from(img_desc.data.clone().as_mut(), ColorFormat::RGB888),
+        )
+            .unwrap();
+
+        MiData::RGBA(img_buffer)
     }
 }
 
@@ -243,8 +232,8 @@ impl EnDecoder for ColorFormatARGB8888 {
     fn encode(data: &MiData) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
-                let mut img_data = img.clone().to_vec();
-                rgba8888_to_argb8888(&mut img_data);
+                let mut img_data = img.clone();
+                let img_data = rgba8888_to(img_data.as_mut(), ColorFormat::ARGB8888);
 
                 let mut buf = Cursor::new(Vec::new());
                 buf.write_all(
@@ -273,7 +262,7 @@ impl EnDecoder for ColorFormatARGB8888 {
         let img_buffer = RgbaImage::from_vec(
             img_desc.header.h as u32,
             img_desc.header.w as u32,
-            img_desc.data.clone(),
+            rgba8888_from(img_desc.data.clone().as_mut(), ColorFormat::ARGB8888),
         )
         .unwrap();
 
