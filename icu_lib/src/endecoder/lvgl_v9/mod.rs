@@ -244,6 +244,11 @@ impl ColorFormat {
     pub fn get_size(&self) -> u16 {
         (self.get_bpp() + 7) >> 3
     }
+
+    pub fn get_stride_size(&self, width: u32, align: u32) -> u32 {
+        let stride = (width * self.get_bpp() as u32 + 7) >> 3;
+        (stride + align - 1) & !(align - 1)
+    }
 }
 
 pub(crate) fn common_decode_function(data: Vec<u8>, color_format: ColorFormat) -> MiData {
@@ -275,7 +280,7 @@ pub(crate) fn common_encode_function(data: &MiData, color_format: ColorFormat) -
                         Flags::NONE,
                         img.width() as u16,
                         img.height() as u16,
-                        (img.width() as u16 * color_format.get_bpp() + 7) >> 3,
+                        color_format.get_stride_size(img.width(), 4) as u16,
                     ),
                     img_data,
                 )
