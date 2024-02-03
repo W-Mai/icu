@@ -30,6 +30,7 @@ mod tests {
 
         ///////////////
         test_encode_decode!(DATA, lvgl_v9::ColorFormatRGB565);
+        test_encode_decode!(DATA, lvgl_v9::ColorFormatRGB565A8);
         test_encode_decode!(DATA, lvgl_v9::ColorFormatRGB888);
         test_encode_decode!(DATA, lvgl_v9::ColorFormatARGB8888);
         test_encode_decode!(DATA, lvgl_v9::ColorFormatXRGB8888);

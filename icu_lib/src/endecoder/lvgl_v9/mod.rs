@@ -198,17 +198,14 @@ impl ImageDescriptor {
         let data_size = data.len() as u32;
 
         let mut idea_data_size = header.stride as u32 * header.h as u32;
-        if [
-            ColorFormat::I1,
-            ColorFormat::I2,
-            ColorFormat::I4,
-            ColorFormat::I8,
-        ]
-        .contains(&header.cf)
-        {
-            idea_data_size +=
-                (1u32 << header.cf.get_bpp()) * ColorFormat::ARGB8888.get_size() as u32;
-        }
+        idea_data_size += match header.cf {
+            ColorFormat::I1 | ColorFormat::I2 | ColorFormat::I4 | ColorFormat::I8 => {
+                (1u32 << header.cf.get_bpp()) * ColorFormat::ARGB8888.get_size() as u32
+            }
+            ColorFormat::RGB565A8 => header.w as u32 * header.h as u32,
+            _ => 0,
+        };
+
         assert_eq!(idea_data_size, data_size, "Data size mismatch {:?}", header);
 
         Self {
