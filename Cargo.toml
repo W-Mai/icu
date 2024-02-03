@@ -9,3 +9,7 @@ homepage = "https://github.com/W-Mai/icu"
 
 [dependencies]
 icu_lib = {path = "icu_lib"}
+
+[profile.release]
+lto = true
+opt-level = 3

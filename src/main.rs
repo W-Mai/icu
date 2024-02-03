@@ -9,18 +9,18 @@ mod tests {
     use std::fs;
     use std::mem::size_of;
 
-    const DATA: &[u8] = include_bytes!("../res/img_1.png");
+    const DATA: &[u8] = include_bytes!("../res/img_0.png");
 
     macro_rules! test_encode_decode {
         ($data:expr, $cf:ty) => {{
-                let data = ($data).clone();
-                let mid = MiData::decode_from::<common::AutoDectect>(Vec::from(data));
-                let data = mid.encode_into::<$cf>();
-                fs::write("img_0.bin", data).expect("Unable to write file");
+            let data = ($data).clone();
+            let mid = MiData::decode_from::<common::AutoDectect>(Vec::from(data));
+            let data = mid.encode_into::<$cf>();
+            fs::write("img_0.bin", data).expect("Unable to write file");
 
-                let data = fs::read("img_0.bin").expect("Unable to read file");
-                MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
-        }}
+            let data = fs::read("img_0.bin").expect("Unable to read file");
+            MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
+        }};
     }
 
     #[test]
@@ -35,6 +35,7 @@ mod tests {
         test_encode_decode!(DATA, lvgl_v9::ColorFormatARGB8888);
         test_encode_decode!(DATA, lvgl_v9::ColorFormatXRGB8888);
         test_encode_decode!(DATA, lvgl_v9::ColorFormatA8);
+        test_encode_decode!(DATA, lvgl_v9::ColorFormatL8);
 
         let data = fs::read("img_0.bin").expect("Unable to read file");
         let mid = MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);

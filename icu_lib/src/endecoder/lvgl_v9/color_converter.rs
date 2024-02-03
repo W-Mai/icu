@@ -118,14 +118,21 @@ pub fn rgba8888_to(
         }
         ColorFormat::L8 => {
             // (R+R+R+B+G+G+G+G) >> 3
-            let argb_iter = data.chunks_exact(4).map(|chunk| {
-                let r = chunk[0] as u16;
-                let g = chunk[1] as u16;
-                let b = chunk[2] as u16;
-                let a = chunk[3] as u16;
-                let l = ((r + r + r + b + g + g + g + g) >> 3) * a / 0xFF;
+            let argb_iter = data.chunks_exact(width_bytes).flat_map(|row| {
+                let mut row = row
+                    .chunks_exact(4)
+                    .map(|chunk| {
+                        let r = chunk[0] as u16;
+                        let g = chunk[1] as u16;
+                        let b = chunk[2] as u16;
+                        let a = chunk[3] as u16;
+                        let l = ((r + r + r + b + g + g + g + g) >> 3) * a / 0xFF;
 
-                l as u8
+                        l as u8
+                    })
+                    .collect::<Vec<u8>>();
+                row.resize(stride_bytes, 0);
+                row
             });
 
             argb_iter.collect()
