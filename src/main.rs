@@ -9,7 +9,7 @@ mod tests {
     use std::fs;
     use std::mem::size_of;
 
-    const DATA: &[u8] = include_bytes!("../res/img_0.png");
+    const DATA: &[u8] = include_bytes!("../res/img_2.png");
 
     macro_rules! test_encode_decode {
         ($data:expr, $cf:ty) => {{
@@ -36,6 +36,9 @@ mod tests {
         test_encode_decode!(DATA, lvgl_v9::ColorFormatXRGB8888);
         test_encode_decode!(DATA, lvgl_v9::ColorFormatA8);
         test_encode_decode!(DATA, lvgl_v9::ColorFormatL8);
+        test_encode_decode!(DATA, lvgl_v9::ColorFormatI1);
+        test_encode_decode!(DATA, lvgl_v9::ColorFormatI2);
+        test_encode_decode!(DATA, lvgl_v9::ColorFormatI4);
         test_encode_decode!(DATA, lvgl_v9::ColorFormatI8);
 
         let data = fs::read("img_0.bin").expect("Unable to read file");

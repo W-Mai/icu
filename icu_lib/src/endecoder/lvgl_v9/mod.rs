@@ -25,6 +25,9 @@ mod color_converter;
 #[derive(Copy, Clone, PartialEq, Debug)]
 #[repr(u8)]
 pub enum ColorFormat {
+    // Unkonw
+    UNKNOWN = 0x00,
+
     // 1 byte (+alpha) formats
     L8 = 0x06,
     I1 = 0x07,
@@ -220,6 +223,7 @@ impl ColorFormat {
     /// Get the number of bits per pixel
     pub fn get_bpp(&self) -> u16 {
         match self {
+            ColorFormat::UNKNOWN => 0,
             ColorFormat::L8 => 8,
             ColorFormat::I1 => 1,
             ColorFormat::I2 => 2,

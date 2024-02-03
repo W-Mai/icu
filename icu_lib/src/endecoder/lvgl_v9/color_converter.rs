@@ -137,27 +137,38 @@ pub fn rgba8888_to(
 
             argb_iter.collect()
         }
-        ColorFormat::I8 => {
-            let nq = color_quant::NeuQuant::new(30, 256, data);
+        ColorFormat::I1 | ColorFormat::I2 | ColorFormat::I4 | ColorFormat::I8 => {
+            let bpp = color_format.get_bpp();
+            let color_map_size = 1 << bpp;
+            let nq = color_quant::NeuQuant::new(30, color_map_size, data);
             let color_map = nq.color_map_rgba();
             let mut color_map = rgba8888_to(
                 &color_map,
                 ColorFormat::ARGB8888,
-                256,
+                color_map_size as u32,
                 1,
-                ColorFormat::ARGB8888.get_stride_size(256, 1),
+                ColorFormat::ARGB8888.get_stride_size(color_map_size as u32, 1),
             );
-            let indexes: Vec<u8> = data
-                .chunks_exact(width_bytes)
-                .flat_map(|row| {
-                    let mut row = row
-                        .chunks_exact(color_bytes)
-                        .map(|pix| nq.index_of(pix) as u8)
-                        .collect::<Vec<u8>>();
-                    row.resize(stride_bytes, 0);
-                    row
-                })
-                .collect();
+
+            let mut indexes_iter = data.chunks(color_bytes).map(|pix| nq.index_of(pix) as u8);
+
+            let mut indexes = vec![0; stride_bytes * height as usize];
+            indexes.chunks_exact_mut(stride_bytes).for_each(|row| {
+                let mut iter = row.iter_mut();
+                let mut byte = iter.next().unwrap();
+
+                for i in 0..width as u16 {
+                    let alpha = indexes_iter.next().unwrap();
+                    if i % (8 / bpp) == 0 {
+                        if let Some(next_byte) = iter.next() {
+                            byte = next_byte;
+                        } else {
+                            break;
+                        }
+                    }
+                    *byte |= (alpha) << (i % (8 / bpp) * bpp);
+                }
+            });
 
             color_map.extend(indexes);
             color_map
