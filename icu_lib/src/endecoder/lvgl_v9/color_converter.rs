@@ -1,51 +1,88 @@
 use crate::endecoder::lvgl_v9::ColorFormat;
 
-pub fn rgba8888_to(data: &[u8], color_format: ColorFormat) -> Vec<u8> {
+pub fn rgba8888_to(
+    data: &[u8],
+    color_format: ColorFormat,
+    width: u32,
+    height: u32,
+    stride: u32,
+) -> Vec<u8> {
+    let stride_bytes = stride as usize;
+    let color_bytes = ColorFormat::ARGB8888.get_size() as usize;
+    let width_bytes = width as usize * color_bytes;
+
     match color_format {
         ColorFormat::RGB888 => {
-            let argb_iter = data.chunks_exact(4).map(|chunk| {
-                let mut pixel = chunk[0..3].to_vec();
-                pixel.rotate_right(1);
-                pixel.reverse();
-                pixel
+            let argb_iter = data.chunks_exact(width_bytes).map(|row| {
+                let mut row = row
+                    .chunks_exact(color_bytes)
+                    .flat_map(|chunk| {
+                        let mut pixel = chunk[0..3].to_vec();
+                        pixel.reverse();
+                        pixel
+                    })
+                    .collect::<Vec<u8>>();
+                row.resize(stride_bytes, 0);
+                row
             });
 
             argb_iter.flatten().collect()
         }
         ColorFormat::ARGB8888 | ColorFormat::XRGB8888 => {
-            let argb_iter = data.chunks_exact(4).map(|chunk| {
-                let mut pixel = chunk.to_vec();
-                pixel.rotate_right(1);
-                pixel.reverse();
-                pixel
+            let argb_iter = data.chunks_exact(width_bytes).map(|row| {
+                let mut row = row
+                    .chunks_exact(color_bytes)
+                    .flat_map(|chunk| {
+                        let mut pixel = chunk.to_vec();
+                        pixel.rotate_right(1);
+                        pixel.reverse();
+                        pixel
+                    })
+                    .collect::<Vec<u8>>();
+                row.resize(stride_bytes, 0);
+                row
             });
 
             argb_iter.flatten().collect()
         }
         ColorFormat::RGB565 => {
-            let argb_iter = data.chunks_exact(4).map(|chunk| {
-                let pixel = chunk[0..3].to_vec();
+            let argb_iter = data.chunks_exact(width_bytes).map(|row| {
+                let mut row = row
+                    .chunks_exact(color_bytes)
+                    .flat_map(|chunk| {
+                        let pixel = chunk[0..3].to_vec();
 
-                let r = (pixel[0] >> 3) as u16;
-                let g = (pixel[1] >> 2) as u16;
-                let b = (pixel[2] >> 3) as u16;
-                let rgb = (r << 11) | (g << 5) | b;
+                        let r = (pixel[0] >> 3) as u16;
+                        let g = (pixel[1] >> 2) as u16;
+                        let b = (pixel[2] >> 3) as u16;
+                        let rgb = (r << 11) | (g << 5) | b;
 
-                rgb.to_le_bytes()
+                        rgb.to_le_bytes()
+                    })
+                    .collect::<Vec<u8>>();
+                row.resize(stride_bytes, 0);
+                row
             });
 
             argb_iter.flatten().collect()
         }
         ColorFormat::RGB565A8 => {
-            let argb_iter = data.chunks_exact(4).map(|chunk| {
-                let pixel = chunk[0..3].to_vec();
+            let argb_iter = data.chunks_exact(width_bytes).map(|row| {
+                let mut row = row
+                    .chunks_exact(color_bytes)
+                    .flat_map(|chunk| {
+                        let pixel = chunk[0..3].to_vec();
 
-                let r = (pixel[0] >> 3) as u16;
-                let g = (pixel[1] >> 2) as u16;
-                let b = (pixel[2] >> 3) as u16;
-                let rgb = (r << 11) | (g << 5) | b;
+                        let r = (pixel[0] >> 3) as u16;
+                        let g = (pixel[1] >> 2) as u16;
+                        let b = (pixel[2] >> 3) as u16;
+                        let rgb = (r << 11) | (g << 5) | b;
 
-                rgb.to_le_bytes()
+                        rgb.to_le_bytes()
+                    })
+                    .collect::<Vec<u8>>();
+                row.resize(stride_bytes, 0);
+                row
             });
 
             let alpha_iter = data.chunks_exact(4).map(|chunk| chunk[3]);
@@ -87,7 +124,8 @@ pub fn rgba8888_to(data: &[u8], color_format: ColorFormat) -> Vec<u8> {
         ColorFormat::I8 => {
             let nq = color_quant::NeuQuant::new(30, 256, data);
             let color_map = nq.color_map_rgba();
-            let mut color_map = rgba8888_to(&color_map, ColorFormat::ARGB8888);
+            let mut color_map =
+                rgba8888_to(&color_map, ColorFormat::ARGB8888, width, height, stride);
             let indexes: Vec<u8> = data.chunks(4).map(|pix| nq.index_of(pix) as u8).collect();
 
             color_map.extend(indexes);
@@ -99,7 +137,13 @@ pub fn rgba8888_to(data: &[u8], color_format: ColorFormat) -> Vec<u8> {
     }
 }
 
-pub fn rgba8888_from(data: &[u8], color_format: ColorFormat) -> Vec<u8> {
+pub fn rgba8888_from(
+    data: &[u8],
+    color_format: ColorFormat,
+    width: u32,
+    height: u32,
+    stride: u32,
+) -> Vec<u8> {
     match color_format {
         ColorFormat::RGB888 => {
             let argb_iter = data.chunks_exact(3).map(|chunk| {
@@ -176,7 +220,7 @@ pub fn rgba8888_from(data: &[u8], color_format: ColorFormat) -> Vec<u8> {
         }
         ColorFormat::I8 => {
             let color_map = &data[0..256 * 4];
-            let color_map = rgba8888_from(color_map, ColorFormat::ARGB8888);
+            let color_map = rgba8888_from(color_map, ColorFormat::ARGB8888, width, height, stride);
             let indexes = &data[256 * 4..];
 
             let rgba_iter = indexes.chunks_exact(1).map(|index| {

@@ -9,81 +9,34 @@ mod tests {
     use std::fs;
     use std::mem::size_of;
 
+    const DATA: &[u8] = include_bytes!("../res/img_0.png");
+
+    macro_rules! test_encode_decode {
+        ($data:expr, $cf:ty) => {{
+                let data = ($data).clone();
+                let mid = MiData::decode_from::<common::AutoDectect>(Vec::from(data));
+                let data = mid.encode_into::<$cf>();
+                fs::write("img_0.bin", data).expect("Unable to write file");
+
+                let data = fs::read("img_0.bin").expect("Unable to read file");
+                MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
+        }}
+    }
+
     #[test]
     fn it_works() {
-        let data = include_bytes!("../res/img_0.png");
-        let mid_before = MiData::decode_from::<common::PNG>(Vec::from(*data));
-        let data = mid_before.encode_into::<common::PNG>();
-        let mid_after = MiData::decode_from::<common::PNG>(data);
-
-        let image_buffer_before = match mid_before {
-            MiData::RGBA(img) => img,
-            MiData::GRAY(_) | MiData::PATH => panic!("Unexpected type"),
-        };
-
-        let image_buffer_after = match mid_after {
-            MiData::RGBA(img) => img,
-            MiData::GRAY(_) | MiData::PATH => panic!("Unexpected type"),
-        };
-
-        assert_eq!(image_buffer_before.width(), 285);
-        assert_eq!(image_buffer_before, image_buffer_after);
-
-        // use fs write to file
-        // use icu_lib::endecoder::common::PPM;
-        // fs::write("img_0.pbm", mid_after.encode_into::<PPM>()).expect("Unable to write file");
-
         use lvgl_v9::ImageHeader;
         assert_eq!(size_of::<ImageHeader>(), 12);
 
         ///////////////
+        test_encode_decode!(DATA, lvgl_v9::ColorFormatRGB565);
+        test_encode_decode!(DATA, lvgl_v9::ColorFormatRGB888);
+        test_encode_decode!(DATA, lvgl_v9::ColorFormatARGB8888);
+        test_encode_decode!(DATA, lvgl_v9::ColorFormatXRGB8888);
+
         let data = include_bytes!("../res/img_0.png");
-        let mid_after = MiData::decode_from::<common::AutoDectect>(Vec::from(*data));
-        let data = mid_after.encode_into::<lvgl_v9::ColorFormatI8>();
-        fs::write("img_0.bin", data).expect("Unable to write file");
-        let data = fs::read("img_0.bin").expect("Unable to read file");
-        let mid_after = MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
-        let data = mid_after.encode_into::<lvgl_v9::ColorFormatA1>();
-        fs::write("img_0.bin", data).expect("Unable to write file");
-        let data = fs::read("img_0.bin").expect("Unable to read file");
-        let mid_after = MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
-        let data = mid_after.encode_into::<lvgl_v9::ColorFormatA2>();
-        fs::write("img_0.bin", data).expect("Unable to write file");
-        let data = fs::read("img_0.bin").expect("Unable to read file");
-        let mid_after = MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
-        let data = mid_after.encode_into::<lvgl_v9::ColorFormatA4>();
-        fs::write("img_0.bin", data).expect("Unable to write file");
-        let data = fs::read("img_0.bin").expect("Unable to read file");
-        let mid_after = MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
-        let data = mid_after.encode_into::<lvgl_v9::ColorFormatA8>();
-        fs::write("img_0.bin", data).expect("Unable to write file");
-        let data = fs::read("img_0.bin").expect("Unable to read file");
-        let mid_after = MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
-        let data = mid_after.encode_into::<lvgl_v9::ColorFormatRGB565>();
-        fs::write("img_0.bin", data).expect("Unable to write file");
-        let data = fs::read("img_0.bin").expect("Unable to read file");
-        let mid_after = MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
-        let data = mid_after.encode_into::<lvgl_v9::ColorFormatRGB888>();
-        fs::write("img_0.bin", data).expect("Unable to write file");
-        let data = fs::read("img_0.bin").expect("Unable to read file");
-        let mid_after = MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
-        let data = mid_after.encode_into::<lvgl_v9::ColorFormatARGB8888>();
-        fs::write("img_0.bin", data).expect("Unable to write file");
-        let data = fs::read("img_0.bin").expect("Unable to read file");
-        let mid_after = MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
-        let data = mid_after.encode_into::<lvgl_v9::ColorFormatXRGB8888>();
-        fs::write("img_0.bin", data).expect("Unable to write file");
-        let data = fs::read("img_0.bin").expect("Unable to read file");
-        let mid_after = MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
-        let data = mid_after.encode_into::<lvgl_v9::ColorFormatL8>();
-
-        fs::write("img_0.bin", data).expect("Unable to write file");
-        let data = fs::read("img_0.bin").expect("Unable to read file");
-        let mid_after = MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
-
-
-        let data = mid_after.encode_into::<common::PNG>();
-
+        let mid = MiData::decode_from::<common::PNG>(Vec::from(*data));
+        let data = mid.encode_into::<common::PNG>();
         fs::write("img_0_after.png", data).expect("Unable to write file");
     }
 }

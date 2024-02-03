@@ -197,8 +197,7 @@ impl ImageDescriptor {
         let data = data[header_size..].to_vec();
         let data_size = data.len() as u32;
 
-        let mut idea_data_size =
-            header.stride as u32 * header.h as u32 * header.cf.get_size() as u32;
+        let mut idea_data_size = header.stride as u32 * header.h as u32;
         if [
             ColorFormat::I1,
             ColorFormat::I2,
@@ -253,13 +252,20 @@ impl ColorFormat {
 
 pub(crate) fn common_decode_function(data: Vec<u8>, color_format: ColorFormat) -> MiData {
     let img_desc = ImageDescriptor::decode(data);
+    let header = &img_desc.header;
 
     assert_eq!(img_desc.header.cf, color_format, "Color format mismatch");
 
     let img_buffer = RgbaImage::from_vec(
         img_desc.header.h as u32,
         img_desc.header.w as u32,
-        rgba8888_from(img_desc.data.clone().as_mut(), color_format),
+        rgba8888_from(
+            img_desc.data.clone().as_mut(),
+            color_format,
+            header.w as u32,
+            header.h as u32,
+            header.stride as u32,
+        ),
     )
     .unwrap();
 
@@ -269,8 +275,15 @@ pub(crate) fn common_decode_function(data: Vec<u8>, color_format: ColorFormat) -
 pub(crate) fn common_encode_function(data: &MiData, color_format: ColorFormat) -> Vec<u8> {
     match data {
         MiData::RGBA(img) => {
+            let stride = color_format.get_stride_size(img.width(), 4);
             let mut img_data = img.clone();
-            let img_data = rgba8888_to(img_data.as_mut(), color_format);
+            let img_data = rgba8888_to(
+                img_data.as_mut(),
+                color_format,
+                img.width(),
+                img.height(),
+                stride,
+            );
 
             let mut buf = Cursor::new(Vec::new());
             buf.write_all(
@@ -280,7 +293,7 @@ pub(crate) fn common_encode_function(data: &MiData, color_format: ColorFormat) -
                         Flags::NONE,
                         img.width() as u16,
                         img.height() as u16,
-                        color_format.get_stride_size(img.width(), 4) as u16,
+                        stride as u16,
                     ),
                     img_data,
                 )
