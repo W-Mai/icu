@@ -36,6 +36,7 @@ mod tests {
         test_encode_decode!(DATA, lvgl_v9::ColorFormatXRGB8888);
         test_encode_decode!(DATA, lvgl_v9::ColorFormatA8);
         test_encode_decode!(DATA, lvgl_v9::ColorFormatL8);
+        test_encode_decode!(DATA, lvgl_v9::ColorFormatI8);
 
         let data = fs::read("img_0.bin").expect("Unable to read file");
         let mid = MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);

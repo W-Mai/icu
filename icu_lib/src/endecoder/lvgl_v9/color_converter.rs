@@ -140,9 +140,24 @@ pub fn rgba8888_to(
         ColorFormat::I8 => {
             let nq = color_quant::NeuQuant::new(30, 256, data);
             let color_map = nq.color_map_rgba();
-            let mut color_map =
-                rgba8888_to(&color_map, ColorFormat::ARGB8888, width, height, stride);
-            let indexes: Vec<u8> = data.chunks(4).map(|pix| nq.index_of(pix) as u8).collect();
+            let mut color_map = rgba8888_to(
+                &color_map,
+                ColorFormat::ARGB8888,
+                256,
+                1,
+                ColorFormat::ARGB8888.get_stride_size(256, 1),
+            );
+            let indexes: Vec<u8> = data
+                .chunks_exact(width_bytes)
+                .flat_map(|row| {
+                    let mut row = row
+                        .chunks_exact(color_bytes)
+                        .map(|pix| nq.index_of(pix) as u8)
+                        .collect::<Vec<u8>>();
+                    row.resize(stride_bytes, 0);
+                    row
+                })
+                .collect();
 
             color_map.extend(indexes);
             color_map
