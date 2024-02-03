@@ -85,27 +85,36 @@ pub fn rgba8888_to(
                 row
             });
 
-            let alpha_iter = data.chunks_exact(4).map(|chunk| chunk[3]);
+            let alpha_iter = data.chunks_exact(color_bytes).map(|chunk| chunk[3]);
 
-            let mut tmp = argb_iter.flatten().collect::<Vec<u8>>();
-            tmp.extend(alpha_iter);
-            tmp
+            let mut argb = argb_iter.flatten().collect::<Vec<u8>>();
+            argb.extend(alpha_iter);
+            argb
         }
         ColorFormat::A1 | ColorFormat::A2 | ColorFormat::A4 | ColorFormat::A8 => {
             let bpp = color_format.get_bpp();
 
-            let alpha_iter = data.chunks_exact(4).map(|chunk| chunk[3]);
+            let mut alpha_iter = data.chunks_exact(color_bytes).map(|chunk| chunk[3]);
 
-            let mut tmp = Vec::new();
-            for (i, alpha) in alpha_iter.enumerate() {
-                let i = i as u16;
-                if i % (8 / bpp) == 0 {
-                    tmp.push(0);
+            let mut alphas = vec![0; stride_bytes * height as usize];
+            alphas.chunks_exact_mut(stride_bytes).for_each(|row| {
+                let mut iter = row.iter_mut();
+                let mut byte = iter.next().unwrap();
+
+                for i in 0..width as u16 {
+                    let alpha = alpha_iter.next().unwrap();
+                    if i % (8 / bpp) == 0 {
+                        if let Some(next_byte) = iter.next() {
+                            byte = next_byte;
+                        } else {
+                            break;
+                        }
+                    }
+                    *byte |= (alpha >> (8 - bpp)) << (i % (8 / bpp) * bpp);
                 }
-                let byte = tmp.last_mut().unwrap();
-                *byte |= (alpha >> (8 - bpp)) << (i % (8 / bpp) * bpp);
-            }
-            tmp
+            });
+
+            alphas
         }
         ColorFormat::L8 => {
             // (R+R+R+B+G+G+G+G) >> 3
