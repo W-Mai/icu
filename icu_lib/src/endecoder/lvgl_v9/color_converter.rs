@@ -274,11 +274,16 @@ pub fn rgba8888_from(
             alpha_iter.collect()
         }
         ColorFormat::L8 => {
-            let argb_iter = data.chunks_exact(1).map(|chunk| {
-                let l = chunk[0];
-                vec![l, l, l, 0xFF]
+            let argb_iter = data.chunks_exact(stride_bytes).flat_map(|row| {
+                row.chunks_exact(width_bytes)
+                    .next()
+                    .unwrap()
+                    .chunks_exact(1)
+                    .map(|chunk| {
+                        let l = chunk[0];
+                        vec![l, l, l, 0xFF]
+                    })
             });
-
             argb_iter.flatten().collect()
         }
         ColorFormat::I8 => {
