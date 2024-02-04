@@ -286,18 +286,42 @@ pub fn rgba8888_from(
             });
             argb_iter.flatten().collect()
         }
-        ColorFormat::I8 => {
-            let color_map = &data[0..256 * 4];
-            let color_map = rgba8888_from(color_map, ColorFormat::ARGB8888, width, height, stride);
-            let indexes = &data[256 * 4..];
+        ColorFormat::I1 | ColorFormat::I2 | ColorFormat::I4 | ColorFormat::I8 => {
+            let bpp = color_format.get_bpp() as u8;
+            let color_map_size = 1 << bpp;
+            let color_map_size_bytes = color_map_size * ColorFormat::ARGB8888.get_size() as usize;
+            let color_map = data[0..color_map_size_bytes].to_vec();
+            let color_map = rgba8888_from(
+                &color_map,
+                ColorFormat::ARGB8888,
+                color_map_size as u32,
+                1,
+                ColorFormat::ARGB8888.get_stride_size(color_map_size as u32, 1),
+            );
 
-            let rgba_iter = indexes.chunks_exact(1).map(|index| {
-                let index = index[0] as usize;
-                let color = &color_map[index * 4..index * 4 + 4];
-                color.to_vec()
-            });
+            let alpha_iter = data[color_map_size_bytes..]
+                .chunks_exact(stride_bytes)
+                .flat_map(|row| {
+                    row.iter()
+                        .flat_map(|alpha| {
+                            let indexes = (0u8..8u8 / bpp)
+                                .map(move |i| {
+                                    let alpha = *alpha;
+                                    (alpha >> ((8 / bpp - 1 - i) * bpp)) & ((1u16 << bpp) - 1) as u8
+                                })
+                                .collect::<Vec<u8>>();
 
-            rgba_iter.flatten().collect()
+                            indexes
+                                .iter()
+                                .copied()
+                                .flat_map(|index| {
+                                    color_map[index as usize * 4..(index as usize + 1) * 4].to_vec()
+                                })
+                                .collect::<Vec<u8>>()
+                        })
+                        .take((width * ColorFormat::ARGB8888.get_size() as u32) as usize)
+                });
+            alpha_iter.collect()
         }
         _ => {
             unimplemented!()
