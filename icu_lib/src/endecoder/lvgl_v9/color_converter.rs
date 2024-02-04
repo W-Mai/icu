@@ -188,7 +188,7 @@ pub fn rgba8888_from(
 ) -> Vec<u8> {
     let stride_bytes = stride as usize;
     let color_bytes = color_format.get_size() as usize;
-    let width_bytes = width as usize * color_bytes;
+    let width_bytes = color_format.get_stride_size(width, 1) as usize;
 
     match color_format {
         ColorFormat::RGB888 => {
@@ -251,10 +251,10 @@ pub fn rgba8888_from(
                         vec![r << 3, g << 2, b << 3]
                     })
             });
-            let alpha_iter = data[(stride_bytes * height as usize)..].iter();
+            let alpha_iter = data[(stride_bytes * height as usize)..].iter().copied();
             let rgba_iter = argb_iter.zip(alpha_iter).map(|(rgb, alpha)| {
                 let mut pixel = rgb;
-                pixel.push(*alpha);
+                pixel.push(alpha);
                 pixel
             });
             rgba_iter.flatten().collect()
@@ -262,15 +262,16 @@ pub fn rgba8888_from(
         ColorFormat::A1 | ColorFormat::A2 | ColorFormat::A4 | ColorFormat::A8 => {
             let bpp = color_format.get_bpp() as u8;
 
-            let alpha_iter = data.chunks_exact(1).map(|chunk| chunk[0]);
-
-            let alpha_iter = alpha_iter.flat_map(|alpha| {
-                (0u8..8u8 / bpp).map(move |i| (alpha >> ((8 / bpp - 1 - i) * bpp)) << (8 - bpp))
+            let alpha_iter = data.chunks_exact(stride_bytes).flat_map(|row| {
+                row.iter()
+                    .flat_map(|alpha| {
+                        (0u8..8u8 / bpp).flat_map(move |i| {
+                            [0, 0, 0, (alpha >> ((8 / bpp - 1 - i) * bpp)) << (8 - bpp)]
+                        })
+                    })
+                    .take((width * ColorFormat::ARGB8888.get_size() as u32) as usize)
             });
-
-            let rgba_iter = alpha_iter.map(|alpha| vec![0, 0, 0, alpha]);
-
-            rgba_iter.flatten().collect()
+            alpha_iter.collect()
         }
         ColorFormat::L8 => {
             let argb_iter = data.chunks_exact(1).map(|chunk| {
