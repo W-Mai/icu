@@ -193,8 +193,7 @@ pub fn rgba8888_from(
     match color_format {
         ColorFormat::RGB888 => {
             let argb_iter = data.chunks_exact(stride_bytes).flat_map(|row| {
-                let row = row
-                    .chunks_exact(width_bytes)
+                row.chunks_exact(width_bytes)
                     .next()
                     .unwrap()
                     .chunks_exact(color_bytes)
@@ -203,19 +202,23 @@ pub fn rgba8888_from(
                         pixel.reverse();
                         pixel.push(0xFF);
                         pixel
-                    });
-                row
+                    })
             });
             argb_iter.flatten().collect()
         }
         ColorFormat::ARGB8888 | ColorFormat::XRGB8888 => {
-            let argb_iter = data.chunks_exact(4).map(|chunk| {
-                let mut pixel = chunk.to_vec();
-                pixel.reverse();
-                pixel.rotate_left(1);
-                pixel
+            let argb_iter = data.chunks_exact(stride_bytes).flat_map(|row| {
+                row.chunks_exact(width_bytes)
+                    .next()
+                    .unwrap()
+                    .chunks_exact(color_bytes)
+                    .map(|chunk| {
+                        let mut pixel = chunk.to_vec();
+                        pixel.rotate_right(1);
+                        pixel.reverse();
+                        pixel
+                    })
             });
-
             argb_iter.flatten().collect()
         }
         ColorFormat::RGB565 => {
