@@ -186,16 +186,26 @@ pub fn rgba8888_from(
     height: u32,
     stride: u32,
 ) -> Vec<u8> {
+    let stride_bytes = stride as usize;
+    let color_bytes = color_format.get_size() as usize;
+    let width_bytes = width as usize * color_bytes;
+
     match color_format {
         ColorFormat::RGB888 => {
-            let argb_iter = data.chunks_exact(3).map(|chunk| {
-                let mut pixel = chunk.to_vec();
-                pixel.reverse();
-                pixel.rotate_left(1);
-                pixel.push(0);
-                pixel
+            let argb_iter = data.chunks_exact(stride_bytes).flat_map(|row| {
+                let row = row
+                    .chunks_exact(width_bytes)
+                    .next()
+                    .unwrap()
+                    .chunks_exact(color_bytes)
+                    .map(|chunk| {
+                        let mut pixel = chunk.to_vec();
+                        pixel.reverse();
+                        pixel.push(0xFF);
+                        pixel
+                    });
+                row
             });
-
             argb_iter.flatten().collect()
         }
         ColorFormat::ARGB8888 | ColorFormat::XRGB8888 => {
