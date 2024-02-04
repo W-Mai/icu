@@ -155,7 +155,7 @@ pub fn rgba8888_to(
             let mut indexes = vec![0; stride_bytes * height as usize];
             indexes.chunks_exact_mut(stride_bytes).for_each(|row| {
                 let mut iter = row.iter_mut();
-                let mut byte = iter.next().unwrap();
+                let mut byte = &mut 0u8;
 
                 for i in 0..width as u16 {
                     let alpha = indexes_iter.next().unwrap();
@@ -166,10 +166,9 @@ pub fn rgba8888_to(
                             break;
                         }
                     }
-                    *byte |= (alpha) << (i % (8 / bpp) * bpp);
+                    *byte |= (alpha) << ((8 / bpp - 1 - i % (8 / bpp)) * bpp);
                 }
             });
-
             color_map.extend(indexes);
             color_map
         }
