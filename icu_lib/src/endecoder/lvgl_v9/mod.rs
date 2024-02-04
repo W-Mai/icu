@@ -231,7 +231,7 @@ impl ColorFormat {
             ColorFormat::I8 => 8,
             ColorFormat::A8 => 8,
             ColorFormat::RGB565 => 16,
-            ColorFormat::RGB565A8 => 24,
+            ColorFormat::RGB565A8 => 16,
             ColorFormat::RGB888 => 24,
             ColorFormat::ARGB8888 => 32,
             ColorFormat::XRGB8888 => 32,

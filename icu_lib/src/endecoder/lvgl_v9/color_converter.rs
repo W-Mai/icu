@@ -238,20 +238,23 @@ pub fn rgba8888_from(
             argb_iter.flatten().collect()
         }
         ColorFormat::RGB565A8 => {
-            let argb_iter = data.chunks_exact(2).map(|chunk| {
-                let pixel = chunk.to_vec();
-                let rgb = u16::from_le_bytes([pixel[0], pixel[1]]);
-                let r = ((rgb >> 11) & 0x1F) as u8;
-                let g = ((rgb >> 5) & 0x3F) as u8;
-                let b = (rgb & 0x1F) as u8;
-                vec![r << 3, g << 2, b << 3]
+            let argb_iter = data.chunks_exact(stride_bytes).flat_map(|row| {
+                row.chunks_exact(width_bytes)
+                    .next()
+                    .unwrap()
+                    .chunks_exact(2)
+                    .map(|chunk| {
+                        let rgb = u16::from_le_bytes([chunk[0], chunk[1]]);
+                        let r = ((rgb >> 11) & 0x1F) as u8;
+                        let g = ((rgb >> 5) & 0x3F) as u8;
+                        let b = (rgb & 0x1F) as u8;
+                        vec![r << 3, g << 2, b << 3]
+                    })
             });
-
-            let alpha_iter = data.chunks_exact(1).map(|chunk| chunk[0]);
-
+            let alpha_iter = data[(stride_bytes * height as usize)..].iter();
             let rgba_iter = argb_iter.zip(alpha_iter).map(|(rgb, alpha)| {
                 let mut pixel = rgb;
-                pixel.push(alpha);
+                pixel.push(*alpha);
                 pixel
             });
             rgba_iter.flatten().collect()
