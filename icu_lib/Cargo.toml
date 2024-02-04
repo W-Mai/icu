@@ -7,6 +7,16 @@ homepage = "https://github.com/W-Mai/icu"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+bench = false
+
 [dependencies]
 image = "0.24.8"
 color_quant = "1.1.0"
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "bench_01"
+harness = false
