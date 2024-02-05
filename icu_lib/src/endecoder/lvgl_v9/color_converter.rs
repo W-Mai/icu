@@ -70,7 +70,7 @@ pub fn rgba8888_to(
             })
             .chain(data.chunks_exact(color_bytes).map(|chunk| chunk[3]))
             .collect(),
-        ColorFormat::A1 | ColorFormat::A2 | ColorFormat::A4 | ColorFormat::A8 => {
+        ColorFormat::A1 | ColorFormat::A2 | ColorFormat::A4 => {
             let bpp = color_format.get_bpp();
 
             let mut alpha_iter = data.chunks_exact(color_bytes).map(|chunk| chunk[3]);
@@ -95,6 +95,17 @@ pub fn rgba8888_to(
 
             alphas
         }
+        ColorFormat::A8 => {
+            let argb_iter = data.chunks_exact(width_bytes).flat_map(|row| {
+                row.iter()
+                    .copied()
+                    .skip(3)
+                    .step_by(color_bytes)
+                    .chain(iter::repeat(0))
+                    .take(stride_bytes)
+            });
+            argb_iter.collect()
+        }
         ColorFormat::L8 => {
             // (R+R+R+B+G+G+G+G) >> 3
             let argb_iter = data.chunks_exact(width_bytes).flat_map(|row| {
@@ -115,9 +126,8 @@ pub fn rgba8888_to(
             let bpp = color_format.get_bpp();
             let color_map_size = 1 << bpp;
             let nq = color_quant::NeuQuant::new(30, color_map_size, data);
-            let color_map = nq.color_map_rgba();
-            let mut color_map = rgba8888_to(
-                &color_map,
+            let color_map = rgba8888_to(
+                &nq.color_map_rgba(),
                 ColorFormat::ARGB8888,
                 color_map_size as u32,
                 1,
@@ -126,25 +136,32 @@ pub fn rgba8888_to(
 
             let mut indexes_iter = data.chunks(color_bytes).map(|pix| nq.index_of(pix) as u8);
 
-            let mut indexes = vec![0; stride_bytes * height as usize];
-            indexes.chunks_exact_mut(stride_bytes).for_each(|row| {
-                let mut iter = row.iter_mut();
-                let mut byte = &mut 0u8;
+            if color_format == ColorFormat::I8 {
+                let indexes = indexes_iter.collect::<Vec<u8>>();
+                let argb_iter = indexes
+                    .chunks_exact(width as usize)
+                    .flat_map(|row| row.iter().chain(iter::repeat(&0)).take(stride_bytes));
+                return color_map.iter().chain(argb_iter).copied().collect();
+            } else {
+                let mut indexes = vec![0; stride_bytes * height as usize];
+                indexes.chunks_exact_mut(stride_bytes).for_each(|row| {
+                    let mut iter = row.iter_mut();
+                    let mut byte = &mut 0u8;
 
-                for i in 0..width as u16 {
-                    let alpha = indexes_iter.next().unwrap();
-                    if i % (8 / bpp) == 0 {
-                        if let Some(next_byte) = iter.next() {
-                            byte = next_byte;
-                        } else {
-                            break;
+                    for i in 0..width as u16 {
+                        let alpha = indexes_iter.next().unwrap();
+                        if i % (8 / bpp) == 0 {
+                            if let Some(next_byte) = iter.next() {
+                                byte = next_byte;
+                            } else {
+                                break;
+                            }
                         }
+                        *byte |= (alpha) << ((8 / bpp - 1 - i % (8 / bpp)) * bpp);
                     }
-                    *byte |= (alpha) << ((8 / bpp - 1 - i % (8 / bpp)) * bpp);
-                }
-            });
-            color_map.extend(indexes);
-            color_map
+                });
+                color_map.iter().chain(indexes.iter()).copied().collect()
+            }
         }
         _ => {
             unimplemented!()
@@ -218,19 +235,29 @@ pub fn rgba8888_from(
                     })
             })
             .collect(),
-        ColorFormat::A1 | ColorFormat::A2 | ColorFormat::A4 | ColorFormat::A8 => {
+        ColorFormat::A1 | ColorFormat::A2 | ColorFormat::A4 => {
             let bpp = color_format.get_bpp() as u8;
 
             let alpha_iter = data.chunks_exact(stride_bytes).flat_map(|row| {
                 row.iter()
                     .flat_map(|alpha| {
                         (0u8..8u8 / bpp).flat_map(move |i| {
-                            [0, 0, 0, (alpha >> ((8 / bpp - 1 - i) * bpp)) << (8 - bpp)]
+                            iter::repeat(0).take(3).chain(iter::once(
+                                (alpha >> ((8 / bpp - 1 - i) * bpp)) << (8 - bpp),
+                            ))
                         })
                     })
                     .take((width * ColorFormat::ARGB8888.get_size() as u32) as usize)
             });
             alpha_iter.collect()
+        }
+        ColorFormat::A8 => {
+            let argb_iter = data.chunks_exact(stride_bytes).flat_map(|row| {
+                row.iter()
+                    .take(width_bytes)
+                    .flat_map(|alpha| iter::repeat(0).take(3).chain(iter::once(*alpha)))
+            });
+            argb_iter.collect()
         }
         ColorFormat::L8 => {
             let argb_iter = data.chunks_exact(stride_bytes).flat_map(|row| {
@@ -244,38 +271,45 @@ pub fn rgba8888_from(
             let bpp = color_format.get_bpp() as u8;
             let color_map_size = 1 << bpp;
             let color_map_size_bytes = color_map_size * ColorFormat::ARGB8888.get_size() as usize;
-            let color_map = data[0..color_map_size_bytes].to_vec();
             let color_map = rgba8888_from(
-                &color_map,
+                &data[0..color_map_size_bytes],
                 ColorFormat::ARGB8888,
                 color_map_size as u32,
                 1,
                 ColorFormat::ARGB8888.get_stride_size(color_map_size as u32, 1),
             );
 
-            let alpha_iter = data[color_map_size_bytes..]
-                .chunks_exact(stride_bytes)
-                .flat_map(|row| {
-                    row.iter()
-                        .flat_map(|alpha| {
-                            let indexes = (0u8..8u8 / bpp)
-                                .map(move |i| {
-                                    let alpha = *alpha;
-                                    (alpha >> ((8 / bpp - 1 - i) * bpp)) & ((1u16 << bpp) - 1) as u8
-                                })
-                                .collect::<Vec<u8>>();
-
-                            indexes
-                                .iter()
-                                .copied()
-                                .flat_map(|index| {
-                                    color_map[index as usize * 4..(index as usize + 1) * 4].to_vec()
-                                })
-                                .collect::<Vec<u8>>()
-                        })
-                        .take((width * ColorFormat::ARGB8888.get_size() as u32) as usize)
-                });
-            alpha_iter.collect()
+            if color_format == ColorFormat::I8 {
+                data[color_map_size_bytes..]
+                    .chunks_exact(stride_bytes)
+                    .flat_map(|row| {
+                        row.iter()
+                            .flat_map(|&index| {
+                                color_map.iter().skip(index as usize * 4).take(4).copied()
+                            })
+                            .take((width * ColorFormat::ARGB8888.get_size() as u32) as usize)
+                    })
+                    .collect()
+            } else {
+                data[color_map_size_bytes..]
+                    .chunks_exact(stride_bytes)
+                    .flat_map(|row| {
+                        row.iter()
+                            .flat_map(|alpha| {
+                                (0u8..8u8 / bpp)
+                                    .map(move |i| {
+                                        let alpha = *alpha;
+                                        (alpha >> ((8 / bpp - 1 - i) * bpp))
+                                            & ((1u16 << bpp) - 1) as u8
+                                    })
+                                    .flat_map(|index| {
+                                        color_map.iter().skip(index as usize * 4).take(4).copied()
+                                    })
+                            })
+                            .take((width * ColorFormat::ARGB8888.get_size() as u32) as usize)
+                    })
+                    .collect()
+            }
         }
         _ => {
             unimplemented!()
