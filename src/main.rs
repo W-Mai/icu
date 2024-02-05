@@ -1,14 +1,19 @@
+mod arguments;
+
+use crate::arguments::parse_args;
+
 fn main() {
-    println!("Hello, world!");
+    let args = parse_args();
+    println!("{:?}", args);
 }
 
 #[cfg(test)]
 mod tests {
     use icu_lib::endecoder::{common, lvgl_v9};
     use icu_lib::midata::MiData;
+    use icu_lib::EncoderParams;
     use std::fs;
     use std::mem::size_of;
-    use icu_lib::EncoderParams;
 
     const DATA: &[u8] = include_bytes!("../res/img_0.png");
 
@@ -17,8 +22,8 @@ mod tests {
             let data = ($data).clone();
             let mid = MiData::decode_from::<common::AutoDectect>(Vec::from(data));
             let data = mid.encode_into::<$cf>(EncoderParams {
-                stride_align : 256,
-                dither : false,
+                stride_align: 256,
+                dither: false,
             });
             fs::write("img_0.bin", data).expect("Unable to write file");
 
