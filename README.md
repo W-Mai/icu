@@ -15,6 +15,44 @@ written in RUST.
 
 # How to use
 
+```shell
+icu -h
+`Show` or `Convert` image files to any other image format including LVGL image formats.
+
+Usage: icu [OPTIONS] <COMMAND>
+
+Commands:
+  show     Show an image file
+  convert  Convert image files to any other image format including LVGL image formats
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+  -v, --verbose...  verbose mode
+  -h, --help        Print help
+  -V, --version     Print version
+```
+
+# Example
+
+## Show an common image format
+```shell
+icu show res/img_0.png
+```
+You will get a window with the image.
+
+<img src="./snapshots/snapshot_1.png" width="800">
+
+## Show an LVGL image format
+
+```shell
+icu show res/img_0.bin -f lvgl-v9
+```
+
+And you will get a window with the image like before.
+
+
+# How to use
+
 ```rust
 use icu_lib::endecoder::{common, lvgl_v9};
 use icu_lib::midata::MiData;

@@ -52,9 +52,9 @@ mod tests {
                 stride_align: 256,
                 dither: false,
             });
-            fs::write("img_0.bin", data).expect("Unable to write file");
+            fs::write("../res/img_0.bin", data).expect("Unable to write file");
 
-            let data = fs::read("img_0.bin").expect("Unable to read file");
+            let data = fs::read("../res/img_0.bin").expect("Unable to read file");
             MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
         }};
     }
@@ -79,7 +79,7 @@ mod tests {
         test_encode_decode!(DATA, lvgl_v9::ColorFormatI4);
         test_encode_decode!(DATA, lvgl_v9::ColorFormatI8);
 
-        let data = fs::read("img_0.bin").expect("Unable to read file");
+        let data = fs::read("../res/img_0.bin").expect("Unable to read file");
         let mid = MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
         let data = mid.encode_into::<common::PNG>(Default::default());
         fs::write("img_0_after.png", data).expect("Unable to write file");
