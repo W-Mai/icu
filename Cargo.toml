@@ -1,5 +1,5 @@
 [package]
-name = "icu"
+name = "icu_tool"
 version = "0.1.0"
 edition = "2021"
 authors = ["Benign X", "W-Mai"]
@@ -9,8 +9,12 @@ license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name = "icu"
+path = "src/main.rs"
+
 [dependencies]
-icu_lib = {path = "icu_lib"}
+icu_lib = { version = "0.1.0" }
 clap = { version = "4.4.18", features = ["derive", "suggestions"] }
 eframe = { version = "0.26.0", features = ["glow"] }
 egui_plot = "0.26.0"
