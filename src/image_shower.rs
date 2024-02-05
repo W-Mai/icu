@@ -1,12 +1,12 @@
 use eframe::egui;
 use eframe::egui::load::SizedTexture;
 use eframe::egui::{Color32, ColorImage};
+use egui_plot::{PlotImage, PlotPoint};
 use icu_lib::midata::MiData;
 
+
 pub fn show_image(image: MiData) {
-    let mut native_options = eframe::NativeOptions::default();
-    native_options.viewport.resizable = Some(false);
-    native_options.viewport.transparent = Some(true);
+    let native_options = eframe::NativeOptions::default();
 
     match image {
         MiData::RGBA(img_buffer) => {
@@ -21,9 +21,8 @@ pub fn show_image(image: MiData) {
                     .collect::<Vec<Color32>>(),
             );
 
-            // native_options.viewport.inner_size = Some(Vec2::new(width as f32 * 1.2, height as f32 * 1.2));
             eframe::run_native(
-                "My egui App",
+                "ICU Preview",
                 native_options,
                 Box::new(move |cc| Box::new(MyEguiApp::new(cc, width, height, image_data))),
             )
@@ -78,7 +77,12 @@ impl eframe::App for MyEguiApp {
                 ui.with_layout(
                     egui::Layout::centered_and_justified(egui::Direction::TopDown),
                     |ui| {
-                        ui.add(egui::Image::from_texture(texture));
+                        let plot = egui_plot::Plot::new("plot").data_aspect(1.0).show_grid([false, false]);
+
+                        plot.show(ui, |plot_ui| {
+                            plot_ui.image(PlotImage::new(texture.id, PlotPoint::new(0.0, 0.0), texture.size))
+
+                        });
                     },
                 );
             }
