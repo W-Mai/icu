@@ -15,7 +15,21 @@ written in RUST.
 - Supports LVGL binary format
 - Supports preview a wide range of image formats and LVGL binary format
 
-# How to build
+# How to install
+
+ICU is written in RUST, so you need to have the RUST environment installed on your system.
+
+```shell
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+After that, you can install ICU by running the following command:
+
+```shell
+cargo install icu_tool
+```
+
+# How to build yourself
 
 ```shell
 cargo build --release
@@ -60,58 +74,3 @@ icu show res/img_0.bin -f lvgl-v9
 
 And you will get a window with the image like before.
 
-# How to use
-
-```rust
-use icu_lib::endecoder::{common, lvgl_v9};
-use icu_lib::midata::MiData;
-use icu_lib::EncoderParams;
-use std::fs;
-
-fn main() {
-    const DATA: &[u8] = include_bytes!("../res/img_0.png");
-
-    // Decode the image data and automatically detect the format
-    let mid = MiData::decode_from::<common::AutoDectect>(Vec::from(DATA));
-
-    // Encode the image data to the LVGL binary format with ARGB8888 color format
-    let data = mid.encode_into::<lvgl_v9::ColorFormatARGB8888>(
-        EncoderParams {
-            stride_align: 256,
-            dither: false,
-        });
-
-    fs::write("img_0.bin", data).expect("Unable to write file");
-}
-```
-
-# Architecture
-
-```text
-       ╔═══════════════╗                       
-       ║               ║                       
-       ║               ║                       
-┌ ─ ─ ─ ─ ─ ─ ┐        ║                       
-  ┌ ─ ─ ─ ─ ┐          ║                       
-│  EnDecoder  │        ▼                       
-  └ ─ ─ ─ ─ ┘   ┌ ─ ─ ─ ─ ─ ─ ┐                
-│┌───────────┐│   ┌ ─ ─ ─ ─ ┐                  
- │    PNG    │  │   MidData   │                
-│└───────────┘│   └ ─ ─ ─ ─ ┘                  
- ┌───────────┐  │┌───────────┐│                
-││   JPEG    ││  │   ARGB    │                 
- └───────────┘  │└───────────┘│ ╔-------------╗
-│┌───────────┐│  ┌───────────┐  ║   ICU_LIB   ║
- │    SVG    │  ││   PATH    ││ ╚-------------╝
-│└───────────┘│  └───────────┘                 
- ┌───────────┐  │┌── ─── ─── ┐│                
-││ LVGL BIN  ││     CUSTOM   │                 
- └───────────┘  │└── ─── ─── ┘│                
-│┌── ─── ─── ┐│  ─ ─ ─ ─ ─ ─ ─                 
-    CUSTOM   │         ║                       
-│└── ─── ─── ┘│        ║                       
- ─ ─ ─ ─ ─ ─ ─         ║                       
-       ▲               ║                       
-       ║               ║                       
-       ╚═══════════════╝                       
-```
