@@ -1,4 +1,5 @@
 # ICU
+
 Image Converter Ultra
 
 # Introduction
@@ -12,6 +13,13 @@ written in RUST.
 
 - Supports a wide range of image formats
 - Supports LVGL binary format
+- Supports preview a wide range of image formats and LVGL binary format
+
+# How to build
+
+```shell
+cargo build --release
+```
 
 # How to use
 
@@ -35,9 +43,11 @@ Options:
 # Example
 
 ## Show an common image format
+
 ```shell
 icu show res/img_0.png
 ```
+
 You will get a window with the image.
 
 <img src="./snapshots/snapshot_1.png" width="800">
@@ -49,7 +59,6 @@ icu show res/img_0.bin -f lvgl-v9
 ```
 
 And you will get a window with the image like before.
-
 
 # How to use
 
