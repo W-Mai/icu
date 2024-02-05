@@ -2,10 +2,11 @@ use crate::endecoder::lvgl_v9::color_converter::rgba8888_from;
 use crate::endecoder::lvgl_v9::{ColorFormatAutoDectect, ImageDescriptor};
 use crate::endecoder::EnDecoder;
 use crate::midata::MiData;
+use crate::EncoderParams;
 use image::RgbaImage;
 
 impl EnDecoder for ColorFormatAutoDectect {
-    fn encode(_data: &MiData) -> Vec<u8> {
+    fn encode(_data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         unimplemented!()
     }
 

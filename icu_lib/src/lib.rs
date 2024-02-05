@@ -1,6 +1,12 @@
 pub mod endecoder;
 pub mod midata;
 
+#[derive(Default)]
+pub struct EncoderParams {
+    pub stride_align: u32,
+    pub dither: bool,
+}
+
 pub fn add(left: usize, right: usize) -> usize {
     left + right
 }

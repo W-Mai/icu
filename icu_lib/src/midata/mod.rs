@@ -1,4 +1,5 @@
 use crate::endecoder::EnDecoder;
+use crate::EncoderParams;
 use image::{GrayAlphaImage, RgbaImage};
 
 pub enum MiData {
@@ -12,7 +13,7 @@ impl MiData {
         ED::decode(data)
     }
 
-    pub fn encode_into<ED: EnDecoder>(&self) -> Vec<u8> {
-        ED::encode(self)
+    pub fn encode_into<ED: EnDecoder>(&self, encoder_params: EncoderParams) -> Vec<u8> {
+        ED::encode(self, encoder_params)
     }
 }

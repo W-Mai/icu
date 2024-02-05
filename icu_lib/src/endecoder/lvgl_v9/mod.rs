@@ -1,5 +1,6 @@
 use std::io::{Cursor, Read, Write};
 
+use crate::EncoderParams;
 use image::RgbaImage;
 
 use crate::endecoder::lvgl_v9::color_converter::{rgba8888_from, rgba8888_to};
@@ -273,10 +274,14 @@ pub(crate) fn common_decode_function(data: Vec<u8>, color_format: ColorFormat) -
     MiData::RGBA(img_buffer)
 }
 
-pub(crate) fn common_encode_function(data: &MiData, color_format: ColorFormat) -> Vec<u8> {
+pub(crate) fn common_encode_function(
+    data: &MiData,
+    color_format: ColorFormat,
+    encoder_params: EncoderParams,
+) -> Vec<u8> {
     match data {
         MiData::RGBA(img) => {
-            let stride = color_format.get_stride_size(img.width(), 4);
+            let stride = color_format.get_stride_size(img.width(), encoder_params.stride_align);
             let mut img_data = img.clone();
             let img_data = rgba8888_to(
                 img_data.as_mut(),

@@ -1,3 +1,4 @@
+use crate::EncoderParams;
 use std::io::Cursor;
 
 use crate::endecoder::EnDecoder;
@@ -30,7 +31,7 @@ pub struct PAM {}
 pub struct TGA {}
 
 impl EnDecoder for AutoDectect {
-    fn encode(_data: &MiData) -> Vec<u8> {
+    fn encode(_data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         unimplemented!()
     }
 
@@ -40,7 +41,7 @@ impl EnDecoder for AutoDectect {
 }
 
 impl EnDecoder for PNG {
-    fn encode(data: &MiData) -> Vec<u8> {
+    fn encode(data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
                 let mut buf = Cursor::new(Vec::new());
@@ -61,7 +62,7 @@ impl EnDecoder for PNG {
 }
 
 impl EnDecoder for JPEG {
-    fn encode(data: &MiData) -> Vec<u8> {
+    fn encode(data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
                 let mut buf = Cursor::new(Vec::new());
@@ -82,7 +83,7 @@ impl EnDecoder for JPEG {
 }
 
 impl EnDecoder for BMP {
-    fn encode(data: &MiData) -> Vec<u8> {
+    fn encode(data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
                 let mut buf = Cursor::new(Vec::new());
@@ -103,7 +104,7 @@ impl EnDecoder for BMP {
 }
 
 impl EnDecoder for GIF {
-    fn encode(data: &MiData) -> Vec<u8> {
+    fn encode(data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
                 let mut buf = Cursor::new(Vec::new());
@@ -124,7 +125,7 @@ impl EnDecoder for GIF {
 }
 
 impl EnDecoder for TIFF {
-    fn encode(data: &MiData) -> Vec<u8> {
+    fn encode(data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
                 let mut buf = Cursor::new(Vec::new());
@@ -145,7 +146,7 @@ impl EnDecoder for TIFF {
 }
 
 impl EnDecoder for WEBP {
-    fn encode(data: &MiData) -> Vec<u8> {
+    fn encode(data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
                 let mut buf = Cursor::new(Vec::new());
@@ -166,7 +167,7 @@ impl EnDecoder for WEBP {
 }
 
 impl EnDecoder for ICO {
-    fn encode(data: &MiData) -> Vec<u8> {
+    fn encode(data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
                 let mut buf = Cursor::new(Vec::new());
@@ -187,7 +188,7 @@ impl EnDecoder for ICO {
 }
 
 impl EnDecoder for PBM {
-    fn encode(data: &MiData) -> Vec<u8> {
+    fn encode(data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::GRAY(img) => {
                 let mut buf = Cursor::new(Vec::new());
@@ -208,7 +209,7 @@ impl EnDecoder for PBM {
 }
 
 impl EnDecoder for PGM {
-    fn encode(data: &MiData) -> Vec<u8> {
+    fn encode(data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::GRAY(img) => {
                 let mut buf = Cursor::new(Vec::new());
@@ -229,7 +230,7 @@ impl EnDecoder for PGM {
 }
 
 impl EnDecoder for PPM {
-    fn encode(data: &MiData) -> Vec<u8> {
+    fn encode(data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
                 let mut buf = Cursor::new(Vec::new());
@@ -250,7 +251,7 @@ impl EnDecoder for PPM {
 }
 
 impl EnDecoder for PAM {
-    fn encode(data: &MiData) -> Vec<u8> {
+    fn encode(data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
                 let mut buf = Cursor::new(Vec::new());
@@ -271,7 +272,7 @@ impl EnDecoder for PAM {
 }
 
 impl EnDecoder for TGA {
-    fn encode(data: &MiData) -> Vec<u8> {
+    fn encode(data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
                 let mut buf = Cursor::new(Vec::new());

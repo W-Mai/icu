@@ -8,6 +8,7 @@ mod tests {
     use icu_lib::midata::MiData;
     use std::fs;
     use std::mem::size_of;
+    use icu_lib::EncoderParams;
 
     const DATA: &[u8] = include_bytes!("../res/img_0.png");
 
@@ -15,7 +16,10 @@ mod tests {
         ($data:expr, $cf:ty) => {{
             let data = ($data).clone();
             let mid = MiData::decode_from::<common::AutoDectect>(Vec::from(data));
-            let data = mid.encode_into::<$cf>();
+            let data = mid.encode_into::<$cf>(EncoderParams {
+                stride_align : 256,
+                dither : false,
+            });
             fs::write("img_0.bin", data).expect("Unable to write file");
 
             let data = fs::read("img_0.bin").expect("Unable to read file");
@@ -45,7 +49,7 @@ mod tests {
 
         let data = fs::read("img_0.bin").expect("Unable to read file");
         let mid = MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
-        let data = mid.encode_into::<common::PNG>();
+        let data = mid.encode_into::<common::PNG>(Default::default());
         fs::write("img_0_after.png", data).expect("Unable to write file");
     }
 }

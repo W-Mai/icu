@@ -3,10 +3,11 @@ use crate::endecoder::lvgl_v9::{
 };
 use crate::endecoder::EnDecoder;
 use crate::midata::MiData;
+use crate::EncoderParams;
 
 impl EnDecoder for ColorFormatA8 {
-    fn encode(data: &MiData) -> Vec<u8> {
-        common_encode_function(data, ColorFormat::A8)
+    fn encode(data: &MiData, encoder_params: EncoderParams) -> Vec<u8> {
+        common_encode_function(data, ColorFormat::A8, encoder_params)
     }
 
     fn decode(data: Vec<u8>) -> MiData {
