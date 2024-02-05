@@ -1,10 +1,37 @@
 mod arguments;
+mod image_shower;
 
-use crate::arguments::parse_args;
+use crate::arguments::{parse_args, ImageFormatCategory, SubCommands};
+use crate::image_shower::show_image;
+use icu_lib::endecoder::{common, lvgl_v9};
+use icu_lib::midata::MiData;
+use std::fs;
 
 fn main() {
     let args = parse_args();
-    println!("{:?}", args);
+
+    let commands = args.commands;
+
+    match &commands {
+        SubCommands::Show { file, input_format } => {
+            // check file exists
+            if fs::metadata(file).is_err() {
+                println!("File not found: {}", file);
+                return;
+            }
+
+            let data = fs::read(file).expect("Unable to read file");
+            let mid = match input_format {
+                ImageFormatCategory::Common => MiData::decode_from::<common::AutoDectect>(data),
+                ImageFormatCategory::LVGL_V9 => {
+                    MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data)
+                }
+            };
+
+            show_image(mid);
+        }
+        SubCommands::Convert { .. } => {}
+    }
 }
 
 #[cfg(test)]

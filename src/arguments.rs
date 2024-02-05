@@ -56,7 +56,7 @@ pub(crate) enum ImageFormats {
 )]
 pub struct Args {
     #[command(subcommand)]
-    commands_show: CommandsShow,
+    pub(crate) commands: SubCommands,
 
     /// verbose mode
     #[arg(short = 'v', long, action = clap::ArgAction::Count)]
@@ -64,7 +64,7 @@ pub struct Args {
 }
 
 #[derive(Subcommand, Debug)]
-pub(crate) enum CommandsShow {
+pub(crate) enum SubCommands {
     /// Show an image file
     Show {
         /// an image file to show
