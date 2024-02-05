@@ -98,22 +98,17 @@ pub fn rgba8888_to(
         ColorFormat::L8 => {
             // (R+R+R+B+G+G+G+G) >> 3
             let argb_iter = data.chunks_exact(width_bytes).flat_map(|row| {
-                let mut row = row
-                    .chunks_exact(4)
+                row.chunks_exact(color_bytes)
                     .map(|chunk| {
                         let r = chunk[0] as u16;
                         let g = chunk[1] as u16;
                         let b = chunk[2] as u16;
                         let a = chunk[3] as u16;
-                        let l = ((r + r + r + b + g + g + g + g) >> 3) * a / 0xFF;
-
-                        l as u8
+                        (((3 * r + b + 4 * g) >> 3) * a / 0xFF) as u8
                     })
-                    .collect::<Vec<u8>>();
-                row.resize(stride_bytes, 0);
-                row
+                    .chain(iter::repeat(0))
+                    .take(stride_bytes)
             });
-
             argb_iter.collect()
         }
         ColorFormat::I1 | ColorFormat::I2 | ColorFormat::I4 | ColorFormat::I8 => {
@@ -239,16 +234,11 @@ pub fn rgba8888_from(
         }
         ColorFormat::L8 => {
             let argb_iter = data.chunks_exact(stride_bytes).flat_map(|row| {
-                row.chunks_exact(width_bytes)
-                    .next()
-                    .unwrap()
-                    .chunks_exact(1)
-                    .map(|chunk| {
-                        let l = chunk[0];
-                        vec![l, l, l, 0xFF]
-                    })
+                row.iter()
+                    .take(width_bytes)
+                    .flat_map(|chunk| iter::repeat(*chunk).take(3).chain(iter::once(0xFF)))
             });
-            argb_iter.flatten().collect()
+            argb_iter.collect()
         }
         ColorFormat::I1 | ColorFormat::I2 | ColorFormat::I4 | ColorFormat::I8 => {
             let bpp = color_format.get_bpp() as u8;
