@@ -4,7 +4,7 @@ version = "0.1.1"
 edition = "2021"
 authors = ["Benign X", "W-Mai"]
 homepage = "https://github.com/W-Mai/icu"
-description = "Image Converter Utility Library"
+description = "Image Converter Ultra"
 license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
