@@ -1,11 +1,12 @@
 mod arguments;
 mod image_shower;
 
-use crate::arguments::{parse_args, ImageFormatCategory, SubCommands};
+use crate::arguments::{parse_args, ImageFormatCategory, ImageOutputFormatCategory, SubCommands};
 use crate::image_shower::show_image;
 use icu_lib::endecoder::{common, lvgl_v9};
 use icu_lib::midata::MiData;
 use std::fs;
+use std::path::Path;
 
 fn main() {
     let args = parse_args();
@@ -30,7 +31,36 @@ fn main() {
 
             show_image(mid);
         }
-        SubCommands::Convert { .. } => {}
+        SubCommands::Convert {
+            input_files,
+            input_format,
+            output_category,
+            output_format,
+            lvgl_version,
+        } => {
+            for file_name in input_files {
+                let data = fs::read(file_name).expect("Unable to read file");
+                let mid = match input_format {
+                    ImageFormatCategory::Common => MiData::decode_from::<common::AutoDectect>(data),
+                    ImageFormatCategory::LVGL_V9 => {
+                        MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data)
+                    }
+                };
+
+                let data = output_format.encode(mid);
+
+                match output_category {
+                    ImageOutputFormatCategory::Common | ImageOutputFormatCategory::Bin => {
+                        fs::write(
+                            Path::new(file_name).with_extension(output_format.get_file_extension()),
+                            data,
+                        )
+                        .expect("Unable to write file");
+                    }
+                    ImageOutputFormatCategory::C_Array => {}
+                }
+            }
+        }
     }
 }
 

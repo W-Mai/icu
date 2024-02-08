@@ -4,7 +4,6 @@ use eframe::egui::{Color32, ColorImage};
 use egui_plot::{PlotImage, PlotPoint};
 use icu_lib::midata::MiData;
 
-
 pub fn show_image(image: MiData) {
     let native_options = eframe::NativeOptions::default();
 
@@ -77,11 +76,16 @@ impl eframe::App for MyEguiApp {
                 ui.with_layout(
                     egui::Layout::centered_and_justified(egui::Direction::TopDown),
                     |ui| {
-                        let plot = egui_plot::Plot::new("plot").data_aspect(1.0).show_grid([false, false]);
+                        let plot = egui_plot::Plot::new("plot")
+                            .data_aspect(1.0)
+                            .show_grid([false, false]);
 
                         plot.show(ui, |plot_ui| {
-                            plot_ui.image(PlotImage::new(texture.id, PlotPoint::new(0.0, 0.0), texture.size))
-
+                            plot_ui.image(PlotImage::new(
+                                texture.id,
+                                PlotPoint::new(0.0, 0.0),
+                                texture.size,
+                            ))
                         });
                     },
                 );
