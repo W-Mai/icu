@@ -5,6 +5,7 @@ use crate::arguments::{parse_args, ImageFormatCategory, ImageOutputFormatCategor
 use crate::image_shower::show_image;
 use icu_lib::endecoder::{common, lvgl_v9};
 use icu_lib::midata::MiData;
+use icu_lib::EncoderParams;
 use std::fs;
 use std::path::Path;
 
@@ -36,7 +37,7 @@ fn main() {
             input_format,
             output_category,
             output_format,
-            lvgl_version,
+            lvgl_version: _lvgl_version,
         } => {
             for file_name in input_files {
                 let data = fs::read(file_name).expect("Unable to read file");
@@ -49,7 +50,14 @@ fn main() {
                     }
                 };
 
-                let data = output_format.encode(mid);
+                let ed = output_format.get_endecoder();
+                let data = mid.encode_into(
+                    ed,
+                    EncoderParams {
+                        stride_align: 256,
+                        dither: false,
+                    },
+                );
 
                 match output_category {
                     ImageOutputFormatCategory::Common | ImageOutputFormatCategory::Bin => {
