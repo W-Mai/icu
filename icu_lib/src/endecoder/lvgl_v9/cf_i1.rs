@@ -6,11 +6,11 @@ use crate::midata::MiData;
 use crate::EncoderParams;
 
 impl EnDecoder for ColorFormatI1 {
-    fn encode(data: &MiData, encoder_params: EncoderParams) -> Vec<u8> {
+    fn encode(&self, data: &MiData, encoder_params: EncoderParams) -> Vec<u8> {
         common_encode_function(data, ColorFormat::I1, encoder_params)
     }
 
-    fn decode(data: Vec<u8>) -> MiData {
+    fn decode(&self, data: Vec<u8>) -> MiData {
         common_decode_function(data, ColorFormat::I1)
     }
 }

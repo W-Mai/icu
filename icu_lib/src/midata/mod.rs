@@ -9,11 +9,11 @@ pub enum MiData {
 }
 
 impl MiData {
-    pub fn decode_from<ED: EnDecoder>(data: Vec<u8>) -> Self {
-        ED::decode(data)
+    pub fn decode_from(ed: &dyn EnDecoder, data: Vec<u8>) -> Self {
+        ed.decode(data)
     }
 
-    pub fn encode_into<ED: EnDecoder>(&self, encoder_params: EncoderParams) -> Vec<u8> {
-        ED::encode(self, encoder_params)
+    pub fn encode_into(&self, ed: &dyn EnDecoder, encoder_params: EncoderParams) -> Vec<u8> {
+        ed.encode(self, encoder_params)
     }
 }

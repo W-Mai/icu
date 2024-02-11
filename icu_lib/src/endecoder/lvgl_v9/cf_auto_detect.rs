@@ -6,11 +6,11 @@ use crate::EncoderParams;
 use image::RgbaImage;
 
 impl EnDecoder for ColorFormatAutoDectect {
-    fn encode(_data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
+    fn encode(&self, _data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         unimplemented!()
     }
 
-    fn decode(data: Vec<u8>) -> MiData {
+    fn decode(&self, data: Vec<u8>) -> MiData {
         let img_desc = ImageDescriptor::decode(data);
         let header = &img_desc.header;
 

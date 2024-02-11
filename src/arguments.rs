@@ -66,106 +66,107 @@ pub(crate) enum ImageFormats {
 
 impl ImageFormats {
     pub fn encode(&self, mi_data: MiData) -> Vec<u8> {
-        match &self {
-            ImageFormats::PNG => {
-                mi_data.encode_into::<icu_lib::endecoder::common::PNG>(EncoderParams::default())
-            }
-            ImageFormats::JPEG => {
-                mi_data.encode_into::<icu_lib::endecoder::common::JPEG>(EncoderParams::default())
-            }
-            ImageFormats::BMP => {
-                mi_data.encode_into::<icu_lib::endecoder::common::BMP>(EncoderParams::default())
-            }
-            ImageFormats::GIF => {
-                mi_data.encode_into::<icu_lib::endecoder::common::GIF>(EncoderParams::default())
-            }
-            ImageFormats::TIFF => {
-                mi_data.encode_into::<icu_lib::endecoder::common::TIFF>(EncoderParams::default())
-            }
-            ImageFormats::WEBP => {
-                mi_data.encode_into::<icu_lib::endecoder::common::WEBP>(EncoderParams::default())
-            }
-            ImageFormats::ICO => {
-                mi_data.encode_into::<icu_lib::endecoder::common::ICO>(EncoderParams::default())
-            }
-            ImageFormats::PBM => {
-                mi_data.encode_into::<icu_lib::endecoder::common::PBM>(EncoderParams::default())
-            }
-            ImageFormats::PGM => {
-                mi_data.encode_into::<icu_lib::endecoder::common::PGM>(EncoderParams::default())
-            }
-            ImageFormats::PPM => {
-                mi_data.encode_into::<icu_lib::endecoder::common::PPM>(EncoderParams::default())
-            }
-            ImageFormats::PAM => {
-                mi_data.encode_into::<icu_lib::endecoder::common::PAM>(EncoderParams::default())
-            }
-            ImageFormats::RGB565 => mi_data
-                .encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatRGB565>(
-                    EncoderParams::default(),
-                ),
-            ImageFormats::RGB565A8 => mi_data
-                .encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatRGB565A8>(
-                    EncoderParams::default(),
-                ),
-            ImageFormats::RGB888 => mi_data
-                .encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatRGB888>(
-                    EncoderParams::default(),
-                ),
-            ImageFormats::ARGB8888 => mi_data
-                .encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatARGB8888>(
-                    EncoderParams::default(),
-                ),
-            ImageFormats::XRGB8888 => mi_data
-                .encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatXRGB8888>(
-                    EncoderParams::default(),
-                ),
-            ImageFormats::A1 => {
-                mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatA1>(
-                    EncoderParams::default(),
-                )
-            }
-            ImageFormats::A2 => {
-                mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatA2>(
-                    EncoderParams::default(),
-                )
-            }
-            ImageFormats::A4 => {
-                mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatA4>(
-                    EncoderParams::default(),
-                )
-            }
-            ImageFormats::A8 => {
-                mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatA8>(
-                    EncoderParams::default(),
-                )
-            }
-            ImageFormats::L8 => {
-                mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatL8>(
-                    EncoderParams::default(),
-                )
-            }
-            ImageFormats::I1 => {
-                mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatI1>(
-                    EncoderParams::default(),
-                )
-            }
-            ImageFormats::I2 => {
-                mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatI2>(
-                    EncoderParams::default(),
-                )
-            }
-            ImageFormats::I4 => {
-                mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatI4>(
-                    EncoderParams::default(),
-                )
-            }
-            ImageFormats::I8 => {
-                mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatI8>(
-                    EncoderParams::default(),
-                )
-            }
-        }
+        // match &self {
+        //     ImageFormats::PNG => {
+        //         mi_data.encode_into::<icu_lib::endecoder::common::PNG>(EncoderParams::default())
+        //     }
+        //     ImageFormats::JPEG => {
+        //         mi_data.encode_into::<icu_lib::endecoder::common::JPEG>(EncoderParams::default())
+        //     }
+        //     ImageFormats::BMP => {
+        //         mi_data.encode_into::<icu_lib::endecoder::common::BMP>(EncoderParams::default())
+        //     }
+        //     ImageFormats::GIF => {
+        //         mi_data.encode_into::<icu_lib::endecoder::common::GIF>(EncoderParams::default())
+        //     }
+        //     ImageFormats::TIFF => {
+        //         mi_data.encode_into::<icu_lib::endecoder::common::TIFF>(EncoderParams::default())
+        //     }
+        //     ImageFormats::WEBP => {
+        //         mi_data.encode_into::<icu_lib::endecoder::common::WEBP>(EncoderParams::default())
+        //     }
+        //     ImageFormats::ICO => {
+        //         mi_data.encode_into::<icu_lib::endecoder::common::ICO>(EncoderParams::default())
+        //     }
+        //     ImageFormats::PBM => {
+        //         mi_data.encode_into::<icu_lib::endecoder::common::PBM>(EncoderParams::default())
+        //     }
+        //     ImageFormats::PGM => {
+        //         mi_data.encode_into::<icu_lib::endecoder::common::PGM>(EncoderParams::default())
+        //     }
+        //     ImageFormats::PPM => {
+        //         mi_data.encode_into::<icu_lib::endecoder::common::PPM>(EncoderParams::default())
+        //     }
+        //     ImageFormats::PAM => {
+        //         mi_data.encode_into::<icu_lib::endecoder::common::PAM>(EncoderParams::default())
+        //     }
+        //     ImageFormats::RGB565 => mi_data
+        //         .encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatRGB565>(
+        //             EncoderParams::default(),
+        //         ),
+        //     ImageFormats::RGB565A8 => mi_data
+        //         .encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatRGB565A8>(
+        //             EncoderParams::default(),
+        //         ),
+        //     ImageFormats::RGB888 => mi_data
+        //         .encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatRGB888>(
+        //             EncoderParams::default(),
+        //         ),
+        //     ImageFormats::ARGB8888 => mi_data
+        //         .encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatARGB8888>(
+        //             EncoderParams::default(),
+        //         ),
+        //     ImageFormats::XRGB8888 => mi_data
+        //         .encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatXRGB8888>(
+        //             EncoderParams::default(),
+        //         ),
+        //     ImageFormats::A1 => {
+        //         mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatA1>(
+        //             EncoderParams::default(),
+        //         )
+        //     }
+        //     ImageFormats::A2 => {
+        //         mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatA2>(
+        //             EncoderParams::default(),
+        //         )
+        //     }
+        //     ImageFormats::A4 => {
+        //         mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatA4>(
+        //             EncoderParams::default(),
+        //         )
+        //     }
+        //     ImageFormats::A8 => {
+        //         mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatA8>(
+        //             EncoderParams::default(),
+        //         )
+        //     }
+        //     ImageFormats::L8 => {
+        //         mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatL8>(
+        //             EncoderParams::default(),
+        //         )
+        //     }
+        //     ImageFormats::I1 => {
+        //         mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatI1>(
+        //             EncoderParams::default(),
+        //         )
+        //     }
+        //     ImageFormats::I2 => {
+        //         mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatI2>(
+        //             EncoderParams::default(),
+        //         )
+        //     }
+        //     ImageFormats::I4 => {
+        //         mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatI4>(
+        //             EncoderParams::default(),
+        //         )
+        //     }
+        //     ImageFormats::I8 => {
+        //         mi_data.encode_into::<icu_lib::endecoder::lvgl_v9::ColorFormatI8>(
+        //             EncoderParams::default(),
+        //         )
+        //     }
+        // }
+        panic!();
     }
 
     pub fn get_file_extension(&self) -> &'static str {
