@@ -31,10 +31,11 @@ fn main() {
     const DATA: &[u8] = include_bytes!("../res/img_0.png");
 
     // Decode the image data and automatically detect the format
-    let mid = MiData::decode_from::<common::AutoDectect>(Vec::from(DATA));
+    let mid = MiData::decode_from(&common::AutoDectect {}, Vec::from(DATA));
 
     // Encode the image data to the LVGL binary format with ARGB8888 color format
-    let data = mid.encode_into::<lvgl_v9::ColorFormatARGB8888>(
+    let data = mid.encode_into(
+        &lvgl_v9::ColorFormatARGB8888 {},
         EncoderParams {
             stride_align: 256,
             dither: false,
