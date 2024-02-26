@@ -11,9 +11,13 @@ impl EnDecoder for ColorFormatAutoDectect {
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
+        log::trace!("Decoding image data with ColorFormatAutoDectect");
         let img_desc = ImageDescriptor::decode(data);
         let header = &img_desc.header;
 
+        log::trace!("Decoded image header: {:#?}", img_desc.header);
+
+        log::trace!("Converting image data to RGBA");
         let img_buffer = RgbaImage::from_vec(
             img_desc.header.h as u32,
             img_desc.header.w as u32,
@@ -26,7 +30,10 @@ impl EnDecoder for ColorFormatAutoDectect {
             ),
         )
         .unwrap();
+        
+        log::trace!("Image data converted to RGBA");
 
+        log::trace!("Creating MiData object with RGBA image data and returning it");
         MiData::RGBA(img_buffer)
     }
 }

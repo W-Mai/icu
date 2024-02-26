@@ -147,6 +147,8 @@ impl ImageHeader {
     }
 
     pub fn decode(data: Vec<u8>) -> Self {
+        log::trace!("Decoding image header with data size: {}", data.len());
+
         let header_size = std::mem::size_of::<ImageHeader>();
         let mut header = ImageHeader::new(ColorFormat::RGB888, Flags::NONE, 0, 0, 0);
 
@@ -162,6 +164,12 @@ impl ImageHeader {
                 .unwrap();
         }
 
+        if header.magic != 0x19 {
+            log::error!("Invalid magic number in image header with value: {}", header.magic);
+            assert_eq!(header.magic, 0x19, "Invalid magic number in image header");
+        }
+
+        log::trace!("Decoded image header: {:#?}", header);
         header
     }
 }
@@ -173,6 +181,7 @@ impl ImageHeader {
 } lv_image_dsc_t;*/
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct ImageDescriptor {
     header: ImageHeader,
     data_size: u32,
@@ -196,6 +205,8 @@ impl ImageDescriptor {
     }
 
     pub fn decode(data: Vec<u8>) -> Self {
+        log::trace!("Decoding image descriptor with data size: {}", data.len());
+
         let header = ImageHeader::decode(data.clone());
         let header_size = std::mem::size_of::<ImageHeader>();
         let data = data[header_size..].to_vec();
@@ -211,6 +222,8 @@ impl ImageDescriptor {
         };
 
         assert_eq!(idea_data_size, data_size, "Data size mismatch {:?}", header);
+
+        log::trace!("Decoded image descriptor and returned data size: {}", data_size);
 
         Self {
             header,
@@ -253,11 +266,17 @@ impl ColorFormat {
 }
 
 pub(crate) fn common_decode_function(data: Vec<u8>, color_format: ColorFormat) -> MiData {
+    log::trace!("Decoding image with color format: {:?}, data size: {}", color_format, data.len());
+
     let img_desc = ImageDescriptor::decode(data);
     let header = &img_desc.header;
 
+    log::trace!("Decoded image header: {:#?}", img_desc.header);
+    
     assert_eq!(img_desc.header.cf, color_format, "Color format mismatch");
 
+    log::trace!("Converting image data to RGBA");
+    // Convert image data to RGBA
     let img_buffer = RgbaImage::from_vec(
         img_desc.header.h as u32,
         img_desc.header.w as u32,
@@ -270,6 +289,10 @@ pub(crate) fn common_decode_function(data: Vec<u8>, color_format: ColorFormat) -
         ),
     )
     .unwrap();
+
+    log::trace!("Converted image data to RGBA");
+    log::trace!("Decoded image with size: {}x{}", img_buffer.width(), img_buffer.height());
+    log::trace!("Creating MiData object with RGBA image data and returning it");
 
     MiData::RGBA(img_buffer)
 }

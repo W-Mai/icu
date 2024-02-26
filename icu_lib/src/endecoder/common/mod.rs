@@ -36,7 +36,10 @@ impl EnDecoder for AutoDectect {
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
-        MiData::RGBA(image::load_from_memory(&data).unwrap().to_rgba8())
+        log::trace!("AutoDectect::decoding");
+        let img = image::load_from_memory(&data).unwrap();
+        log::trace!("AutoDectect::decoded");
+        MiData::RGBA(img.to_rgba8())
     }
 }
 

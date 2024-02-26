@@ -12,6 +12,17 @@ use std::path::Path;
 fn main() {
     let args = parse_args();
 
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(
+        match args.verbose {
+            0 => "error",
+            1 => "warn",
+            2 => "info",
+            3 => "debug",
+            _ => "trace",
+        },
+    ))
+    .init();
+
     let commands = args.commands;
 
     match &commands {
