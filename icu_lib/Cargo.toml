@@ -1,6 +1,6 @@
 [package]
 name = "icu_lib"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Benign X", "W-Mai"]
 homepage = "https://github.com/W-Mai/icu"

@@ -1,6 +1,6 @@
 [package]
 name = "icu_tool"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Benign X", "W-Mai"]
 homepage = "https://github.com/W-Mai/icu"
@@ -14,7 +14,7 @@ name = "icu"
 path = "src/main.rs"
 
 [dependencies]
-icu_lib = { version = "0.1.1" }
+icu_lib = { version = "0.1.2" }
 clap = { version = "4.4.18", features = ["derive", "suggestions"] }
 eframe = { version = "0.26.0", features = ["glow"] }
 egui_plot = "0.26.0"
