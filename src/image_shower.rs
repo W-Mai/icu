@@ -73,11 +73,30 @@ impl eframe::App for MyEguiApp {
                 let texture =
                     SizedTexture::new(texture.id(), [self.width as f32, self.height as f32]);
 
+                let img_w = self.width as f64;
+                let img_h = self.height as f64;
+                let copy_image_data = image_data.clone();
+
                 ui.with_layout(
                     egui::Layout::centered_and_justified(egui::Direction::TopDown),
                     |ui| {
                         let plot = egui_plot::Plot::new("plot")
                             .data_aspect(1.0)
+                            .label_formatter(move |_text, pos| {
+                                if pos.x >= (-img_w / 2.0)
+                                    && pos.x < (img_w / 2.0)
+                                    && pos.y >= (-img_h / 2.0)
+                                    && pos.y < (img_h / 2.0)
+                                {
+                                    format!(
+                                        "{:?}",
+                                        copy_image_data[(pos.x - img_w / 2.0) as usize
+                                            + ((pos.y - img_h / 2.0) as usize * img_w as usize)]
+                                    )
+                                } else {
+                                    format!("Nothing {:.2} {:.2}", pos.x, pos.y)
+                                }
+                            })
                             .show_grid([false, false]);
 
                         plot.show(ui, |plot_ui| {
