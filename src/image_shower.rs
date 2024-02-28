@@ -1,6 +1,6 @@
 use eframe::egui;
 use eframe::egui::load::SizedTexture;
-use eframe::egui::{Color32, ColorImage};
+use eframe::egui::{Color32, ColorImage, PointerButton};
 use egui_plot::{PlotImage, PlotPoint};
 use icu_lib::midata::MiData;
 
@@ -88,15 +88,18 @@ impl eframe::App for MyEguiApp {
                                     && pos.y >= (-img_h / 2.0)
                                     && pos.y < (img_h / 2.0)
                                 {
+                                    let row = (img_h - (pos.y + img_h / 2.0)) as usize;
+                                    let col = (pos.x + img_w / 2.0) as usize;
+                                    let index = row * img_w as usize + col;
                                     format!(
-                                        "{:?}",
-                                        copy_image_data[(pos.x - img_w / 2.0) as usize
-                                            + ((pos.y - img_h / 2.0) as usize * img_w as usize)]
+                                        "{:?}, {} {:.2} {:.2}",
+                                        copy_image_data[index], index, col, row
                                     )
                                 } else {
                                     format!("Nothing {:.2} {:.2}", pos.x, pos.y)
                                 }
                             })
+                            .boxed_zoom_pointer_button(PointerButton::Extra2)
                             .show_grid([false, false]);
 
                         plot.show(ui, |plot_ui| {
