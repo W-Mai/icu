@@ -1,7 +1,7 @@
 use eframe::egui;
 use eframe::egui::load::SizedTexture;
 use eframe::egui::{Color32, ColorImage, PointerButton};
-use egui_plot::{PlotImage, PlotPoint};
+use egui_plot::{CoordinatesFormatter, Corner, PlotImage, PlotPoint, Polygon};
 use icu_lib::midata::MiData;
 
 pub fn show_image(image: MiData) {
@@ -54,6 +54,9 @@ impl MyEguiApp {
     }
 }
 
+static mut COLOR_DATA: Option<Color32> = None;
+static mut CURSOR_POS: Option<[f64; 2]> = None;
+
 impl eframe::App for MyEguiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -82,6 +85,25 @@ impl eframe::App for MyEguiApp {
                     |ui| {
                         let plot = egui_plot::Plot::new("plot")
                             .data_aspect(1.0)
+                            .coordinates_formatter(
+                                Corner::LeftBottom,
+                                CoordinatesFormatter::new(|p, _b| unsafe {
+                                    match COLOR_DATA {
+                                        None => {
+                                            format!("Nothing {:.2} {:.2}", p.x, p.y)
+                                        }
+                                        Some(pixel) => {
+                                            format!(
+                                                "RGBA: #{:02X}_{:02X}_{:02X}_{:02X}",
+                                                pixel.r(),
+                                                pixel.g(),
+                                                pixel.b(),
+                                                pixel.a(),
+                                            )
+                                        }
+                                    }
+                                }),
+                            )
                             .label_formatter(move |_text, pos| {
                                 if pos.x >= (-img_w / 2.0)
                                     && pos.x < (img_w / 2.0)
@@ -91,12 +113,20 @@ impl eframe::App for MyEguiApp {
                                     let row = (img_h - (pos.y + img_h / 2.0)) as usize;
                                     let col = (pos.x + img_w / 2.0) as usize;
                                     let index = row * img_w as usize + col;
-                                    format!(
-                                        "{:?}, {} {:.2} {:.2}",
-                                        copy_image_data[index], index, col, row
-                                    )
+                                    let pixel = copy_image_data[index];
+
+                                    unsafe {
+                                        COLOR_DATA = Some(pixel);
+                                        CURSOR_POS = Some([pos.x, pos.y]);
+                                    }
+
+                                    format!("Pos: {:.2} {:.2}", pos.x, pos.y)
                                 } else {
-                                    format!("Nothing {:.2} {:.2}", pos.x, pos.y)
+                                    unsafe {
+                                        COLOR_DATA = None;
+                                        CURSOR_POS = None;
+                                    }
+                                    "".into()
                                 }
                             })
                             .boxed_zoom_pointer_button(PointerButton::Extra2)
@@ -107,7 +137,24 @@ impl eframe::App for MyEguiApp {
                                 texture.id,
                                 PlotPoint::new(0.0, 0.0),
                                 texture.size,
-                            ))
+                            ));
+                            if let Some(pos) = unsafe { CURSOR_POS } {
+                                if let Some(pixel) = unsafe { COLOR_DATA } {
+                                    let pos_floored = [pos[0].floor(), pos[1].floor()];
+                                    let pos_ceiled = [pos[0].ceil(), pos[1].ceil()];
+                                    plot_ui.polygon(
+                                        Polygon::new(vec![
+                                            [pos_floored[0], pos_floored[1]],
+                                            [pos_floored[0], pos_ceiled[1]],
+                                            [pos_ceiled[0], pos_ceiled[1]],
+                                            [pos_ceiled[0], pos_floored[1]],
+                                            [pos_floored[0], pos_floored[1]],
+                                        ])
+                                        .width(10.0)
+                                        .fill_color(pixel),
+                                    )
+                                }
+                            }
                         });
                     },
                 );
