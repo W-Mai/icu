@@ -76,7 +76,9 @@ fn main() {
                         )
                         .expect("Unable to write file");
                     }
-                    OutputFileFormatCategory::C_Array => {}
+                    OutputFileFormatCategory::C_Array => {
+                        panic!("C_Array output format is not supported yet");
+                    }
                 }
             }
         }
