@@ -13,7 +13,6 @@ written in RUST.
 
 - Supports a wide range of image formats
 - Supports LVGL binary format
-- Supports preview a wide range of image formats and LVGL binary format
 
 # How to use
 
