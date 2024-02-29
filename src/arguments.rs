@@ -13,7 +13,7 @@ pub(crate) enum ImageFormatCategory {
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq, ValueEnum)]
-pub(crate) enum ImageOutputFormatCategory {
+pub(crate) enum OutputFileFormatCategory {
     /// Common image formats like: PNG, JPEG, BMP, etc.
     Common,
 
@@ -28,6 +28,7 @@ pub(crate) enum ImageOutputFormatCategory {
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq, ValueEnum)]
 pub(crate) enum LVGL_Version {
     V9,
+    V8,
 }
 
 #[allow(non_camel_case_types, clippy::upper_case_acronyms)]
@@ -48,6 +49,26 @@ pub(crate) enum ImageFormats {
 
     /// LVGL image formats
     LVGL,
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialOrd, PartialEq, ValueEnum)]
+pub(crate) enum OutputColorFormats {
+    /// Color formats: RGB565, RGB888, ARGB8888, etc.
+    RGB565,
+    RGB565A8,
+    RGB888,
+    ARGB8888,
+    XRGB8888,
+    A1,
+    A2,
+    A4,
+    A8,
+    L8,
+    I1,
+    I2,
+    I4,
+    I8,
 }
 
 impl ImageFormats {
@@ -123,15 +144,23 @@ pub(crate) enum SubCommands {
         input_format: ImageFormatCategory,
 
         /// output image format categories
-        #[arg(short = 'c', long, value_enum)]
-        output_category: ImageOutputFormatCategory,
+        #[arg(short = 'g', long, value_enum)]
+        output_category: OutputFileFormatCategory,
 
         /// output image formats
-        #[arg(short = 't', long, value_enum)]
+        #[arg(short = 'F', long, value_enum)]
         output_format: ImageFormats,
 
-        /// lvgl version
-        #[arg(short = 'l', long, value_enum, default_value = "v9")]
+        /// stride of the output image
+        #[arg(short = 'S', long, default_value = "1")]
+        output_stride_align: u32,
+
+        /// output color formats
+        #[arg(short = 'C', long, value_enum)]
+        output_color_format: OutputColorFormats,
+
+        /// LVGL Version, needed if [`ImageFormats`] is [`ImageFormats::LVGL`]
+        #[arg(long, value_enum, default_value = "v9")]
         lvgl_version: LVGL_Version,
     },
 }

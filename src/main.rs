@@ -1,7 +1,7 @@
 mod arguments;
 mod image_shower;
 
-use crate::arguments::{parse_args, ImageFormatCategory, ImageOutputFormatCategory, SubCommands};
+use crate::arguments::{parse_args, ImageFormatCategory, OutputFileFormatCategory, SubCommands};
 use crate::image_shower::show_image;
 use icu_lib::endecoder::{common, lvgl_v9};
 use icu_lib::midata::MiData;
@@ -46,7 +46,9 @@ fn main() {
             input_format,
             output_category,
             output_format,
-            lvgl_version: _lvgl_version,
+            output_stride_align: _,
+            output_color_format: _,
+            lvgl_version: _,
         } => {
             for file_name in input_files {
                 let data = fs::read(file_name).expect("Unable to read file");
@@ -61,14 +63,14 @@ fn main() {
                 let data = mid.encode_into(ed, EncoderParams::new().with_stride_align(256));
 
                 match output_category {
-                    ImageOutputFormatCategory::Common | ImageOutputFormatCategory::Bin => {
+                    OutputFileFormatCategory::Common | OutputFileFormatCategory::Bin => {
                         fs::write(
                             Path::new(file_name).with_extension(output_format.get_file_extension()),
                             data,
                         )
                         .expect("Unable to write file");
                     }
-                    ImageOutputFormatCategory::C_Array => {}
+                    OutputFileFormatCategory::C_Array => {}
                 }
             }
         }
