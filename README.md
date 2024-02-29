@@ -38,7 +38,8 @@ cargo build --release
 # How to use
 
 ```shell
-icu -h
+$ icu -h
+
 `Show` or `Convert` image files to any other image format including LVGL image formats.
 
 Usage: icu [OPTIONS] <COMMAND>
@@ -52,6 +53,50 @@ Options:
   -v, --verbose...  verbose mode
   -h, --help        Print help
   -V, --version     Print version
+
+```
+
+```shell
+$ icu convert -h
+
+Convert image files to any other image format including LVGL image formats
+
+Usage: icu convert [OPTIONS] --input-files <INPUT_FILES> --output-category <OUTPUT_CATEGORY> --output-format <OUTPUT_FORMAT> --output-color-format <OUTPUT_COLOR_FORMAT>
+
+Options:
+  -i, --input-files <INPUT_FILES>
+          input files
+  -f, --input-format <INPUT_FORMAT>
+          input image formats [default: common] [possible values: common, lvgl-v9]
+  -g, --output-category <OUTPUT_CATEGORY>
+          output image format categories [possible values: common, bin, c-array]
+  -F, --output-format <OUTPUT_FORMAT>
+          output image formats [possible values: png, jpeg, bmp, gif, tiff, webp, ico, pbm, pgm, ppm, pam, lvgl]
+  -S, --output-stride-align <OUTPUT_STRIDE_ALIGN>
+          stride of the output image [default: 1]
+  -C, --output-color-format <OUTPUT_COLOR_FORMAT>
+          output color formats [possible values: rgb565, rgb565a8, rgb888, argb8888, xrgb8888, a1, a2, a4, a8, l8, i1, i2, i4, i8]
+      --dither
+          dither the output image so that it will look better on screens with low color depth
+      --lvgl-version <LVGL_VERSION>
+          LVGL Version, needed if [`ImageFormats`] is [`ImageFormats::LVGL`] [default: v9] [possible values: v9, v8]
+  -h, --help
+          Print help (see more with '--help')
+```
+
+```shell
+$ icu show -h
+
+Show an image file
+
+Usage: icu show [OPTIONS] <FILE>
+
+Arguments:
+  <FILE>  an image file to show
+
+Options:
+  -f, --input-format <INPUT_FORMAT>  input image formats [default: common] [possible values: common, lvgl-v9]
+  -h, --help                         Print help (see more with '--help')
 ```
 
 # Example
