@@ -1,7 +1,9 @@
 mod arguments;
 mod image_shower;
 
-use crate::arguments::{parse_args, ImageFormatCategory, OutputFileFormatCategory, SubCommands};
+use crate::arguments::{
+    parse_args, ImageFormatCategory, ImageFormats, OutputFileFormatCategory, SubCommands,
+};
 use crate::image_shower::show_image;
 use icu_lib::endecoder::{common, lvgl_v9};
 use icu_lib::midata::{decode_from, MiData};
@@ -54,15 +56,36 @@ fn main() {
             output_stride_align,
             output_color_format,
             dither,
-            lvgl_version: _,
+            lvgl_version,
         } => {
             // calculate converting time
             let total_start_time = std::time::Instant::now();
             let mut user_duration = 0.0;
+            let mut converted_files = 0;
+
+            log::trace!("files to be converted: {:#?}", input_files);
             log::info!("Start converting files");
             log::info!("");
 
-            for file_name in input_files {
+            let input_files_vec = input_files.iter().filter(|file_name| {
+                let metadata = fs::metadata(file_name);
+
+                match metadata {
+                    Ok(metadata) => {
+                        if metadata.is_dir() {
+                            log::trace!("{} is a directory, skip it", file_name);
+                            return false;
+                        }
+                        true
+                    }
+                    Err(_) => {
+                        log::error!("File not found: {}", file_name);
+                        false
+                    }
+                }
+            });
+
+            for file_name in input_files_vec {
                 // calculate converting time
                 let start_time = std::time::Instant::now();
 
@@ -97,13 +120,24 @@ fn main() {
                 let end_time = std::time::Instant::now();
                 let duration = end_time - start_time;
                 user_duration += duration.as_secs_f64();
+                let output_format_str = if output_format == &ImageFormats::LVGL {
+                    format!(
+                        "LVGL.{:?}({:?})",
+                        lvgl_version,
+                        (*output_color_format).unwrap()
+                    )
+                } else {
+                    format!("{:?}", output_format)
+                };
                 log::info!(
-                    "took {:.6}s for converting [{}] to [{}] with format [{:?}] ",
+                    "took {:.6}s for converting <{}> to <{}> with format <{}>",
                     duration.as_secs_f64(),
                     file_name,
                     output_file_name.to_str().unwrap_or_default(),
-                    output_format
+                    output_format_str
                 );
+
+                converted_files += 1;
             }
 
             let end_time = std::time::Instant::now();
@@ -113,7 +147,7 @@ fn main() {
             log::info!(
                 "\tConsuming  : {:.6}s for {} files",
                 duration.as_secs_f64(),
-                input_files.len()
+                converted_files
             );
             log::info!("\tUser   time: {:.6}s", user_duration);
             log::info!(
