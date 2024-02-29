@@ -23,7 +23,7 @@ impl EncoderParams {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     pub fn with_color_format(mut self, color_format: lvgl_v9::ColorFormat) -> Self {
         self.color_format = color_format;
         self
