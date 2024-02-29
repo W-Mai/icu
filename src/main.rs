@@ -9,6 +9,14 @@ use icu_lib::EncoderParams;
 use std::fs;
 use std::path::Path;
 
+fn decode_with(data: Vec<u8>, input_format: ImageFormatCategory) -> MiData {
+    match input_format {
+        ImageFormatCategory::Auto => decode_from(data),
+        ImageFormatCategory::Common => MiData::decode_from(&common::AutoDectect {}, data),
+        ImageFormatCategory::LVGL_V9 => MiData::decode_from(&lvgl_v9::LVGL {}, data),
+    }
+}
+
 fn main() {
     let args = parse_args();
 
@@ -26,10 +34,7 @@ fn main() {
     let commands = args.commands;
 
     match &commands {
-        SubCommands::Show {
-            file,
-            input_format: _,
-        } => {
+        SubCommands::Show { file, input_format } => {
             // check file exists
             if fs::metadata(file).is_err() {
                 println!("File not found: {}", file);
@@ -37,7 +42,7 @@ fn main() {
             }
 
             let data = fs::read(file).expect("Unable to read file");
-            let mid = decode_from(data);
+            let mid = decode_with(data, *input_format);
 
             show_image(mid);
         }
@@ -62,12 +67,7 @@ fn main() {
                 let start_time = std::time::Instant::now();
 
                 let data = fs::read(file_name).expect("Unable to read file");
-                let mid = match input_format {
-                    ImageFormatCategory::Common => {
-                        MiData::decode_from(&common::AutoDectect {}, data)
-                    }
-                    ImageFormatCategory::LVGL_V9 => MiData::decode_from(&lvgl_v9::LVGL {}, data),
-                };
+                let mid = decode_with(data, *input_format);
 
                 let ed = output_format.get_endecoder();
                 let mut params = EncoderParams::new()

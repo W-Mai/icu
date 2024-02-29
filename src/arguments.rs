@@ -3,8 +3,12 @@ use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use icu_lib::endecoder::{lvgl_v9, EnDecoder};
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialOrd, PartialEq, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialOrd, PartialEq, ValueEnum, Default)]
 pub(crate) enum ImageFormatCategory {
+    /// Auto-detect the input image format.
+    #[default]
+    Auto,
+
     /// Common image formats like: PNG, JPEG, BMP, etc.
     Common,
 
@@ -151,7 +155,7 @@ pub(crate) enum SubCommands {
         file: String,
 
         /// input image formats
-        #[arg(short = 'f', long, value_enum, default_value = "common")]
+        #[arg(short = 'f', long, value_enum, default_value = "auto")]
         input_format: ImageFormatCategory,
     },
 
@@ -162,7 +166,7 @@ pub(crate) enum SubCommands {
         input_files: Vec<String>,
 
         /// input image formats
-        #[arg(short = 'f', long, value_enum, default_value = "common")]
+        #[arg(short = 'f', long, value_enum, default_value = "auto")]
         input_format: ImageFormatCategory,
 
         /// output image format categories
