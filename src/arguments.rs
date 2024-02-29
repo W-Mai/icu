@@ -1,4 +1,5 @@
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::error::ErrorKind;
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use icu_lib::endecoder::{lvgl_v9, EnDecoder};
 
 #[allow(non_camel_case_types)]
@@ -165,7 +166,7 @@ pub(crate) enum SubCommands {
         input_format: ImageFormatCategory,
 
         /// output image format categories
-        #[arg(short = 'g', long, value_enum)]
+        #[arg(short = 'g', long, value_enum, default_value = "common")]
         output_category: OutputFileFormatCategory,
 
         /// output image formats
@@ -178,7 +179,7 @@ pub(crate) enum SubCommands {
 
         /// output color formats
         #[arg(short = 'C', long, value_enum)]
-        output_color_format: OutputColorFormats,
+        output_color_format: Option<OutputColorFormats>,
 
         /// dither the output image so that it will look better on screens with low color depth
         #[arg(long)]
@@ -191,5 +192,27 @@ pub(crate) enum SubCommands {
 }
 
 pub fn parse_args() -> Args {
-    Args::parse()
+    let mut command = Args::command();
+    let args = Args::parse();
+
+    match &args.commands {
+        SubCommands::Show { .. } => {}
+        SubCommands::Convert {
+            output_format,
+            output_color_format,
+            ..
+        } => {
+            if output_format == &ImageFormats::LVGL && output_color_format.is_none() {
+                let error = command.error(
+                    ErrorKind::MissingRequiredArgument,
+                    "Output color format is required for LVGL image format.\
+                 Please specify it using the [-C --output-color-format] option.",
+                );
+
+                error.exit();
+            }
+        }
+    }
+
+    args
 }

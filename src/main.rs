@@ -61,10 +61,15 @@ fn main() {
                 };
 
                 let ed = output_format.get_endecoder();
-                let params = EncoderParams::new()
+                let mut params = EncoderParams::new()
                     .with_stride_align(*output_stride_align)
-                    .with_dither(*dither)
-                    .with_color_format((*output_color_format).into());
+                    .with_dither(*dither);
+                
+                if let Some(output_color_format) = output_color_format {
+                    params = params.with_color_format((*output_color_format).into());
+                } else {
+                    params = params.with_color_format(lvgl_v9::ColorFormat::UNKNOWN);
+                }
 
                 let data = mid.encode_into(ed, params);
 
