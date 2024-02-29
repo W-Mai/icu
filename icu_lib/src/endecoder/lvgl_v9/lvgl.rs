@@ -1,12 +1,28 @@
 use std::io::{Cursor, Write};
 use crate::endecoder::lvgl_v9::color_converter::{rgba8888_from, rgba8888_to};
-use crate::endecoder::lvgl_v9::{LVGL, ImageDescriptor, ImageHeader, Flags};
+use crate::endecoder::lvgl_v9::{LVGL, ImageDescriptor, ImageHeader, Flags, ColorFormat};
 use crate::endecoder::EnDecoder;
 use crate::midata::MiData;
 use crate::EncoderParams;
 use image::RgbaImage;
 
 impl EnDecoder for LVGL {
+    fn can_decode(&self, data: &Vec<u8>) -> bool {
+        let header_size = std::mem::size_of::<ImageHeader>();
+        if data.len() < header_size {
+            return false;
+        }
+
+        let header_data = &data[..header_size];
+
+        let header = ImageHeader::decode(Vec::from(header_data));
+        if header.magic != 0x19 && header.cf != ColorFormat::UNKNOWN{
+            return false;
+        }
+
+        true
+    }
+
     fn encode(&self, data: &MiData, encoder_params: EncoderParams) -> Vec<u8> {
         let color_format = encoder_params.color_format;
 
@@ -66,7 +82,7 @@ impl EnDecoder for LVGL {
                 header.stride as u32,
             ),
         )
-        .unwrap();
+            .unwrap();
 
         log::trace!("Converted image data to RGBA");
         log::trace!("Decoded image with size: {}x{}", img_buffer.width(), img_buffer.height());

@@ -31,6 +31,10 @@ pub struct PAM {}
 pub struct TGA {}
 
 impl EnDecoder for AutoDectect {
+    fn can_decode(&self, data: &Vec<u8>) -> bool {
+        image::guess_format(data).is_ok()
+    }
+    
     fn encode(&self, _data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         unimplemented!()
     }
