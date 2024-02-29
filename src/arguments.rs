@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand, ValueEnum};
-use icu_lib::endecoder::EnDecoder;
+use icu_lib::endecoder::{lvgl_v9, EnDecoder};
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq, ValueEnum)]
@@ -107,8 +107,29 @@ impl ImageFormats {
     }
 }
 
+impl Into<lvgl_v9::ColorFormat> for OutputColorFormats {
+    fn into(self) -> lvgl_v9::ColorFormat {
+        match self {
+            OutputColorFormats::RGB565 => lvgl_v9::ColorFormat::RGB565,
+            OutputColorFormats::RGB565A8 => lvgl_v9::ColorFormat::RGB565A8,
+            OutputColorFormats::RGB888 => lvgl_v9::ColorFormat::RGB888,
+            OutputColorFormats::ARGB8888 => lvgl_v9::ColorFormat::ARGB8888,
+            OutputColorFormats::XRGB8888 => lvgl_v9::ColorFormat::XRGB8888,
+            OutputColorFormats::A1 => lvgl_v9::ColorFormat::A1,
+            OutputColorFormats::A2 => lvgl_v9::ColorFormat::A2,
+            OutputColorFormats::A4 => lvgl_v9::ColorFormat::A4,
+            OutputColorFormats::A8 => lvgl_v9::ColorFormat::A8,
+            OutputColorFormats::L8 => lvgl_v9::ColorFormat::L8,
+            OutputColorFormats::I1 => lvgl_v9::ColorFormat::I1,
+            OutputColorFormats::I2 => lvgl_v9::ColorFormat::I2,
+            OutputColorFormats::I4 => lvgl_v9::ColorFormat::I4,
+            OutputColorFormats::I8 => lvgl_v9::ColorFormat::I8,
+        }
+    }
+}
+
 #[derive(Parser, Debug)]
-#[command(author, version, about)]
+#[command(author, version, long_about)]
 #[command(
     about = "`Show` or `Convert` image files to any other image format including LVGL image formats."
 )]
@@ -158,6 +179,10 @@ pub(crate) enum SubCommands {
         /// output color formats
         #[arg(short = 'C', long, value_enum)]
         output_color_format: OutputColorFormats,
+
+        /// dither the output image so that it will look better on screens with low color depth
+        #[arg(long)]
+        dither: bool,
 
         /// LVGL Version, needed if [`ImageFormats`] is [`ImageFormats::LVGL`]
         #[arg(long, value_enum, default_value = "v9")]

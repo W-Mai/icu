@@ -46,8 +46,9 @@ fn main() {
             input_format,
             output_category,
             output_format,
-            output_stride_align: _,
-            output_color_format: _,
+            output_stride_align,
+            output_color_format,
+            dither,
             lvgl_version: _,
         } => {
             for file_name in input_files {
@@ -60,7 +61,12 @@ fn main() {
                 };
 
                 let ed = output_format.get_endecoder();
-                let data = mid.encode_into(ed, EncoderParams::new().with_stride_align(256));
+                let params = EncoderParams::new()
+                    .with_stride_align(*output_stride_align)
+                    .with_dither(*dither)
+                    .with_color_format((*output_color_format).into());
+
+                let data = mid.encode_into(ed, params);
 
                 match output_category {
                     OutputFileFormatCategory::Common | OutputFileFormatCategory::Bin => {
