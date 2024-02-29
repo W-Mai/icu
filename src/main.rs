@@ -51,10 +51,16 @@ fn main() {
             dither,
             lvgl_version: _,
         } => {
+            // calculate converting time
+            let total_start_time = std::time::Instant::now();
+            let mut user_duration = 0.0;
+            log::info!("Start converting files");
+            log::info!("");
+
             for file_name in input_files {
                 // calculate converting time
                 let start_time = std::time::Instant::now();
-                
+
                 let data = fs::read(file_name).expect("Unable to read file");
                 let mid = match input_format {
                     ImageFormatCategory::Common => {
@@ -67,7 +73,7 @@ fn main() {
                 let mut params = EncoderParams::new()
                     .with_stride_align(*output_stride_align)
                     .with_dither(*dither);
-                
+
                 if let Some(output_color_format) = output_color_format {
                     params = params.with_color_format((*output_color_format).into());
                 } else {
@@ -76,23 +82,44 @@ fn main() {
 
                 let data = mid.encode_into(ed, params);
 
+                let output_file_name =
+                    Path::new(file_name).with_extension(output_format.get_file_extension());
+
                 match output_category {
                     OutputFileFormatCategory::Common | OutputFileFormatCategory::Bin => {
-                        fs::write(
-                            Path::new(file_name).with_extension(output_format.get_file_extension()),
-                            data,
-                        )
-                        .expect("Unable to write file");
+                        fs::write(output_file_name.clone(), data).expect("Unable to write file");
                     }
                     OutputFileFormatCategory::C_Array => {
                         panic!("C_Array output format is not supported yet");
                     }
                 }
-                
+
                 let end_time = std::time::Instant::now();
                 let duration = end_time - start_time;
-                log::info!("Converting time: {}.{:03}s", duration.as_secs(), duration.subsec_millis());
+                user_duration += duration.as_secs_f64();
+                log::info!(
+                    "took {:.6}s for converting [{}] to [{}] with format [{:?}] ",
+                    duration.as_secs_f64(),
+                    file_name,
+                    output_file_name.to_str().unwrap_or_default(),
+                    output_format
+                );
             }
+
+            let end_time = std::time::Instant::now();
+            let duration = end_time - total_start_time;
+            log::info!("");
+            log::info!("Total converting time:");
+            log::info!(
+                "\tConsuming  : {:.6}s for {} files",
+                duration.as_secs_f64(),
+                input_files.len()
+            );
+            log::info!("\tUser   time: {:.6}s", user_duration);
+            log::info!(
+                "\tSystem time: {:.6}s",
+                duration.as_secs_f64() - user_duration
+            );
         }
     }
 }
