@@ -33,5 +33,5 @@ pub fn decode_from(data: Vec<u8>) -> MiData {
         }
     }
 
-    unimplemented!()
+    panic!("No decoder found for this data")
 }
