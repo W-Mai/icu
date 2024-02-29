@@ -61,15 +61,16 @@ $ icu convert -h
 
 Convert image files to any other image format including LVGL image formats
 
-Usage: icu convert [OPTIONS] --input-files <INPUT_FILES> --output-category <OUTPUT_CATEGORY> --output-format <OUTPUT_FORMAT> --output-color-format <OUTPUT_COLOR_FORMAT>
+Usage: icu convert [OPTIONS] --output-format <OUTPUT_FORMAT> <INPUT_FILES>...
+
+Arguments:
+  <INPUT_FILES>...  input files
 
 Options:
-  -i, --input-files <INPUT_FILES>
-          input files
   -f, --input-format <INPUT_FORMAT>
           input image formats [default: common] [possible values: common, lvgl-v9]
   -g, --output-category <OUTPUT_CATEGORY>
-          output image format categories [possible values: common, bin, c-array]
+          output image format categories [default: common] [possible values: common, bin, c-array]
   -F, --output-format <OUTPUT_FORMAT>
           output image formats [possible values: png, jpeg, bmp, gif, tiff, webp, ico, pbm, pgm, ppm, pam, lvgl]
   -S, --output-stride-align <OUTPUT_STRIDE_ALIGN>

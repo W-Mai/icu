@@ -158,7 +158,7 @@ pub(crate) enum SubCommands {
     /// Convert image files to any other image format including LVGL image formats.
     Convert {
         /// input files
-        #[arg(short = 'i', long, required = true, value_hint = clap::ValueHint::FilePath)]
+        #[arg(required = true, value_hint = clap::ValueHint::FilePath)]
         input_files: Vec<String>,
 
         /// input image formats
@@ -205,7 +205,7 @@ pub fn parse_args() -> Args {
             if output_format == &ImageFormats::LVGL && output_color_format.is_none() {
                 let error = command.error(
                     ErrorKind::MissingRequiredArgument,
-                    "Output color format is required for LVGL image format.\
+                    "Output color format is required for LVGL image format. \
                  Please specify it using the [-C --output-color-format] option.",
                 );
 
