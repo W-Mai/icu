@@ -62,14 +62,7 @@ fn main() {
                 };
 
                 let ed = output_format.get_endecoder();
-                let data = mid.encode_into(
-                    ed,
-                    EncoderParams {
-                        color_format: Default::default(),
-                        stride_align: 256,
-                        dither: false,
-                    },
-                );
+                let data = mid.encode_into(ed, EncoderParams::new().with_stride_align(256));
 
                 match output_category {
                     ImageOutputFormatCategory::Common | ImageOutputFormatCategory::Bin => {

@@ -18,3 +18,24 @@ impl Default for EncoderParams {
         }
     }
 }
+
+impl EncoderParams {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    
+    pub fn with_color_format(mut self, color_format: lvgl_v9::ColorFormat) -> Self {
+        self.color_format = color_format;
+        self
+    }
+
+    pub fn with_stride_align(mut self, stride_align: u32) -> Self {
+        self.stride_align = stride_align;
+        self
+    }
+
+    pub fn with_dither(mut self, dither: bool) -> Self {
+        self.dither = dither;
+        self
+    }
+}
