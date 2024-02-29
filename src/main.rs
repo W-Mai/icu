@@ -52,6 +52,9 @@ fn main() {
             lvgl_version: _,
         } => {
             for file_name in input_files {
+                // calculate converting time
+                let start_time = std::time::Instant::now();
+                
                 let data = fs::read(file_name).expect("Unable to read file");
                 let mid = match input_format {
                     ImageFormatCategory::Common => {
@@ -85,6 +88,10 @@ fn main() {
                         panic!("C_Array output format is not supported yet");
                     }
                 }
+                
+                let end_time = std::time::Instant::now();
+                let duration = end_time - start_time;
+                log::info!("Converting time: {}.{:03}s", duration.as_secs(), duration.subsec_millis());
             }
         }
     }
