@@ -68,7 +68,7 @@ Arguments:
 
 Options:
   -f, --input-format <INPUT_FORMAT>
-          input image formats [default: common] [possible values: common, lvgl-v9]
+          input image formats [default: auto] [possible values: auto, common, lvgl-v9]
   -g, --output-category <OUTPUT_CATEGORY>
           output image format categories [default: common] [possible values: common, bin, c-array]
   -F, --output-format <OUTPUT_FORMAT>
@@ -96,7 +96,7 @@ Arguments:
   <FILE>  an image file to show
 
 Options:
-  -f, --input-format <INPUT_FORMAT>  input image formats [default: common] [possible values: common, lvgl-v9]
+  -f, --input-format <INPUT_FORMAT>  input image formats [default: auto] [possible values: auto, common, lvgl-v9]
   -h, --help                         Print help (see more with '--help')
 ```
 
