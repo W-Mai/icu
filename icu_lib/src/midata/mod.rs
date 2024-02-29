@@ -25,7 +25,6 @@ pub fn decode_from(data: Vec<u8>) -> MiData {
         &endecoder::lvgl_v9::LVGL {} as &dyn EnDecoder,
     ];
 
-
     for ed in eds {
         let can_decode = ed.can_decode(&data);
         if can_decode {

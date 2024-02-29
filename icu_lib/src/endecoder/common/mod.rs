@@ -86,7 +86,7 @@ impl EnDecoder for JPEG {
             false
         }
     }
-    
+
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -107,7 +107,7 @@ impl EnDecoder for JPEG {
     }
 }
 
-impl EnDecoder for BMP { 
+impl EnDecoder for BMP {
     fn can_decode(&self, data: &Vec<u8>) -> bool {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Bmp
@@ -116,7 +116,7 @@ impl EnDecoder for BMP {
             false
         }
     }
-    
+
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -146,7 +146,7 @@ impl EnDecoder for GIF {
             false
         }
     }
-    
+
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -176,7 +176,7 @@ impl EnDecoder for TIFF {
             false
         }
     }
-    
+
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -206,7 +206,7 @@ impl EnDecoder for WEBP {
             false
         }
     }
-    
+
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -236,7 +236,7 @@ impl EnDecoder for ICO {
             false
         }
     }
-    
+
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -266,7 +266,7 @@ impl EnDecoder for PBM {
             false
         }
     }
-    
+
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::GRAY(img) => {
@@ -296,7 +296,7 @@ impl EnDecoder for PGM {
             false
         }
     }
-    
+
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::GRAY(img) => {
@@ -326,7 +326,7 @@ impl EnDecoder for PPM {
             false
         }
     }
-    
+
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -356,7 +356,7 @@ impl EnDecoder for PAM {
             false
         }
     }
-    
+
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -382,7 +382,7 @@ impl EnDecoder for TGA {
         log::error!("TGA is not supported yet");
         false
     }
-    
+
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {

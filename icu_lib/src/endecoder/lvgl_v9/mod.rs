@@ -1,7 +1,7 @@
 use std::io::{Cursor, Read, Write};
 
-mod lvgl;
 mod color_converter;
+mod lvgl;
 
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
 #[repr(u8)]
@@ -118,7 +118,10 @@ impl ImageHeader {
         }
 
         if header.magic != 0x19 {
-            log::error!("Invalid magic number in image header with value: {}", header.magic);
+            log::error!(
+                "Invalid magic number in image header with value: {}",
+                header.magic
+            );
             assert_eq!(header.magic, 0x19, "Invalid magic number in image header");
         }
 
@@ -176,7 +179,10 @@ impl ImageDescriptor {
 
         assert_eq!(idea_data_size, data_size, "Data size mismatch {:?}", header);
 
-        log::trace!("Decoded image descriptor and returned data size: {}", data_size);
+        log::trace!(
+            "Decoded image descriptor and returned data size: {}",
+            data_size
+        );
 
         Self {
             header,

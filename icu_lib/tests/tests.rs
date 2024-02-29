@@ -1,4 +1,3 @@
-
 #[cfg(test)]
 mod tests {
     use icu_lib::endecoder::{common, lvgl_v9};

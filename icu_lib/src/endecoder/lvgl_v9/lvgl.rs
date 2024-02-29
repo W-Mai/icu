@@ -1,10 +1,10 @@
-use std::io::{Cursor, Write};
 use crate::endecoder::lvgl_v9::color_converter::{rgba8888_from, rgba8888_to};
-use crate::endecoder::lvgl_v9::{LVGL, ImageDescriptor, ImageHeader, Flags, ColorFormat};
+use crate::endecoder::lvgl_v9::{ColorFormat, Flags, ImageDescriptor, ImageHeader, LVGL};
 use crate::endecoder::EnDecoder;
 use crate::midata::MiData;
 use crate::EncoderParams;
 use image::RgbaImage;
+use std::io::{Cursor, Write};
 
 impl EnDecoder for LVGL {
     fn can_decode(&self, data: &Vec<u8>) -> bool {
@@ -16,7 +16,7 @@ impl EnDecoder for LVGL {
         let header_data = &data[..header_size];
 
         let header = ImageHeader::decode(Vec::from(header_data));
-        if header.magic != 0x19 && header.cf != ColorFormat::UNKNOWN{
+        if header.magic != 0x19 && header.cf != ColorFormat::UNKNOWN {
             return false;
         }
 
@@ -50,9 +50,9 @@ impl EnDecoder for LVGL {
                         ),
                         img_data,
                     )
-                        .encode(),
+                    .encode(),
                 )
-                    .unwrap();
+                .unwrap();
 
                 buf.into_inner()
             }
@@ -82,10 +82,14 @@ impl EnDecoder for LVGL {
                 header.stride as u32,
             ),
         )
-            .unwrap();
+        .unwrap();
 
         log::trace!("Converted image data to RGBA");
-        log::trace!("Decoded image with size: {}x{}", img_buffer.width(), img_buffer.height());
+        log::trace!(
+            "Decoded image with size: {}x{}",
+            img_buffer.width(),
+            img_buffer.height()
+        );
         log::trace!("Creating MiData object with RGBA image data and returning it");
 
         MiData::RGBA(img_buffer)
