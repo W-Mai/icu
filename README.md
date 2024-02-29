@@ -120,3 +120,19 @@ icu show res/img_0.bin -f lvgl-v9
 
 And you will get a window with the image like before.
 
+## Convert an common image format to an common image format
+
+if you want to converting images with logs out put, you can use `-vv` option.
+
+```shell
+$ icu -vv convert res/img_0.png res/img_0.jpeg --output-format webp`
+[2024-02-29T13:05:06Z INFO  icu] Start converting files
+[2024-02-29T13:05:06Z INFO  icu] 
+[2024-02-29T13:05:06Z INFO  icu] took 0.002740s for converting [res/img_0.png] to [res/img_0.webp] with format [WEBP] 
+[2024-02-29T13:05:06Z INFO  icu] took 0.002257s for converting [res/img_0.jpeg] to [res/img_0.webp] with format [WEBP] 
+[2024-02-29T13:05:06Z INFO  icu] 
+[2024-02-29T13:05:06Z INFO  icu] Total converting time:
+[2024-02-29T13:05:06Z INFO  icu]        Consuming  : 0.005121s for 2 files
+[2024-02-29T13:05:06Z INFO  icu]        User   time: 0.004998s
+[2024-02-29T13:05:06Z INFO  icu]        System time: 0.000123s
+```
