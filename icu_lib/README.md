@@ -35,8 +35,9 @@ fn main() {
 
     // Encode the image data to the LVGL binary format with ARGB8888 color format
     let data = mid.encode_into(
-        &lvgl_v9::ColorFormatARGB8888 {},
+        &lvgl_v9::LVGL {},
         EncoderParams {
+            color_format: lvgl_v9::ColorFormat::ARGB8888,
             stride_align: 256,
             dither: false,
         });

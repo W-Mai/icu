@@ -52,7 +52,7 @@ mod tests {
         let mid = MiData::decode_from(&lvgl_v9::LVGL {}, data);
         let data = mid.encode_into(&common::PNG {}, Default::default());
         fs::write("img_0_after.png", data).expect("Unable to write file");
-        
+
         // delete png file and bin file
         fs::remove_file("img_0_after.png").expect("Unable to delete file");
         fs::remove_file("./res/img_0.bin").expect("Unable to delete file");
