@@ -65,6 +65,7 @@ fn main() {
                 let data = mid.encode_into(
                     ed,
                     EncoderParams {
+                        color_format: Default::default(),
                         stride_align: 256,
                         dither: false,
                     },

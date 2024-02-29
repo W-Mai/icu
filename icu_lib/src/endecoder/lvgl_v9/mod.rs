@@ -23,7 +23,7 @@ mod cf_rgb888;
 mod cf_xrgb8888;
 mod color_converter;
 
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug, Default)]
 #[repr(u8)]
 pub enum ColorFormat {
     // Unkonw
@@ -43,6 +43,7 @@ pub enum ColorFormat {
 
     // 3 bytes formats
     RGB888 = 0x0F,
+    #[default]
     ARGB8888 = 0x10,
     XRGB8888 = 0x11,
 
