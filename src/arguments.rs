@@ -107,9 +107,9 @@ impl ImageFormats {
     }
 }
 
-impl Into<lvgl_v9::ColorFormat> for OutputColorFormats {
-    fn into(self) -> lvgl_v9::ColorFormat {
-        match self {
+impl From<OutputColorFormats> for lvgl_v9::ColorFormat {
+    fn from(color_format: OutputColorFormats) -> lvgl_v9::ColorFormat {
+        match color_format {
             OutputColorFormats::RGB565 => lvgl_v9::ColorFormat::RGB565,
             OutputColorFormats::RGB565A8 => lvgl_v9::ColorFormat::RGB565A8,
             OutputColorFormats::RGB888 => lvgl_v9::ColorFormat::RGB888,
