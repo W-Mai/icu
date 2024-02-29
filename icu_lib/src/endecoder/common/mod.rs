@@ -34,7 +34,7 @@ impl EnDecoder for AutoDectect {
     fn can_decode(&self, data: &Vec<u8>) -> bool {
         image::guess_format(data).is_ok()
     }
-    
+
     fn encode(&self, _data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         unimplemented!()
     }
@@ -48,6 +48,15 @@ impl EnDecoder for AutoDectect {
 }
 
 impl EnDecoder for PNG {
+    fn can_decode(&self, data: &Vec<u8>) -> bool {
+        if let Ok(format) = image::guess_format(data) {
+            format == image::ImageFormat::Png
+        } else {
+            log::error!("It's not a PNG file");
+            false
+        }
+    }
+
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -69,6 +78,15 @@ impl EnDecoder for PNG {
 }
 
 impl EnDecoder for JPEG {
+    fn can_decode(&self, _data: &Vec<u8>) -> bool {
+        if let Ok(format) = image::guess_format(_data) {
+            format == image::ImageFormat::Jpeg
+        } else {
+            log::error!("It's not a JPEG file");
+            false
+        }
+    }
+    
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -89,7 +107,16 @@ impl EnDecoder for JPEG {
     }
 }
 
-impl EnDecoder for BMP {
+impl EnDecoder for BMP { 
+    fn can_decode(&self, data: &Vec<u8>) -> bool {
+        if let Ok(format) = image::guess_format(data) {
+            format == image::ImageFormat::Bmp
+        } else {
+            log::error!("It's not a BMP file");
+            false
+        }
+    }
+    
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -111,6 +138,15 @@ impl EnDecoder for BMP {
 }
 
 impl EnDecoder for GIF {
+    fn can_decode(&self, data: &Vec<u8>) -> bool {
+        if let Ok(format) = image::guess_format(data) {
+            format == image::ImageFormat::Gif
+        } else {
+            log::error!("It's not a GIF file");
+            false
+        }
+    }
+    
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -132,6 +168,15 @@ impl EnDecoder for GIF {
 }
 
 impl EnDecoder for TIFF {
+    fn can_decode(&self, data: &Vec<u8>) -> bool {
+        if let Ok(format) = image::guess_format(data) {
+            format == image::ImageFormat::Tiff
+        } else {
+            log::error!("It's not a TIFF file");
+            false
+        }
+    }
+    
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -153,6 +198,15 @@ impl EnDecoder for TIFF {
 }
 
 impl EnDecoder for WEBP {
+    fn can_decode(&self, data: &Vec<u8>) -> bool {
+        if let Ok(format) = image::guess_format(data) {
+            format == image::ImageFormat::WebP
+        } else {
+            log::error!("It's not a WEBP file");
+            false
+        }
+    }
+    
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -174,6 +228,15 @@ impl EnDecoder for WEBP {
 }
 
 impl EnDecoder for ICO {
+    fn can_decode(&self, data: &Vec<u8>) -> bool {
+        if let Ok(format) = image::guess_format(data) {
+            format == image::ImageFormat::Ico
+        } else {
+            log::error!("It's not a ICO file");
+            false
+        }
+    }
+    
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -195,6 +258,15 @@ impl EnDecoder for ICO {
 }
 
 impl EnDecoder for PBM {
+    fn can_decode(&self, data: &Vec<u8>) -> bool {
+        if let Ok(format) = image::guess_format(data) {
+            format == image::ImageFormat::Pnm
+        } else {
+            log::error!("It's not a PBM file");
+            false
+        }
+    }
+    
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::GRAY(img) => {
@@ -216,6 +288,15 @@ impl EnDecoder for PBM {
 }
 
 impl EnDecoder for PGM {
+    fn can_decode(&self, data: &Vec<u8>) -> bool {
+        if let Ok(format) = image::guess_format(data) {
+            format == image::ImageFormat::Pnm
+        } else {
+            log::error!("It's not a PGM file");
+            false
+        }
+    }
+    
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::GRAY(img) => {
@@ -237,6 +318,15 @@ impl EnDecoder for PGM {
 }
 
 impl EnDecoder for PPM {
+    fn can_decode(&self, data: &Vec<u8>) -> bool {
+        if let Ok(format) = image::guess_format(data) {
+            format == image::ImageFormat::Pnm
+        } else {
+            log::error!("It's not a PPM file");
+            false
+        }
+    }
+    
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -258,6 +348,15 @@ impl EnDecoder for PPM {
 }
 
 impl EnDecoder for PAM {
+    fn can_decode(&self, data: &Vec<u8>) -> bool {
+        if let Ok(format) = image::guess_format(data) {
+            format == image::ImageFormat::Pnm
+        } else {
+            log::error!("It's not a PAM file");
+            false
+        }
+    }
+    
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
@@ -279,6 +378,11 @@ impl EnDecoder for PAM {
 }
 
 impl EnDecoder for TGA {
+    fn can_decode(&self, _data: &Vec<u8>) -> bool {
+        log::error!("TGA is not supported yet");
+        false
+    }
+    
     fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
