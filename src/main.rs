@@ -36,9 +36,7 @@ fn main() {
             let data = fs::read(file).expect("Unable to read file");
             let mid = match input_format {
                 ImageFormatCategory::Common => MiData::decode_from(&common::AutoDectect {}, data),
-                ImageFormatCategory::LVGL_V9 => {
-                    MiData::decode_from(&lvgl_v9::ColorFormatAutoDectect {}, data)
-                }
+                ImageFormatCategory::LVGL_V9 => MiData::decode_from(&lvgl_v9::LVGL {}, data),
             };
 
             show_image(mid);
@@ -56,9 +54,7 @@ fn main() {
                     ImageFormatCategory::Common => {
                         MiData::decode_from(&common::AutoDectect {}, data)
                     }
-                    ImageFormatCategory::LVGL_V9 => {
-                        MiData::decode_from(&lvgl_v9::ColorFormatAutoDectect {}, data)
-                    }
+                    ImageFormatCategory::LVGL_V9 => MiData::decode_from(&lvgl_v9::LVGL {}, data),
                 };
 
                 let ed = output_format.get_endecoder();
@@ -103,7 +99,7 @@ mod tests {
             fs::write("./res/img_0.bin", data).expect("Unable to write file");
 
             let data = fs::read("./res/img_0.bin").expect("Unable to read file");
-            MiData::decode_from(&lvgl_v9::ColorFormatAutoDectect {}, data);
+            MiData::decode_from(&lvgl_v9::LVGL {}, data);
         }};
     }
 
@@ -128,7 +124,7 @@ mod tests {
         test_encode_decode!(DATA, &lvgl_v9::ColorFormatI8 {});
 
         let data = fs::read("./res/img_0.bin").expect("Unable to read file");
-        let mid = MiData::decode_from(&lvgl_v9::ColorFormatAutoDectect {}, data);
+        let mid = MiData::decode_from(&lvgl_v9::LVGL {}, data);
         let data = mid.encode_into(&common::PNG {}, Default::default());
         fs::write("img_0_after.png", data).expect("Unable to write file");
     }

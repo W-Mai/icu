@@ -46,21 +46,8 @@ pub(crate) enum ImageFormats {
     PPM,
     PAM,
 
-    /// LVGL image formats like: RGB565, RGB888, ARGB8888, etc.
-    RGB565,
-    RGB565A8,
-    RGB888,
-    ARGB8888,
-    XRGB8888,
-    A1,
-    A2,
-    A4,
-    A8,
-    L8,
-    I1,
-    I2,
-    I4,
-    I8,
+    /// LVGL image formats
+    LVGL,
 }
 
 impl ImageFormats {
@@ -77,30 +64,7 @@ impl ImageFormats {
             ImageFormats::PGM => &icu_lib::endecoder::common::PGM {} as &dyn EnDecoder,
             ImageFormats::PPM => &icu_lib::endecoder::common::PPM {} as &dyn EnDecoder,
             ImageFormats::PAM => &icu_lib::endecoder::common::PAM {} as &dyn EnDecoder,
-            ImageFormats::RGB565 => {
-                &icu_lib::endecoder::lvgl_v9::ColorFormatRGB565 {} as &dyn EnDecoder
-            }
-            ImageFormats::RGB565A8 => {
-                &icu_lib::endecoder::lvgl_v9::ColorFormatRGB565A8 {} as &dyn EnDecoder
-            }
-            ImageFormats::RGB888 => {
-                &icu_lib::endecoder::lvgl_v9::ColorFormatRGB888 {} as &dyn EnDecoder
-            }
-            ImageFormats::ARGB8888 => {
-                &icu_lib::endecoder::lvgl_v9::ColorFormatARGB8888 {} as &dyn EnDecoder
-            }
-            ImageFormats::XRGB8888 => {
-                &icu_lib::endecoder::lvgl_v9::ColorFormatXRGB8888 {} as &dyn EnDecoder
-            }
-            ImageFormats::A1 => &icu_lib::endecoder::lvgl_v9::ColorFormatA1 {} as &dyn EnDecoder,
-            ImageFormats::A2 => &icu_lib::endecoder::lvgl_v9::ColorFormatA2 {} as &dyn EnDecoder,
-            ImageFormats::A4 => &icu_lib::endecoder::lvgl_v9::ColorFormatA4 {} as &dyn EnDecoder,
-            ImageFormats::A8 => &icu_lib::endecoder::lvgl_v9::ColorFormatA8 {} as &dyn EnDecoder,
-            ImageFormats::L8 => &icu_lib::endecoder::lvgl_v9::ColorFormatL8 {} as &dyn EnDecoder,
-            ImageFormats::I1 => &icu_lib::endecoder::lvgl_v9::ColorFormatI1 {} as &dyn EnDecoder,
-            ImageFormats::I2 => &icu_lib::endecoder::lvgl_v9::ColorFormatI2 {} as &dyn EnDecoder,
-            ImageFormats::I4 => &icu_lib::endecoder::lvgl_v9::ColorFormatI4 {} as &dyn EnDecoder,
-            ImageFormats::I8 => &icu_lib::endecoder::lvgl_v9::ColorFormatI8 {} as &dyn EnDecoder,
+            ImageFormats::LVGL => &icu_lib::endecoder::lvgl_v9::LVGL {} as &dyn EnDecoder,
         }
     }
 
@@ -117,20 +81,7 @@ impl ImageFormats {
             ImageFormats::PGM => "pgm",
             ImageFormats::PPM => "ppm",
             ImageFormats::PAM => "pam",
-            ImageFormats::RGB565
-            | ImageFormats::RGB565A8
-            | ImageFormats::RGB888
-            | ImageFormats::ARGB8888
-            | ImageFormats::XRGB8888
-            | ImageFormats::A1
-            | ImageFormats::A2
-            | ImageFormats::A4
-            | ImageFormats::A8
-            | ImageFormats::L8
-            | ImageFormats::I1
-            | ImageFormats::I2
-            | ImageFormats::I4
-            | ImageFormats::I8 => "bin",
+            ImageFormats::LVGL => "bin",
         }
     }
 }

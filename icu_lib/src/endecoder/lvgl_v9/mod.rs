@@ -1,26 +1,6 @@
 use std::io::{Cursor, Read, Write};
 
-use crate::EncoderParams;
-use image::RgbaImage;
-
-use crate::endecoder::lvgl_v9::color_converter::{rgba8888_from, rgba8888_to};
-use crate::midata::MiData;
-
-mod cf_a1;
-mod cf_a2;
-mod cf_a4;
-mod cf_a8;
-mod cf_argb8888;
-mod cf_auto_detect;
-mod cf_i1;
-mod cf_i2;
-mod cf_i4;
-mod cf_i8;
-mod cf_l8;
-mod cf_rgb565;
-mod cf_rgb565a8;
-mod cf_rgb888;
-mod cf_xrgb8888;
+mod lvgl;
 mod color_converter;
 
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
@@ -53,35 +33,7 @@ pub enum ColorFormat {
     A4 = 0x0D,
 }
 
-pub struct ColorFormatAutoDectect {}
-
-pub struct ColorFormatL8 {}
-
-pub struct ColorFormatI1 {}
-
-pub struct ColorFormatI2 {}
-
-pub struct ColorFormatI4 {}
-
-pub struct ColorFormatI8 {}
-
-pub struct ColorFormatA8 {}
-
-pub struct ColorFormatRGB565 {}
-
-pub struct ColorFormatRGB565A8 {}
-
-pub struct ColorFormatRGB888 {}
-
-pub struct ColorFormatARGB8888 {}
-
-pub struct ColorFormatXRGB8888 {}
-
-pub struct ColorFormatA1 {}
-
-pub struct ColorFormatA2 {}
-
-pub struct ColorFormatA4 {}
+pub struct LVGL {}
 
 #[derive(Copy, Clone, Debug)]
 #[repr(u16)]
@@ -263,76 +215,5 @@ impl ColorFormat {
     pub fn get_stride_size(&self, width: u32, align: u32) -> u32 {
         let stride = (width * self.get_bpp() as u32 + 7) >> 3;
         (stride + align - 1) & !(align - 1)
-    }
-}
-
-pub(crate) fn common_decode_function(data: Vec<u8>, color_format: ColorFormat) -> MiData {
-    log::trace!("Decoding image with color format: {:?}, data size: {}", color_format, data.len());
-
-    let img_desc = ImageDescriptor::decode(data);
-    let header = &img_desc.header;
-
-    log::trace!("Decoded image header: {:#?}", img_desc.header);
-    
-    assert_eq!(img_desc.header.cf, color_format, "Color format mismatch");
-
-    log::trace!("Converting image data to RGBA");
-    // Convert image data to RGBA
-    let img_buffer = RgbaImage::from_vec(
-        img_desc.header.h as u32,
-        img_desc.header.w as u32,
-        rgba8888_from(
-            img_desc.data.clone().as_mut(),
-            color_format,
-            header.w as u32,
-            header.h as u32,
-            header.stride as u32,
-        ),
-    )
-    .unwrap();
-
-    log::trace!("Converted image data to RGBA");
-    log::trace!("Decoded image with size: {}x{}", img_buffer.width(), img_buffer.height());
-    log::trace!("Creating MiData object with RGBA image data and returning it");
-
-    MiData::RGBA(img_buffer)
-}
-
-pub(crate) fn common_encode_function(
-    data: &MiData,
-    color_format: ColorFormat,
-    encoder_params: EncoderParams,
-) -> Vec<u8> {
-    match data {
-        MiData::RGBA(img) => {
-            let stride = color_format.get_stride_size(img.width(), encoder_params.stride_align);
-            let mut img_data = img.clone();
-            let img_data = rgba8888_to(
-                img_data.as_mut(),
-                color_format,
-                img.width(),
-                img.height(),
-                stride,
-            );
-
-            let mut buf = Cursor::new(Vec::new());
-            buf.write_all(
-                &ImageDescriptor::new(
-                    ImageHeader::new(
-                        color_format,
-                        Flags::NONE,
-                        img.width() as u16,
-                        img.height() as u16,
-                        stride as u16,
-                    ),
-                    img_data,
-                )
-                .encode(),
-            )
-            .unwrap();
-
-            buf.into_inner()
-        }
-        _ => Vec::new(),
     }
 }

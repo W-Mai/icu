@@ -12,7 +12,7 @@ macro_rules! test_encode_decode {
         fs::write("img_0.bin", data).expect("Unable to write file");
 
         let data = fs::read("img_0.bin").expect("Unable to read file");
-        MiData::decode_from::<lvgl_v9::ColorFormatAutoDectect>(data);
+        MiData::decode_from::<lvgl_v9::LVGL>(data);
     }};
 }
 
