@@ -61,6 +61,7 @@ fn main() {
         } => {
             // calculate converting time
             let total_start_time = std::time::Instant::now();
+
             let mut user_duration = 0.0;
             let mut converted_files = 0;
             let is_folder_input = input_files.len() == 1 && Path::new(&input_files[0]).is_dir();
