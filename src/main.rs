@@ -63,34 +63,63 @@ fn main() {
             let total_start_time = std::time::Instant::now();
             let mut user_duration = 0.0;
             let mut converted_files = 0;
+            let is_folder_input = input_files.len() == 1 && Path::new(&input_files[0]).is_dir();
 
             log::trace!("files to be converted: {:#?}", input_files);
-            log::info!("Start converting files");
+            log::info!(
+                "Start converting {}",
+                if is_folder_input { "folder" } else { "file" }
+            );
             log::info!("");
 
-            let input_files_vec = input_files.iter().filter(|file_name| {
-                let metadata = fs::metadata(file_name);
+            let input_files_vec = if is_folder_input {
+                let input_folder = Path::new(&input_files[0]).to_path_buf();
+                let mut folder_list = vec![input_folder];
+                let mut files = Vec::new();
 
-                match metadata {
-                    Ok(metadata) => {
-                        if metadata.is_dir() {
-                            log::trace!("{} is a directory, skip it", file_name);
-                            return false;
-                        }
-                        true
-                    }
-                    Err(_) => {
-                        log::error!("File not found: {}", file_name);
-                        false
+                while !folder_list.is_empty() {
+                    if let Some(folder) = folder_list.pop() {
+                        folder.read_dir().unwrap().for_each(|entry| {
+                            let entry = entry.unwrap();
+                            let path = entry.path();
+                            if path.is_file() {
+                                log::trace!("converting file: {}", path.to_str().unwrap());
+                                files.push(path.to_string_lossy().into())
+                            } else if path.is_dir() {
+                                folder_list.push(path);
+                            }
+                        });
                     }
                 }
-            });
+                files
+            } else {
+                input_files
+                    .iter()
+                    .filter_map(|file_name| {
+                        let metadata = fs::metadata(file_name);
+
+                        match metadata {
+                            Ok(metadata) => {
+                                if metadata.is_dir() {
+                                    log::trace!("{} is a directory, skip it", file_name);
+                                    return None;
+                                }
+                                Some(file_name.clone())
+                            }
+                            Err(_) => {
+                                log::error!("File not found: {}", file_name);
+                                None
+                            }
+                        }
+                    })
+                    .collect::<Vec<String>>()
+            };
 
             for file_path in input_files_vec {
                 // calculate converting time
                 let start_time = std::time::Instant::now();
 
-                let data = fs::read(file_path).expect("Unable to read file");
+                let data = fs::read(&file_path).expect("Unable to read file");
                 let mid = decode_with(data, *input_format);
 
                 let ed = output_format.get_endecoder();
@@ -103,8 +132,8 @@ fn main() {
 
                 let data = mid.encode_into(ed, params);
 
-                let file_folder = Path::new(file_path).parent().unwrap();
-                let file_name = Path::new(file_path).file_name().unwrap_or_default();
+                let file_folder = Path::new(&file_path).parent().unwrap();
+                let file_name = Path::new(&file_path).file_name().unwrap_or_default();
 
                 let output_file_name =
                     Path::new(file_name).with_extension(output_format.get_file_extension());
@@ -144,7 +173,7 @@ fn main() {
                 log::info!(
                     "took {:.6}s for converting <{}> to <{}> with format <{}>",
                     duration.as_secs_f64(),
-                    file_path,
+                    &file_path,
                     output_file_path.to_str().unwrap_or_default(),
                     output_format_str
                 );
