@@ -51,6 +51,7 @@ fn main() {
         SubCommands::Convert {
             input_files,
             input_format,
+            output_folder,
             output_category,
             output_format,
             output_stride_align,
@@ -85,11 +86,11 @@ fn main() {
                 }
             });
 
-            for file_name in input_files_vec {
+            for file_path in input_files_vec {
                 // calculate converting time
                 let start_time = std::time::Instant::now();
 
-                let data = fs::read(file_name).expect("Unable to read file");
+                let data = fs::read(file_path).expect("Unable to read file");
                 let mid = decode_with(data, *input_format);
 
                 let ed = output_format.get_endecoder();
@@ -105,12 +106,26 @@ fn main() {
 
                 let data = mid.encode_into(ed, params);
 
+                let file_folder = Path::new(file_path).parent().unwrap();
+                let file_name = Path::new(file_path).file_name().unwrap_or_default();
+
                 let output_file_name =
                     Path::new(file_name).with_extension(output_format.get_file_extension());
 
+                let mut output_file_path = file_folder.join(&output_file_name);
+
+                if let Some(output_folder) = output_folder {
+                    let output_folder = Path::new(output_folder);
+                    if !output_folder.exists() {
+                        fs::create_dir_all(output_folder).expect("Unable to create output folder");
+                    }
+
+                    output_file_path = output_folder.join(&output_file_name);
+                }
+
                 match output_category {
                     OutputFileFormatCategory::Common | OutputFileFormatCategory::Bin => {
-                        fs::write(output_file_name.clone(), data).expect("Unable to write file");
+                        fs::write(&output_file_path, data).expect("Unable to write file");
                     }
                     OutputFileFormatCategory::C_Array => {
                         panic!("C_Array output format is not supported yet");
@@ -132,8 +147,8 @@ fn main() {
                 log::info!(
                     "took {:.6}s for converting <{}> to <{}> with format <{}>",
                     duration.as_secs_f64(),
-                    file_name,
-                    output_file_name.to_str().unwrap_or_default(),
+                    file_path,
+                    output_file_path.to_str().unwrap_or_default(),
                     output_format_str
                 );
 

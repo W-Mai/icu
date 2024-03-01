@@ -169,8 +169,12 @@ pub(crate) enum SubCommands {
         #[arg(short = 'f', long, value_enum, default_value = "auto")]
         input_format: ImageFormatCategory,
 
+        /// output folder
+        #[arg(short = 'O', long, value_hint = clap::ValueHint::DirPath)]
+        output_folder: Option<String>,
+
         /// output image format categories
-        #[arg(short = 'g', long, value_enum, default_value = "common")]
+        #[arg(short = 'G', long, value_enum, default_value = "common")]
         output_category: OutputFileFormatCategory,
 
         /// output image formats
