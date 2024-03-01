@@ -64,6 +64,10 @@ fn main() {
             let mut user_duration = 0.0;
             let mut converted_files = 0;
             let is_folder_input = input_files.len() == 1 && Path::new(&input_files[0]).is_dir();
+            let input_folder = input_files
+                .first()
+                .map(|path| Path::new(path).canonicalize().unwrap())
+                .unwrap_or_default();
 
             log::trace!("files to be converted: {:#?}", input_files);
             log::info!(
@@ -73,8 +77,7 @@ fn main() {
             log::info!("");
 
             let input_files_vec = if is_folder_input {
-                let input_folder = Path::new(&input_files[0]).to_path_buf();
-                let mut folder_list = vec![input_folder];
+                let mut folder_list = vec![input_folder.clone()];
                 let mut files = Vec::new();
 
                 while !folder_list.is_empty() {
@@ -116,6 +119,8 @@ fn main() {
             };
 
             for file_path in input_files_vec {
+                let file_path = Path::new(&file_path).canonicalize().unwrap();
+
                 // calculate converting time
                 let start_time = std::time::Instant::now();
 
@@ -132,7 +137,15 @@ fn main() {
 
                 let data = mid.encode_into(ed, params);
 
-                let file_folder = Path::new(&file_path).parent().unwrap();
+                let file_folder = if is_folder_input {
+                    file_path
+                        .strip_prefix(input_folder.clone())
+                        .unwrap()
+                        .parent()
+                        .unwrap()
+                } else {
+                    Path::new(&file_path).parent().unwrap()
+                };
                 let file_name = Path::new(&file_path).file_name().unwrap_or_default();
 
                 let output_file_name =
@@ -141,9 +154,13 @@ fn main() {
                 let mut output_file_path = file_folder.join(&output_file_name);
 
                 if let Some(output_folder) = output_folder {
-                    let output_folder = Path::new(output_folder);
+                    let output_folder = if is_folder_input {
+                        Path::new(output_folder).join(file_folder)
+                    } else {
+                        Path::new(output_folder).to_path_buf()
+                    };
                     if !output_folder.exists() {
-                        fs::create_dir_all(output_folder).expect("Unable to create output folder");
+                        fs::create_dir_all(&output_folder).expect("Unable to create output folder");
                     }
 
                     output_file_path = output_folder.join(&output_file_name);
@@ -173,7 +190,7 @@ fn main() {
                 log::info!(
                     "took {:.6}s for converting <{}> to <{}> with format <{}>",
                     duration.as_secs_f64(),
-                    &file_path,
+                    file_path.to_string_lossy(),
                     output_file_path.to_str().unwrap_or_default(),
                     output_format_str
                 );
