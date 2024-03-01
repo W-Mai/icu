@@ -94,15 +94,12 @@ fn main() {
                 let mid = decode_with(data, *input_format);
 
                 let ed = output_format.get_endecoder();
-                let mut params = EncoderParams::new()
+                let params = EncoderParams::new()
                     .with_stride_align(*output_stride_align)
-                    .with_dither(*dither);
-
-                if let Some(output_color_format) = output_color_format {
-                    params = params.with_color_format((*output_color_format).into());
-                } else {
-                    params = params.with_color_format(lvgl_v9::ColorFormat::UNKNOWN);
-                }
+                    .with_dither(*dither)
+                    .with_color_format(
+                        (*output_color_format).map(|f| f.into()).unwrap_or_default(),
+                    );
 
                 let data = mid.encode_into(ed, params);
 

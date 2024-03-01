@@ -7,6 +7,7 @@ mod lvgl;
 #[repr(u8)]
 pub enum ColorFormat {
     // Unkonw
+    #[default]
     UNKNOWN = 0x00,
 
     // 1 byte (+alpha) formats
@@ -23,7 +24,6 @@ pub enum ColorFormat {
 
     // 3 bytes formats
     RGB888 = 0x0F,
-    #[default]
     ARGB8888 = 0x10,
     XRGB8888 = 0x11,
 
