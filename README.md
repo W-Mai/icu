@@ -150,19 +150,60 @@ $ icu -vv convert res/img_0.png res/img_0.jpeg -F webp
 
 ## Convert some images in a folder to another specific folder
 
-convert all images in the `images` folder to jpeg format and save them in the `res/output` folder, if the output file
+convert all images in the `res` folder to jpeg format and save them in the `res/output` folder, if the output file
 already exists, it will override it (you should use `-r --override-output` option).
 
 *if and the output folder will keep the same structure as the input folder*.
 
 ```shell
-$ icu convert images -O res/output --output-format jpeg --override-output
+$ icu convert res -O res/output --output-format jpeg --override-output
 ```
 
 or in a short form:
 
 ```shell
-$ icu convert images -O res/output -F jpeg -r
+$ icu convert res -O res/output -F jpeg -r
+```
+
+## Convert an LVGL image format to an common image format
+
+Convert an LVGL image format to an common image format.
+And if you specify the `--overide-output` option, ICU will override the output file if it already exists.
+And you will get a warning message for sure if the output file already exists.
+
+```shell
+$ icu -vv convert res/img_0.bin -O res/output -F jpeg -r
+
+[2024-03-03T16:08:01Z INFO  icu] Start converting file
+[2024-03-03T16:08:01Z INFO  icu] 
+[2024-03-03T16:08:01Z WARN  icu] Override output file <res/output/img_0.jpeg> for converting <res/img_0.bin>
+[2024-03-03T16:08:01Z INFO  icu] took 0.007022s for converting <res/img_0.bin> to <res/output/img_0.jpeg> with format <JPEG>
+[2024-03-03T16:08:01Z INFO  icu] 
+[2024-03-03T16:08:01Z INFO  icu] Total converting time:
+[2024-03-03T16:08:01Z INFO  icu]        Consuming  : 0.008715s for 1 files
+[2024-03-03T16:08:01Z INFO  icu]        User   time: 0.007022s
+[2024-03-03T16:08:01Z INFO  icu]        System time: 0.001693s
+
+```
+
+## Convert an common image format to an LVGL image format
+
+Convert an common image format to an LVGL image format, you need to specify the output color format and lvgl version.
+But if you don't specify the lvgl version, ICU will use the default version (v9).
+
+```shell
+$ icu convert res/img_0.png -O res/output -F lvgl -C i8 -r
+```
+
+## Convert an common image format to an LVGL image format with stride align
+
+Convert an common image format to an LVGL image format with stride align, you need to specify the output color format,
+lvgl version, and stride align (default is 1).
+
+***4** means the stride of the output image will be 4 bytes aligned.*
+
+```shell
+$ icu convert res/img_0.png -O res/output -F lvgl -C i8 -S 4 -r
 ```
 
 ## License
