@@ -173,6 +173,10 @@ pub(crate) enum SubCommands {
         #[arg(short = 'O', long, value_hint = clap::ValueHint::DirPath)]
         output_folder: Option<String>,
 
+        /// override exist output files, and you will get a warning message for sure if the output file already exists.
+        #[arg(short = 'r', long)]
+        override_output: bool,
+
         /// output image format categories
         #[arg(short = 'G', long, value_enum, default_value = "common")]
         output_category: OutputFileFormatCategory,

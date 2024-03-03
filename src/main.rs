@@ -52,6 +52,7 @@ fn main() {
             input_files,
             input_format,
             output_folder,
+            override_output,
             output_category,
             output_format,
             output_stride_align,
@@ -167,12 +168,29 @@ fn main() {
                     output_file_path = output_folder.join(&output_file_name);
                 }
 
-                match output_category {
-                    OutputFileFormatCategory::Common | OutputFileFormatCategory::Bin => {
-                        fs::write(&output_file_path, data).expect("Unable to write file");
+                let output_file_exists = output_file_path.exists();
+
+                if output_file_exists && !*override_output {
+                    log::error!(
+                        "Can't convert <{}> to <{}>, output file already exists",
+                        file_path.to_string_lossy(),
+                        output_file_path.to_string_lossy()
+                    )
+                } else {
+                    if output_file_exists {
+                        log::warn!(
+                            "Override output file <{}> for converting <{}>",
+                            output_file_path.to_string_lossy(),
+                            file_path.to_string_lossy()
+                        );
                     }
-                    OutputFileFormatCategory::C_Array => {
-                        panic!("C_Array output format is not supported yet");
+                    match output_category {
+                        OutputFileFormatCategory::Common | OutputFileFormatCategory::Bin => {
+                            fs::write(&output_file_path, data).expect("Unable to write file");
+                        }
+                        OutputFileFormatCategory::C_Array => {
+                            panic!("C_Array output format is not supported yet");
+                        }
                     }
                 }
 
