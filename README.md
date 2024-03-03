@@ -57,8 +57,6 @@ Options:
 ```
 
 ```shell
-$ icu convert -h
-
 Convert image files to any other image format including LVGL image formats
 
 Usage: icu convert [OPTIONS] --output-format <OUTPUT_FORMAT> <INPUT_FILES>...
@@ -69,7 +67,11 @@ Arguments:
 Options:
   -f, --input-format <INPUT_FORMAT>
           input image formats [default: auto] [possible values: auto, common, lvgl-v9]
-  -g, --output-category <OUTPUT_CATEGORY>
+  -O, --output-folder <OUTPUT_FOLDER>
+          output folder
+  -r, --override-output
+          override exist output files, and you will get a warning message for sure if the output file already exists
+  -G, --output-category <OUTPUT_CATEGORY>
           output image format categories [default: common] [possible values: common, bin, c-array]
   -F, --output-format <OUTPUT_FORMAT>
           output image formats [possible values: png, jpeg, bmp, gif, tiff, webp, ico, pbm, pgm, ppm, pam, lvgl]
@@ -114,8 +116,10 @@ You will get a window with the image.
 
 ## Show an LVGL image format
 
+* You don't need to specify the input format, because ICU can detect it automatically. *
+
 ```shell
-icu show res/img_0.bin -f lvgl-v9
+icu show res/img_0.bin
 ```
 
 And you will get a window with the image like before.
@@ -126,6 +130,7 @@ if you want to converting images with logs out put, you can use `-vv` option.
 
 ```shell
 $ icu -vv convert res/img_0.png res/img_0.jpeg --output-format webp`
+
 [2024-02-29T13:05:06Z INFO  icu] Start converting files
 [2024-02-29T13:05:06Z INFO  icu] 
 [2024-02-29T13:05:06Z INFO  icu] took 0.002740s for converting [res/img_0.png] to [res/img_0.webp] with format [WEBP] 
@@ -136,3 +141,30 @@ $ icu -vv convert res/img_0.png res/img_0.jpeg --output-format webp`
 [2024-02-29T13:05:06Z INFO  icu]        User   time: 0.004998s
 [2024-02-29T13:05:06Z INFO  icu]        System time: 0.000123s
 ```
+
+or in a short form:
+
+```shell
+$ icu -vv convert res/img_0.png res/img_0.jpeg -F webp
+```
+
+## Convert some images in a folder to another specific folder
+
+convert all images in the `images` folder to jpeg format and save them in the `res/output` folder, if the output file
+already exists, it will override it (you should use `-r --override-output` option).
+
+*if and the output folder will keep the same structure as the input folder*.
+
+```shell
+$ icu convert images -O res/output --output-format jpeg --override-output
+```
+
+or in a short form:
+
+```shell
+$ icu convert images -O res/output -F jpeg -r
+```
+
+## License
+
+ICU is licensed under the MIT license.
