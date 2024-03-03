@@ -19,7 +19,7 @@ fn decode_with(data: Vec<u8>, input_format: ImageFormatCategory) -> MiData {
     }
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = parse_args();
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(
@@ -39,8 +39,8 @@ fn main() {
         SubCommands::Show { file, input_format } => {
             // check file exists
             if fs::metadata(file).is_err() {
-                println!("File not found: {}", file);
-                return;
+                log::error!("File not found: {}", file);
+                return Err(format!("File not found: {}", file).into());
             }
 
             let data = fs::read(file).expect("Unable to read file");
@@ -65,10 +65,11 @@ fn main() {
 
             let mut user_duration = 0.0;
             let mut converted_files = 0;
+
             let is_folder_input = input_files.len() == 1 && Path::new(&input_files[0]).is_dir();
             let input_folder = input_files
                 .first()
-                .map(|path| Path::new(path).canonicalize().unwrap())
+                .map(|path| Path::new(path).canonicalize().unwrap_or_default())
                 .unwrap_or_default();
 
             log::trace!("files to be converted: {:#?}", input_files);
@@ -78,76 +79,28 @@ fn main() {
             );
             log::info!("");
 
-            let input_files_vec = if is_folder_input {
-                let mut folder_list = vec![input_folder.clone()];
-                let mut files = Vec::new();
-
-                while !folder_list.is_empty() {
-                    if let Some(folder) = folder_list.pop() {
-                        folder.read_dir().unwrap().for_each(|entry| {
-                            let entry = entry.unwrap();
-                            let path = entry.path();
-                            if path.is_file() {
-                                log::trace!("converting file: {}", path.to_str().unwrap());
-                                files.push(path.to_string_lossy().into())
-                            } else if path.is_dir() {
-                                folder_list.push(path);
-                            }
-                        });
-                    }
-                }
-                files
-            } else {
-                input_files
-                    .iter()
-                    .filter_map(|file_name| {
-                        let metadata = fs::metadata(file_name);
-
-                        match metadata {
-                            Ok(metadata) => {
-                                if metadata.is_dir() {
-                                    log::trace!("{} is a directory, skip it", file_name);
-                                    return None;
-                                }
-                                Some(file_name.clone())
-                            }
-                            Err(_) => {
-                                log::error!("File not found: {}", file_name);
-                                None
-                            }
-                        }
-                    })
-                    .collect::<Vec<String>>()
-            };
+            let input_files_vec =
+                deal_input_file_paths(input_files, is_folder_input, &input_folder)?;
 
             for file_path in input_files_vec {
-                let file_path = Path::new(&file_path).canonicalize().unwrap();
+                let file_path = Path::new(&file_path).canonicalize()?;
+                if !file_path.exists() {
+                    log::error!("File not found: {}", file_path.to_string_lossy());
+                    continue;
+                }
 
                 // calculate converting time
                 let start_time = std::time::Instant::now();
 
-                let data = fs::read(&file_path).expect("Unable to read file");
-                let mid = decode_with(data, *input_format);
-
-                let ed = output_format.get_endecoder();
-                let params = EncoderParams::new()
-                    .with_stride_align(*output_stride_align)
-                    .with_dither(*dither)
-                    .with_color_format(
-                        (*output_color_format).map(|f| f.into()).unwrap_or_default(),
-                    );
-
-                let data = mid.encode_into(ed, params);
-
                 let file_folder = if is_folder_input {
-                    file_path
-                        .strip_prefix(input_folder.clone())
-                        .unwrap()
-                        .parent()
-                        .unwrap()
+                    file_path.strip_prefix(&input_folder)?
                 } else {
-                    Path::new(&file_path).parent().unwrap()
+                    Path::new(&file_path)
                 };
+                let file_folder = file_folder
+                    .parent()
+                    .ok_or("Unable to get parent folder of input file")?;
+
                 let file_name = Path::new(&file_path).file_name().unwrap_or_default();
 
                 let output_file_name =
@@ -162,7 +115,7 @@ fn main() {
                         Path::new(output_folder).to_path_buf()
                     };
                     if !output_folder.exists() {
-                        fs::create_dir_all(&output_folder).expect("Unable to create output folder");
+                        fs::create_dir_all(&output_folder)?;
                     }
 
                     output_file_path = output_folder.join(&output_file_name);
@@ -184,6 +137,20 @@ fn main() {
                             file_path.to_string_lossy()
                         );
                     }
+
+                    let data = fs::read(&file_path).expect("Unable to read file");
+                    let mid = decode_with(data, *input_format);
+
+                    let ed = output_format.get_endecoder();
+                    let params = EncoderParams::new()
+                        .with_stride_align(*output_stride_align)
+                        .with_dither(*dither)
+                        .with_color_format(
+                            (*output_color_format).map(|f| f.into()).unwrap_or_default(),
+                        );
+
+                    let data = mid.encode_into(ed, params);
+
                     match output_category {
                         OutputFileFormatCategory::Common | OutputFileFormatCategory::Bin => {
                             fs::write(&output_file_path, data).expect("Unable to write file");
@@ -201,7 +168,7 @@ fn main() {
                     format!(
                         "LVGL.{:?}({:?})",
                         lvgl_version,
-                        (*output_color_format).unwrap()
+                        (*output_color_format).unwrap() // safe to unwrap because it's required
                     )
                 } else {
                     format!("{:?}", output_format)
@@ -210,7 +177,7 @@ fn main() {
                     "took {:.6}s for converting <{}> to <{}> with format <{}>",
                     duration.as_secs_f64(),
                     file_path.to_string_lossy(),
-                    output_file_path.to_str().unwrap_or_default(),
+                    output_file_path.to_string_lossy(),
                     output_format_str
                 );
 
@@ -233,4 +200,54 @@ fn main() {
             );
         }
     }
+
+    Ok(())
+}
+
+fn deal_input_file_paths(
+    input_files: &[String],
+    is_folder_input: bool,
+    input_folder: &Path,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    Ok(if is_folder_input {
+        let mut folder_list = vec![input_folder.to_path_buf()];
+        let mut files = Vec::new();
+
+        while !folder_list.is_empty() {
+            if let Some(folder) = folder_list.pop() {
+                folder.read_dir()?.for_each(|entry| {
+                    let entry = entry.unwrap();
+                    let path = entry.path();
+                    if path.is_file() {
+                        log::trace!("converting file: {}", path.to_str().unwrap());
+                        files.push(path.to_string_lossy().into())
+                    } else if path.is_dir() {
+                        folder_list.push(path);
+                    }
+                });
+            }
+        }
+        files
+    } else {
+        input_files
+            .iter()
+            .filter_map(|file_name| {
+                let metadata = fs::metadata(file_name);
+
+                match metadata {
+                    Ok(metadata) => {
+                        if metadata.is_dir() {
+                            log::trace!("{} is a directory, skip it", file_name);
+                            return None;
+                        }
+                        Some(file_name.clone())
+                    }
+                    Err(_) => {
+                        log::error!("File not found: {}", file_name);
+                        None
+                    }
+                }
+            })
+            .collect::<Vec<String>>()
+    })
 }
