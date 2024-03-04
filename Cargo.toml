@@ -1,6 +1,6 @@
 [package]
 name = "icu_tool"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 authors = ["Benign X", "W-Mai"]
 homepage = "https://github.com/W-Mai/icu"
@@ -21,7 +21,7 @@ name = "icu"
 path = "src/main.rs"
 
 [dependencies]
-icu_lib = { version = "0.1.7" }
+icu_lib = { version = "0.1.8" }
 clap = { version = "4.4.18", features = ["derive", "suggestions"] }
 eframe = { version = "0.26.0", features = ["glow"] }
 egui_plot = "0.26.0"
@@ -54,9 +54,9 @@ ci = ["github"]
 # The installers to generate for each app
 installers = ["shell", "powershell", "homebrew", "msi"]
 # A GitHub repo to push Homebrew formulas to
-tap = "W-Mai/icu"
+tap = "W-Mai/homebrew-icu"
 # Target platforms to build apps for (Rust target-triple syntax)
-targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl", "x86_64-pc-windows-msvc"]
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 # Publish jobs to run in CI
 publish-jobs = ["homebrew"]
 # Publish jobs to run in CI
