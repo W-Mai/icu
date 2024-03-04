@@ -90,7 +90,7 @@ impl EnDecoder for PNG {
                 .to_rgba8(),
         )
     }
-    
+
     fn info(&self, data: &[u8]) -> ImageInfo {
         let img = image::load_from_memory_with_format(data, image::ImageFormat::Png).unwrap();
         ImageInfo {
@@ -131,7 +131,7 @@ impl EnDecoder for JPEG {
                 .to_rgba8(),
         )
     }
-    
+
     fn info(&self, data: &[u8]) -> ImageInfo {
         let img = image::load_from_memory_with_format(data, image::ImageFormat::Jpeg).unwrap();
         ImageInfo {
@@ -213,7 +213,7 @@ impl EnDecoder for GIF {
                 .to_rgba8(),
         )
     }
-    
+
     fn info(&self, data: &[u8]) -> ImageInfo {
         let img = image::load_from_memory_with_format(data, image::ImageFormat::Gif).unwrap();
         ImageInfo {
@@ -295,7 +295,7 @@ impl EnDecoder for WEBP {
                 .to_rgba8(),
         )
     }
-    
+
     fn info(&self, data: &[u8]) -> ImageInfo {
         let img = image::load_from_memory_with_format(data, image::ImageFormat::WebP).unwrap();
         ImageInfo {
@@ -336,7 +336,7 @@ impl EnDecoder for ICO {
                 .to_rgba8(),
         )
     }
-    
+
     fn info(&self, data: &[u8]) -> ImageInfo {
         let img = image::load_from_memory_with_format(data, image::ImageFormat::Ico).unwrap();
         ImageInfo {
@@ -377,8 +377,7 @@ impl EnDecoder for PBM {
                 .to_luma_alpha8(),
         )
     }
-    
-    
+
     fn info(&self, data: &[u8]) -> ImageInfo {
         let img = image::load_from_memory_with_format(data, image::ImageFormat::Pnm).unwrap();
         ImageInfo {
@@ -419,7 +418,7 @@ impl EnDecoder for PGM {
                 .to_luma_alpha8(),
         )
     }
-    
+
     fn info(&self, data: &[u8]) -> ImageInfo {
         let img = image::load_from_memory_with_format(data, image::ImageFormat::Pnm).unwrap();
         ImageInfo {
@@ -460,7 +459,7 @@ impl EnDecoder for PPM {
                 .to_rgba8(),
         )
     }
-    
+
     fn info(&self, data: &[u8]) -> ImageInfo {
         let img = image::load_from_memory_with_format(data, image::ImageFormat::Pnm).unwrap();
         ImageInfo {
@@ -501,7 +500,7 @@ impl EnDecoder for PAM {
                 .to_rgba8(),
         )
     }
-    
+
     fn info(&self, data: &[u8]) -> ImageInfo {
         let img = image::load_from_memory_with_format(data, image::ImageFormat::Pnm).unwrap();
         ImageInfo {
@@ -538,7 +537,7 @@ impl EnDecoder for TGA {
                 .to_rgba8(),
         )
     }
-    
+
     fn info(&self, data: &[u8]) -> ImageInfo {
         let img = image::load_from_memory_with_format(data, image::ImageFormat::Tga).unwrap();
         ImageInfo {

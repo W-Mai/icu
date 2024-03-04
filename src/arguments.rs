@@ -149,9 +149,21 @@ pub struct Args {
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum SubCommands {
+    /// Show some information about an image file
+    Info {
+        /// an image file to show
+        #[arg(required = true, value_hint = clap::ValueHint::FilePath)]
+        file: String,
+
+        /// input image formats
+        #[arg(short = 'f', long, value_enum, default_value = "auto")]
+        input_format: ImageFormatCategory,
+    },
+
     /// Show an image file
     Show {
         /// an image file to show
+        #[arg(required = true, value_hint = clap::ValueHint::FilePath)]
         file: String,
 
         /// input image formats
@@ -208,7 +220,7 @@ pub fn parse_args() -> Args {
     let args = Args::parse();
 
     match &args.commands {
-        SubCommands::Show { .. } => {}
+        SubCommands::Show { .. } | SubCommands::Info { .. } => {}
         SubCommands::Convert {
             output_format,
             output_color_format,
