@@ -5,7 +5,7 @@ use crate::midata::MiData;
 use crate::EncoderParams;
 
 pub trait EnDecoder {
-    fn can_decode(&self, data: &Vec<u8>) -> bool;
+    fn can_decode(&self, data: &[u8]) -> bool;
     fn encode(&self, data: &MiData, encoder_params: EncoderParams) -> Vec<u8>;
     fn decode(&self, data: Vec<u8>) -> MiData;
 }

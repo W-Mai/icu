@@ -7,7 +7,7 @@ use image::RgbaImage;
 use std::io::{Cursor, Write};
 
 impl EnDecoder for LVGL {
-    fn can_decode(&self, data: &Vec<u8>) -> bool {
+    fn can_decode(&self, data: &[u8]) -> bool {
         let header_size = std::mem::size_of::<ImageHeader>();
         if data.len() < header_size {
             return false;

@@ -31,7 +31,7 @@ pub struct PAM {}
 pub struct TGA {}
 
 impl EnDecoder for AutoDectect {
-    fn can_decode(&self, data: &Vec<u8>) -> bool {
+    fn can_decode(&self, data: &[u8]) -> bool {
         image::guess_format(data).is_ok()
     }
 
@@ -48,7 +48,7 @@ impl EnDecoder for AutoDectect {
 }
 
 impl EnDecoder for PNG {
-    fn can_decode(&self, data: &Vec<u8>) -> bool {
+    fn can_decode(&self, data: &[u8]) -> bool {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Png
         } else {
@@ -78,8 +78,8 @@ impl EnDecoder for PNG {
 }
 
 impl EnDecoder for JPEG {
-    fn can_decode(&self, _data: &Vec<u8>) -> bool {
-        if let Ok(format) = image::guess_format(_data) {
+    fn can_decode(&self, data: &[u8]) -> bool {
+        if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Jpeg
         } else {
             log::error!("It's not a JPEG file");
@@ -108,7 +108,7 @@ impl EnDecoder for JPEG {
 }
 
 impl EnDecoder for BMP {
-    fn can_decode(&self, data: &Vec<u8>) -> bool {
+    fn can_decode(&self, data: &[u8]) -> bool {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Bmp
         } else {
@@ -138,7 +138,7 @@ impl EnDecoder for BMP {
 }
 
 impl EnDecoder for GIF {
-    fn can_decode(&self, data: &Vec<u8>) -> bool {
+    fn can_decode(&self, data: &[u8]) -> bool {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Gif
         } else {
@@ -168,7 +168,7 @@ impl EnDecoder for GIF {
 }
 
 impl EnDecoder for TIFF {
-    fn can_decode(&self, data: &Vec<u8>) -> bool {
+    fn can_decode(&self, data: &[u8]) -> bool {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Tiff
         } else {
@@ -198,7 +198,7 @@ impl EnDecoder for TIFF {
 }
 
 impl EnDecoder for WEBP {
-    fn can_decode(&self, data: &Vec<u8>) -> bool {
+    fn can_decode(&self, data: &[u8]) -> bool {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::WebP
         } else {
@@ -228,7 +228,7 @@ impl EnDecoder for WEBP {
 }
 
 impl EnDecoder for ICO {
-    fn can_decode(&self, data: &Vec<u8>) -> bool {
+    fn can_decode(&self, data: &[u8]) -> bool {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Ico
         } else {
@@ -258,7 +258,7 @@ impl EnDecoder for ICO {
 }
 
 impl EnDecoder for PBM {
-    fn can_decode(&self, data: &Vec<u8>) -> bool {
+    fn can_decode(&self, data: &[u8]) -> bool {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Pnm
         } else {
@@ -288,7 +288,7 @@ impl EnDecoder for PBM {
 }
 
 impl EnDecoder for PGM {
-    fn can_decode(&self, data: &Vec<u8>) -> bool {
+    fn can_decode(&self, data: &[u8]) -> bool {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Pnm
         } else {
@@ -318,7 +318,7 @@ impl EnDecoder for PGM {
 }
 
 impl EnDecoder for PPM {
-    fn can_decode(&self, data: &Vec<u8>) -> bool {
+    fn can_decode(&self, data: &[u8]) -> bool {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Pnm
         } else {
@@ -348,7 +348,7 @@ impl EnDecoder for PPM {
 }
 
 impl EnDecoder for PAM {
-    fn can_decode(&self, data: &Vec<u8>) -> bool {
+    fn can_decode(&self, data: &[u8]) -> bool {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Pnm
         } else {
@@ -378,7 +378,7 @@ impl EnDecoder for PAM {
 }
 
 impl EnDecoder for TGA {
-    fn can_decode(&self, _data: &Vec<u8>) -> bool {
+    fn can_decode(&self, _data: &[u8]) -> bool {
         log::error!("TGA is not supported yet");
         false
     }
