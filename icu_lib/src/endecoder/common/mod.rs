@@ -1,7 +1,7 @@
 use crate::EncoderParams;
 use std::io::Cursor;
 
-use crate::endecoder::EnDecoder;
+use crate::endecoder::{EnDecoder, ImageInfo};
 use crate::midata::MiData;
 
 pub struct AutoDectect {}
@@ -45,6 +45,21 @@ impl EnDecoder for AutoDectect {
         log::trace!("AutoDectect::decoded");
         MiData::RGBA(img.to_rgba8())
     }
+
+    fn info(&self, data: &[u8]) -> ImageInfo {
+        log::trace!("AutoDectect::decoding");
+        let img = image::load_from_memory(&data).unwrap();
+        let img_format = image::guess_format(data).unwrap();
+        log::trace!("AutoDectect::decoded");
+
+        ImageInfo {
+            width: img.width(),
+            height: img.height(),
+            data_size: img.as_bytes().len() as u32,
+            format: img_format.to_mime_type().to_owned(),
+            other_info: Default::default(),
+        }
+    }
 }
 
 impl EnDecoder for PNG {
@@ -74,6 +89,17 @@ impl EnDecoder for PNG {
                 .unwrap()
                 .to_rgba8(),
         )
+    }
+    
+    fn info(&self, data: &[u8]) -> ImageInfo {
+        let img = image::load_from_memory_with_format(data, image::ImageFormat::Png).unwrap();
+        ImageInfo {
+            width: img.width(),
+            height: img.height(),
+            data_size: img.as_bytes().len() as u32,
+            format: "image/png".to_owned(),
+            other_info: Default::default(),
+        }
     }
 }
 
@@ -105,6 +131,17 @@ impl EnDecoder for JPEG {
                 .to_rgba8(),
         )
     }
+    
+    fn info(&self, data: &[u8]) -> ImageInfo {
+        let img = image::load_from_memory_with_format(data, image::ImageFormat::Jpeg).unwrap();
+        ImageInfo {
+            width: img.width(),
+            height: img.height(),
+            data_size: img.as_bytes().len() as u32,
+            format: "image/jpeg".to_owned(),
+            other_info: Default::default(),
+        }
+    }
 }
 
 impl EnDecoder for BMP {
@@ -134,6 +171,17 @@ impl EnDecoder for BMP {
                 .unwrap()
                 .to_rgba8(),
         )
+    }
+
+    fn info(&self, data: &[u8]) -> ImageInfo {
+        let img = image::load_from_memory_with_format(data, image::ImageFormat::Bmp).unwrap();
+        ImageInfo {
+            width: img.width(),
+            height: img.height(),
+            data_size: img.as_bytes().len() as u32,
+            format: "image/bmp".to_owned(),
+            other_info: Default::default(),
+        }
     }
 }
 
@@ -165,6 +213,17 @@ impl EnDecoder for GIF {
                 .to_rgba8(),
         )
     }
+    
+    fn info(&self, data: &[u8]) -> ImageInfo {
+        let img = image::load_from_memory_with_format(data, image::ImageFormat::Gif).unwrap();
+        ImageInfo {
+            width: img.width(),
+            height: img.height(),
+            data_size: img.as_bytes().len() as u32,
+            format: "image/gif".to_owned(),
+            other_info: Default::default(),
+        }
+    }
 }
 
 impl EnDecoder for TIFF {
@@ -194,6 +253,17 @@ impl EnDecoder for TIFF {
                 .unwrap()
                 .to_rgba8(),
         )
+    }
+
+    fn info(&self, data: &[u8]) -> ImageInfo {
+        let img = image::load_from_memory_with_format(data, image::ImageFormat::Tiff).unwrap();
+        ImageInfo {
+            width: img.width(),
+            height: img.height(),
+            data_size: img.as_bytes().len() as u32,
+            format: "image/tiff".to_owned(),
+            other_info: Default::default(),
+        }
     }
 }
 
@@ -225,6 +295,17 @@ impl EnDecoder for WEBP {
                 .to_rgba8(),
         )
     }
+    
+    fn info(&self, data: &[u8]) -> ImageInfo {
+        let img = image::load_from_memory_with_format(data, image::ImageFormat::WebP).unwrap();
+        ImageInfo {
+            width: img.width(),
+            height: img.height(),
+            data_size: img.as_bytes().len() as u32,
+            format: "image/webp".to_owned(),
+            other_info: Default::default(),
+        }
+    }
 }
 
 impl EnDecoder for ICO {
@@ -254,6 +335,17 @@ impl EnDecoder for ICO {
                 .unwrap()
                 .to_rgba8(),
         )
+    }
+    
+    fn info(&self, data: &[u8]) -> ImageInfo {
+        let img = image::load_from_memory_with_format(data, image::ImageFormat::Ico).unwrap();
+        ImageInfo {
+            width: img.width(),
+            height: img.height(),
+            data_size: img.as_bytes().len() as u32,
+            format: "image/x-icon".to_owned(),
+            other_info: Default::default(),
+        }
     }
 }
 
@@ -285,6 +377,18 @@ impl EnDecoder for PBM {
                 .to_luma_alpha8(),
         )
     }
+    
+    
+    fn info(&self, data: &[u8]) -> ImageInfo {
+        let img = image::load_from_memory_with_format(data, image::ImageFormat::Pnm).unwrap();
+        ImageInfo {
+            width: img.width(),
+            height: img.height(),
+            data_size: img.as_bytes().len() as u32,
+            format: "image/x-portable-bitmap".to_owned(),
+            other_info: Default::default(),
+        }
+    }
 }
 
 impl EnDecoder for PGM {
@@ -314,6 +418,17 @@ impl EnDecoder for PGM {
                 .unwrap()
                 .to_luma_alpha8(),
         )
+    }
+    
+    fn info(&self, data: &[u8]) -> ImageInfo {
+        let img = image::load_from_memory_with_format(data, image::ImageFormat::Pnm).unwrap();
+        ImageInfo {
+            width: img.width(),
+            height: img.height(),
+            data_size: img.as_bytes().len() as u32,
+            format: "image/x-portable-graymap".to_owned(),
+            other_info: Default::default(),
+        }
     }
 }
 
@@ -345,6 +460,17 @@ impl EnDecoder for PPM {
                 .to_rgba8(),
         )
     }
+    
+    fn info(&self, data: &[u8]) -> ImageInfo {
+        let img = image::load_from_memory_with_format(data, image::ImageFormat::Pnm).unwrap();
+        ImageInfo {
+            width: img.width(),
+            height: img.height(),
+            data_size: img.as_bytes().len() as u32,
+            format: "image/x-portable-pixmap".to_owned(),
+            other_info: Default::default(),
+        }
+    }
 }
 
 impl EnDecoder for PAM {
@@ -375,6 +501,17 @@ impl EnDecoder for PAM {
                 .to_rgba8(),
         )
     }
+    
+    fn info(&self, data: &[u8]) -> ImageInfo {
+        let img = image::load_from_memory_with_format(data, image::ImageFormat::Pnm).unwrap();
+        ImageInfo {
+            width: img.width(),
+            height: img.height(),
+            data_size: img.as_bytes().len() as u32,
+            format: "image/x-portable-arbitrarymap".to_owned(),
+            other_info: Default::default(),
+        }
+    }
 }
 
 impl EnDecoder for TGA {
@@ -400,5 +537,16 @@ impl EnDecoder for TGA {
                 .unwrap()
                 .to_rgba8(),
         )
+    }
+    
+    fn info(&self, data: &[u8]) -> ImageInfo {
+        let img = image::load_from_memory_with_format(data, image::ImageFormat::Tga).unwrap();
+        ImageInfo {
+            width: img.width(),
+            height: img.height(),
+            data_size: img.as_bytes().len() as u32,
+            format: "image/x-targa".to_owned(),
+            other_info: Default::default(),
+        }
     }
 }
