@@ -1,5 +1,8 @@
 {
   "build": {
     "path_prefix": "icu"
+  },
+  "styles": {
+    "theme": "hacker"
   }
 }

@@ -131,7 +131,7 @@ icu show res/img_0.png
 
 You will get a window with the image.
 
-<img src="./snapshots/snapshot_1.png" width="800">
+<img src="static/snapshots/snapshot_1.png" width="800">
 
 ## Show an LVGL image format
 
