@@ -45,6 +45,7 @@ $ icu -h
 Usage: icu [OPTIONS] <COMMAND>
 
 Commands:
+  info     Show some information about an image file
   show     Show an image file
   convert  Convert image files to any other image format including LVGL image formats
   help     Print this message or the help of the given subcommand(s)
@@ -57,6 +58,24 @@ Options:
 ```
 
 ```shell
+$ icu info -h
+
+Show some information about an image file
+
+Usage: icu info [OPTIONS] <FILE>
+
+Arguments:
+  <FILE>  an image file to show
+
+Options:
+  -f, --input-format <INPUT_FORMAT>  input image formats [default: auto] [possible values: auto, common, lvgl-v9]
+  -h, --help                         Print help (see more with '--help')
+
+```
+
+```shell
+icu convert -h
+
 Convert image files to any other image format including LVGL image formats
 
 Usage: icu convert [OPTIONS] --output-format <OUTPUT_FORMAT> <INPUT_FILES>...
