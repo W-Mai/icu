@@ -8,6 +8,12 @@ repository = "https://github.com/W-Mai/icu"
 description = "Image Converter Ultra"
 license = "MIT"
 
+[package.metadata.wix]
+upgrade-guid = "368D15F1-EADD-452C-9348-A6A487536412"
+path-guid = "35F78CC5-7F21-43C4-87B2-157DB5860DEE"
+license = false
+eula = false
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [[bin]]
@@ -28,3 +34,30 @@ icu_lib = { path = "icu_lib" }
 [profile.release]
 lto = true
 opt-level = 3
+
+[workspace]
+members = [
+    "icu_lib",
+]
+
+# The profile that 'cargo dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
+# Config for 'cargo dist'
+[workspace.metadata.dist]
+# The preferred cargo-dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.11.1"
+# CI backends to support
+ci = ["github"]
+# The installers to generate for each app
+installers = ["shell", "powershell", "homebrew", "msi"]
+# A GitHub repo to push Homebrew formulas to
+tap = "W-Mai/icu"
+# Target platforms to build apps for (Rust target-triple syntax)
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl", "x86_64-pc-windows-msvc"]
+# Publish jobs to run in CI
+publish-jobs = ["homebrew"]
+# Publish jobs to run in CI
+pr-run-mode = "plan"
