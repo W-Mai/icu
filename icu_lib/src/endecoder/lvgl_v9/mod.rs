@@ -95,7 +95,6 @@ pub struct ImageHeaderV9 {
     // Color format: See `lv_color_format_t`
     cf: ColorFormat,
     // Image flags, see `lv_image_flags_t`
-    #[allow(unused)]
     flags: Flags,
 
     // Width of the image in pixels
@@ -178,6 +177,14 @@ impl ImageHeader {
             ImageHeader::Unknown => LVGLVersion::Unknown,
             ImageHeader::V8(_) => LVGLVersion::V8,
             ImageHeader::V9(_) => LVGLVersion::V9,
+        }
+    }
+
+    pub fn flags(&self) -> Flags {
+        match self {
+            ImageHeader::Unknown => Flags::NONE,
+            ImageHeader::V8(_) => Flags::NONE,
+            ImageHeader::V9(header) => header.flags(),
         }
     }
 

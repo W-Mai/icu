@@ -99,12 +99,21 @@ impl EnDecoder for LVGL {
 
         let header = ImageHeader::decode(Vec::from(header_data));
 
+        let mut other_info = std::collections::HashMap::new();
+        other_info.insert(
+            "LVGL Version".to_string(),
+            format!("{:?}", header.version()),
+        );
+        other_info.insert("Color Format".to_string(), format!("{:?}", header.cf()));
+        other_info.insert("Flags".to_string(), format!("{:?}", header.flags()));
+        other_info.insert("Stride".to_string(), format!("{:?}", header.stride()));
+
         ImageInfo {
             width: header.w() as u32,
             height: header.h() as u32,
             data_size: data.len() as u32,
             format: format!("LVGL.{:?}({:?})", header.version(), header.cf()),
-            other_info: Default::default(),
+            other_info,
         }
     }
 }
