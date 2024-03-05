@@ -1,5 +1,5 @@
 use modular_bitfield::prelude::*;
-use std::io::{Bytes, Cursor, Read, Write};
+use std::io::{Cursor, Write};
 
 mod color_converter;
 mod lvgl;
@@ -8,7 +8,7 @@ mod lvgl;
 #[bits = 8]
 #[derive(Debug, Copy, Clone, PartialEq, Default)]
 #[repr(u8)]
-pub(crate) enum LVGLVersion {
+pub enum LVGLVersion {
     #[default]
     Unknown,
 
@@ -90,10 +90,12 @@ pub struct ImageHeaderV8 {
 #[repr(C, packed)]
 pub struct ImageHeaderV9 {
     // Magic number. Must be LV_IMAGE_HEADER_MAGIC
-    magic: u8,
+    #[allow(unused)]
+    magic: B8,
     // Color format: See `lv_color_format_t`
     cf: ColorFormat,
     // Image flags, see `lv_image_flags_t`
+    #[allow(unused)]
     flags: Flags,
 
     // Width of the image in pixels
@@ -126,7 +128,7 @@ impl ImageHeader {
             version = LVGLVersion::V8;
         }
 
-        let header = match version {
+        match version {
             LVGLVersion::V8 => {
                 let header = ImageHeaderV8::from_bytes([data[0], data[1], data[2], data[3]]);
                 log::trace!("Decoded image header: {:#?}", header);
@@ -152,9 +154,7 @@ impl ImageHeader {
                 }
             }
             _ => ImageHeader::Unknown,
-        };
-
-        header
+        }
     }
 
     pub fn into_bytes(&self) -> Vec<u8> {
@@ -223,7 +223,7 @@ impl ImageHeader {
         h: u16,
         stride: u16,
     ) -> Self {
-        let header = match version {
+        match version {
             LVGLVersion::V8 => {
                 ImageHeader::V8(ImageHeaderV8::new().with_cf(cf).with_w(w).with_h(h))
             }
@@ -237,9 +237,7 @@ impl ImageHeader {
                     .with_stride(stride),
             ),
             LVGLVersion::Unknown => ImageHeader::Unknown,
-        };
-
-        header
+        }
     }
 
     pub fn encode(&self) -> Vec<u8> {

@@ -1,7 +1,5 @@
 use crate::endecoder::lvgl_v9::color_converter::{rgba8888_from, rgba8888_to};
-use crate::endecoder::lvgl_v9::{
-    ColorFormat, Flags, ImageDescriptor, ImageHeader, LVGLVersion, LVGL,
-};
+use crate::endecoder::lvgl_v9::{Flags, ImageDescriptor, ImageHeader, LVGLVersion, LVGL};
 use crate::endecoder::{EnDecoder, ImageInfo};
 use crate::midata::MiData;
 use crate::EncoderParams;
