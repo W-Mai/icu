@@ -18,7 +18,7 @@ impl EnDecoder for LVGL {
         let header_data = &data[..header_size];
 
         let header = ImageHeader::decode(Vec::from(header_data));
-        header.version != LVGLVersion::Unknown
+        header.version() != LVGLVersion::Unknown
     }
 
     fn encode(&self, data: &MiData, encoder_params: EncoderParams) -> Vec<u8> {
@@ -63,7 +63,7 @@ impl EnDecoder for LVGL {
         log::trace!("Decoding image with data size: {}", data.len());
         let img_desc = ImageDescriptor::decode(data);
 
-        let header = &img_desc.header.header;
+        let header = &img_desc.header;
 
         log::trace!("Decoding image with color format: {:?}", header.cf());
         log::trace!("Decoded image header: {:#?}", img_desc.header);
@@ -99,7 +99,7 @@ impl EnDecoder for LVGL {
 
         let header_data = &data[..header_size];
 
-        let header = ImageHeader::decode(Vec::from(header_data)).header;
+        let header = ImageHeader::decode(Vec::from(header_data));
 
         ImageInfo {
             width: header.w() as u32,

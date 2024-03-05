@@ -107,19 +107,13 @@ pub struct ImageHeaderV9 {
 }
 
 #[derive(Debug)]
-pub enum Header {
+pub enum ImageHeader {
     Unknown,
     V8(ImageHeaderV8),
     V9(ImageHeaderV9),
 }
 
-#[derive(Debug)]
-pub struct ImageHeader {
-    version: LVGLVersion,
-    header: Header,
-}
-
-impl Header {
+impl ImageHeader {
     pub fn from_bytes(data: &[u8]) -> Self {
         assert!(data.len() > 4, "Invalid data size");
         let magic = data[0];
@@ -137,13 +131,13 @@ impl Header {
                 let header = ImageHeaderV8::from_bytes([data[0], data[1], data[2], data[3]]);
                 log::trace!("Decoded image header: {:#?}", header);
                 if header.cf_or_err().is_err() || header.reserved() != 0 {
-                    Header::Unknown
+                    ImageHeader::Unknown
                 } else if header.cf() == ColorFormat::TrueColor {
-                    Header::V8(header.with_cf(ColorFormat::RGB888))
+                    ImageHeader::V8(header.with_cf(ColorFormat::XRGB8888))
                 } else if header.cf() == ColorFormat::TrueColorAlpha {
-                    Header::V8(header.with_cf(ColorFormat::ARGB8888))
+                    ImageHeader::V8(header.with_cf(ColorFormat::ARGB8888))
                 } else {
-                    Header::V8(header)
+                    ImageHeader::V8(header)
                 }
             }
             LVGLVersion::V9 => {
@@ -152,12 +146,12 @@ impl Header {
                     data[8], data[9], data[10], data[11],
                 ]);
                 if header.cf_or_err().is_err() || header.reserved_2() != 0 {
-                    Header::Unknown
+                    ImageHeader::Unknown
                 } else {
-                    Header::V9(header)
+                    ImageHeader::V9(header)
                 }
             }
-            _ => Header::Unknown,
+            _ => ImageHeader::Unknown,
         };
 
         header
@@ -165,57 +159,57 @@ impl Header {
 
     pub fn into_bytes(&self) -> Vec<u8> {
         match self {
-            Header::Unknown => vec![],
-            Header::V8(header) => header.into_bytes().to_vec(),
-            Header::V9(header) => header.into_bytes().to_vec(),
+            ImageHeader::Unknown => vec![],
+            ImageHeader::V8(header) => header.into_bytes().to_vec(),
+            ImageHeader::V9(header) => header.into_bytes().to_vec(),
         }
     }
 
     pub fn header_size(&self) -> usize {
         match self {
-            Header::Unknown => 0,
-            Header::V8(_) => std::mem::size_of::<ImageHeaderV8>(),
-            Header::V9(_) => std::mem::size_of::<ImageHeaderV9>(),
+            ImageHeader::Unknown => 0,
+            ImageHeader::V8(_) => std::mem::size_of::<ImageHeaderV8>(),
+            ImageHeader::V9(_) => std::mem::size_of::<ImageHeaderV9>(),
         }
     }
 
     pub fn version(&self) -> LVGLVersion {
         match self {
-            Header::Unknown => LVGLVersion::Unknown,
-            Header::V8(_) => LVGLVersion::V8,
-            Header::V9(_) => LVGLVersion::V9,
+            ImageHeader::Unknown => LVGLVersion::Unknown,
+            ImageHeader::V8(_) => LVGLVersion::V8,
+            ImageHeader::V9(_) => LVGLVersion::V9,
         }
     }
 
     pub fn cf(&self) -> ColorFormat {
         match self {
-            Header::Unknown => ColorFormat::UNKNOWN,
-            Header::V8(header) => header.cf(),
-            Header::V9(header) => header.cf(),
+            ImageHeader::Unknown => ColorFormat::UNKNOWN,
+            ImageHeader::V8(header) => header.cf(),
+            ImageHeader::V9(header) => header.cf(),
         }
     }
 
     pub fn w(&self) -> u16 {
         match self {
-            Header::Unknown => 0,
-            Header::V8(header) => header.w(),
-            Header::V9(header) => header.w(),
+            ImageHeader::Unknown => 0,
+            ImageHeader::V8(header) => header.w(),
+            ImageHeader::V9(header) => header.w(),
         }
     }
 
     pub fn h(&self) -> u16 {
         match self {
-            Header::Unknown => 0,
-            Header::V8(header) => header.h(),
-            Header::V9(header) => header.h(),
+            ImageHeader::Unknown => 0,
+            ImageHeader::V8(header) => header.h(),
+            ImageHeader::V9(header) => header.h(),
         }
     }
 
     pub fn stride(&self) -> u16 {
         match self {
-            Header::Unknown => 0,
-            Header::V8(_) => self.cf().get_stride_size(self.w() as u32, 1) as u16,
-            Header::V9(header) => header.stride(),
+            ImageHeader::Unknown => 0,
+            ImageHeader::V8(_) => self.cf().get_stride_size(self.w() as u32, 1) as u16,
+            ImageHeader::V9(header) => header.stride(),
         }
     }
 }
@@ -230,8 +224,10 @@ impl ImageHeader {
         stride: u16,
     ) -> Self {
         let header = match version {
-            LVGLVersion::V8 => Header::V8(ImageHeaderV8::new().with_cf(cf).with_w(w).with_h(h)),
-            LVGLVersion::V9 => Header::V9(
+            LVGLVersion::V8 => {
+                ImageHeader::V8(ImageHeaderV8::new().with_cf(cf).with_w(w).with_h(h))
+            }
+            LVGLVersion::V9 => ImageHeader::V9(
                 ImageHeaderV9::new()
                     .with_magic(0x19)
                     .with_cf(cf)
@@ -240,28 +236,23 @@ impl ImageHeader {
                     .with_h(h)
                     .with_stride(stride),
             ),
-            LVGLVersion::Unknown => Header::Unknown,
+            LVGLVersion::Unknown => ImageHeader::Unknown,
         };
 
-        Self { version, header }
+        header
     }
 
     pub fn encode(&self) -> Vec<u8> {
-        self.header.into_bytes()
+        self.into_bytes()
     }
 
     pub fn decode(data: Vec<u8>) -> Self {
         log::trace!("Decoding image header with data size: {}", data.len());
 
-        let header = Header::from_bytes(data.as_slice());
+        let header = ImageHeader::from_bytes(data.as_slice());
 
-        let image_header = Self {
-            version: header.version(),
-            header,
-        };
-
-        log::trace!("Decoded image header: {:#?}", image_header);
-        image_header
+        log::trace!("Decoded image header: {:#?}", header);
+        header
     }
 }
 
@@ -293,12 +284,12 @@ impl ImageDescriptor {
         log::trace!("Decoding image descriptor with data size: {}", data.len());
 
         let header = ImageHeader::decode(data.clone());
-        let header_size = header.header.header_size();
+        let header_size = header.header_size();
         let data = data[header_size..].to_vec();
         let data_size = data.len() as u32;
 
-        match header.header {
-            Header::V9(header) => {
+        match header {
+            ImageHeader::V9(header) => {
                 let mut idea_data_size = header.stride() as u32 * header.h() as u32;
                 idea_data_size += match header.cf() {
                     ColorFormat::I1 | ColorFormat::I2 | ColorFormat::I4 | ColorFormat::I8 => {
@@ -309,8 +300,8 @@ impl ImageDescriptor {
                 };
                 assert_eq!(idea_data_size, data_size, "Data size mismatch {:?}", header);
             }
-            Header::V8(_) => {}
-            Header::Unknown => {
+            ImageHeader::V8(_) => {}
+            ImageHeader::Unknown => {
                 log::error!("Unknown image header format");
 
                 return Self {
