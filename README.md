@@ -17,6 +17,40 @@ written in RUST.
 
 # How to install
 
+ICU is a standalone application that can be installed on any platform that supports the necessary dependencies.
+
+- **Homebrew**
+
+```shell
+brew install W-Mai/homebrew-cellar/icu_tool
+```
+
+or
+
+```shell
+brew tap W-Mai/homebrew-cellar
+brew install icu_tool
+```
+
+- **PowerShell**
+
+```powershell
+powershell -c "irm https://github.com/W-Mai/icu/releases/download/v0.1.8/icu_tool-installer.ps1 | iex"
+```
+
+- **Shell**
+
+```shell
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/W-Mai/icu/releases/download/v0.1.8/icu_tool-installer.sh | sh
+```
+
+- **Windows MSI Installer**
+
+Download the latest `Windows MSI Installer` from the [releases page](https://github.com/W-Mai/icu/releases/latest) and
+install it.
+
+- **Cargo**
+
 ICU is written in RUST, so you need to have the RUST environment installed on your system.
 
 ```shell
@@ -32,6 +66,8 @@ cargo install icu_tool
 # How to build yourself
 
 ```shell
+git clone https://github.com/W-Mai/icu.git
+cd icu
 cargo build --release
 ```
 
