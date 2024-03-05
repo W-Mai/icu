@@ -7,6 +7,7 @@ pub struct EncoderParams {
     pub color_format: lvgl_v9::ColorFormat,
     pub stride_align: u32,
     pub dither: bool,
+    pub lvgl_version: lvgl_v9::LVGLVersion,
 }
 
 impl Default for EncoderParams {
@@ -15,6 +16,7 @@ impl Default for EncoderParams {
             color_format: Default::default(),
             stride_align: 1,
             dither: false,
+            lvgl_version: lvgl_v9::LVGLVersion::Unknown,
         }
     }
 }

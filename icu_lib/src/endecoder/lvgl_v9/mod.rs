@@ -1,14 +1,33 @@
-use std::io::{Cursor, Read, Write};
+use modular_bitfield::prelude::*;
+use std::io::{Bytes, Cursor, Read, Write};
 
 mod color_converter;
 mod lvgl;
 
+#[derive(BitfieldSpecifier)]
+#[bits = 8]
+#[derive(Debug, Copy, Clone, PartialEq, Default)]
+#[repr(u8)]
+pub(crate) enum LVGLVersion {
+    #[default]
+    Unknown,
+
+    V8,
+    V9,
+}
+
+#[derive(BitfieldSpecifier)]
+#[bits = 8]
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
 #[repr(u8)]
 pub enum ColorFormat {
     // Unkonw
     #[default]
     UNKNOWN = 0x00,
+
+    // V8 formats
+    TrueColor = 0x04,
+    TrueColorAlpha = 0x05,
 
     // 1 byte (+alpha) formats
     L8 = 0x06,
@@ -35,6 +54,8 @@ pub enum ColorFormat {
 
 pub struct LVGL {}
 
+#[derive(BitfieldSpecifier)]
+#[bits = 16]
 #[derive(Copy, Clone, Debug)]
 #[repr(u16)]
 pub enum Flags {
@@ -54,9 +75,20 @@ pub enum Flags {
     USER8 = 0x0800,
 }
 
-#[derive(Debug)]
+#[bitfield]
+#[derive(Debug, Copy, Clone)]
 #[repr(C, packed)]
-pub struct ImageHeader {
+pub struct ImageHeaderV8 {
+    cf: ColorFormat,
+    reserved: B2,
+    w: B11,
+    h: B11,
+}
+
+#[bitfield]
+#[derive(Debug, Copy, Clone)]
+#[repr(C, packed)]
+pub struct ImageHeaderV9 {
     // Magic number. Must be LV_IMAGE_HEADER_MAGIC
     magic: u8,
     // Color format: See `lv_color_format_t`
@@ -65,76 +97,173 @@ pub struct ImageHeader {
     flags: Flags,
 
     // Width of the image in pixels
-    w: u16,
+    w: B16,
     // Height of the image in pixels
-    h: u16,
+    h: B16,
     // Number of bytes in a row
-    stride: u16,
+    stride: B16,
     // Reserved to be used later
-    reserved_2: u16,
+    reserved_2: B16,
 }
 
-impl ImageHeader {
-    pub fn new(cf: ColorFormat, flags: Flags, w: u16, h: u16, stride: u16) -> Self {
-        Self {
-            magic: 0x19,
-            cf,
-            flags,
-            w,
-            h,
-            stride,
-            reserved_2: 0,
+#[derive(Debug)]
+pub enum Header {
+    Unknown,
+    V8(ImageHeaderV8),
+    V9(ImageHeaderV9),
+}
+
+#[derive(Debug)]
+pub struct ImageHeader {
+    version: LVGLVersion,
+    header: Header,
+}
+
+impl Header {
+    pub fn from_bytes(data: &[u8]) -> Self {
+        assert!(data.len() > 4, "Invalid data size");
+        let magic = data[0];
+
+        let mut version = LVGLVersion::Unknown;
+
+        if magic == 0x19 {
+            version = LVGLVersion::V9;
+        } else if magic <= 0x18 {
+            version = LVGLVersion::V8;
+        }
+
+        let header = match version {
+            LVGLVersion::V8 => {
+                let header = ImageHeaderV8::from_bytes([data[0], data[1], data[2], data[3]]);
+                log::trace!("Decoded image header: {:#?}", header);
+                if header.cf_or_err().is_err() || header.reserved() != 0 {
+                    Header::Unknown
+                } else if header.cf() == ColorFormat::TrueColor {
+                    Header::V8(header.with_cf(ColorFormat::RGB888))
+                } else if header.cf() == ColorFormat::TrueColorAlpha {
+                    Header::V8(header.with_cf(ColorFormat::ARGB8888))
+                } else {
+                    Header::V8(header)
+                }
+            }
+            LVGLVersion::V9 => {
+                let header = ImageHeaderV9::from_bytes([
+                    data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
+                    data[8], data[9], data[10], data[11],
+                ]);
+                if header.cf_or_err().is_err() || header.reserved_2() != 0 {
+                    Header::Unknown
+                } else {
+                    Header::V9(header)
+                }
+            }
+            _ => Header::Unknown,
+        };
+
+        header
+    }
+
+    pub fn into_bytes(&self) -> Vec<u8> {
+        match self {
+            Header::Unknown => vec![],
+            Header::V8(header) => header.into_bytes().to_vec(),
+            Header::V9(header) => header.into_bytes().to_vec(),
         }
     }
 
+    pub fn header_size(&self) -> usize {
+        match self {
+            Header::Unknown => 0,
+            Header::V8(_) => std::mem::size_of::<ImageHeaderV8>(),
+            Header::V9(_) => std::mem::size_of::<ImageHeaderV9>(),
+        }
+    }
+
+    pub fn version(&self) -> LVGLVersion {
+        match self {
+            Header::Unknown => LVGLVersion::Unknown,
+            Header::V8(_) => LVGLVersion::V8,
+            Header::V9(_) => LVGLVersion::V9,
+        }
+    }
+
+    pub fn cf(&self) -> ColorFormat {
+        match self {
+            Header::Unknown => ColorFormat::UNKNOWN,
+            Header::V8(header) => header.cf(),
+            Header::V9(header) => header.cf(),
+        }
+    }
+
+    pub fn w(&self) -> u16 {
+        match self {
+            Header::Unknown => 0,
+            Header::V8(header) => header.w(),
+            Header::V9(header) => header.w(),
+        }
+    }
+
+    pub fn h(&self) -> u16 {
+        match self {
+            Header::Unknown => 0,
+            Header::V8(header) => header.h(),
+            Header::V9(header) => header.h(),
+        }
+    }
+
+    pub fn stride(&self) -> u16 {
+        match self {
+            Header::Unknown => 0,
+            Header::V8(_) => self.cf().get_stride_size(self.w() as u32, 1) as u16,
+            Header::V9(header) => header.stride(),
+        }
+    }
+}
+
+impl ImageHeader {
+    pub fn new(
+        version: LVGLVersion,
+        cf: ColorFormat,
+        flags: Flags,
+        w: u16,
+        h: u16,
+        stride: u16,
+    ) -> Self {
+        let header = match version {
+            LVGLVersion::V8 => Header::V8(ImageHeaderV8::new().with_cf(cf).with_w(w).with_h(h)),
+            LVGLVersion::V9 => Header::V9(
+                ImageHeaderV9::new()
+                    .with_magic(0x19)
+                    .with_cf(cf)
+                    .with_flags(flags)
+                    .with_w(w)
+                    .with_h(h)
+                    .with_stride(stride),
+            ),
+            LVGLVersion::Unknown => Header::Unknown,
+        };
+
+        Self { version, header }
+    }
+
     pub fn encode(&self) -> Vec<u8> {
-        let mut buf = Cursor::new(Vec::new());
-        buf.write_all(&self.magic.to_le_bytes()).unwrap();
-        buf.write_all(&(self.cf as u8).to_le_bytes()).unwrap();
-        buf.write_all(&(self.flags as u16).to_le_bytes()).unwrap();
-        buf.write_all(&self.w.to_le_bytes()).unwrap();
-        buf.write_all(&self.h.to_le_bytes()).unwrap();
-        buf.write_all(&self.stride.to_le_bytes()).unwrap();
-        buf.write_all(&self.reserved_2.to_le_bytes()).unwrap();
-        buf.into_inner()
+        self.header.into_bytes()
     }
 
     pub fn decode(data: Vec<u8>) -> Self {
         log::trace!("Decoding image header with data size: {}", data.len());
 
-        let header_size = std::mem::size_of::<ImageHeader>();
-        let mut header = ImageHeader::new(ColorFormat::RGB888, Flags::NONE, 0, 0, 0);
+        let header = Header::from_bytes(data.as_slice());
 
-        if data.len() < header_size {
-            return header;
-        }
+        let image_header = Self {
+            version: header.version(),
+            header,
+        };
 
-        let mut buf = Cursor::new(data);
-
-        unsafe {
-            let header_ptr = &mut header as *mut ImageHeader as *mut u8;
-            buf.read_exact(std::slice::from_raw_parts_mut(header_ptr, header_size))
-                .unwrap();
-        }
-
-        if header.magic != 0x19 {
-            log::error!(
-                "Invalid magic number in image header with value: {}",
-                header.magic
-            );
-            assert_eq!(header.magic, 0x19, "Invalid magic number in image header");
-        }
-
-        log::trace!("Decoded image header: {:#?}", header);
-        header
+        log::trace!("Decoded image header: {:#?}", image_header);
+        image_header
     }
 }
-
-/*typedef struct {
-    lv_image_header_t header; /**< A header describing the basics of the image*/
-    uint32_t data_size;     /**< Size of the image in bytes*/
-    const uint8_t * data;   /**< Pointer to the data of the image*/
-} lv_image_dsc_t;*/
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -164,20 +293,33 @@ impl ImageDescriptor {
         log::trace!("Decoding image descriptor with data size: {}", data.len());
 
         let header = ImageHeader::decode(data.clone());
-        let header_size = std::mem::size_of::<ImageHeader>();
+        let header_size = header.header.header_size();
         let data = data[header_size..].to_vec();
         let data_size = data.len() as u32;
 
-        let mut idea_data_size = header.stride as u32 * header.h as u32;
-        idea_data_size += match header.cf {
-            ColorFormat::I1 | ColorFormat::I2 | ColorFormat::I4 | ColorFormat::I8 => {
-                (1u32 << header.cf.get_bpp()) * ColorFormat::ARGB8888.get_size() as u32
+        match header.header {
+            Header::V9(header) => {
+                let mut idea_data_size = header.stride() as u32 * header.h() as u32;
+                idea_data_size += match header.cf() {
+                    ColorFormat::I1 | ColorFormat::I2 | ColorFormat::I4 | ColorFormat::I8 => {
+                        (1u32 << header.cf().get_bpp()) * ColorFormat::ARGB8888.get_size() as u32
+                    }
+                    ColorFormat::RGB565A8 => header.w() as u32 * header.h() as u32,
+                    _ => 0,
+                };
+                assert_eq!(idea_data_size, data_size, "Data size mismatch {:?}", header);
             }
-            ColorFormat::RGB565A8 => header.w as u32 * header.h as u32,
-            _ => 0,
-        };
+            Header::V8(_) => {}
+            Header::Unknown => {
+                log::error!("Unknown image header format");
 
-        assert_eq!(idea_data_size, data_size, "Data size mismatch {:?}", header);
+                return Self {
+                    header,
+                    data_size: 0,
+                    data: vec![],
+                };
+            }
+        }
 
         log::trace!(
             "Decoded image descriptor and returned data size: {}",
@@ -211,6 +353,7 @@ impl ColorFormat {
             ColorFormat::A1 => 1,
             ColorFormat::A2 => 2,
             ColorFormat::A4 => 4,
+            _ => 0,
         }
     }
 

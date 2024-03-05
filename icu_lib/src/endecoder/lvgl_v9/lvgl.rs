@@ -1,5 +1,7 @@
 use crate::endecoder::lvgl_v9::color_converter::{rgba8888_from, rgba8888_to};
-use crate::endecoder::lvgl_v9::{ColorFormat, Flags, ImageDescriptor, ImageHeader, LVGL};
+use crate::endecoder::lvgl_v9::{
+    ColorFormat, Flags, ImageDescriptor, ImageHeader, LVGLVersion, LVGL,
+};
 use crate::endecoder::{EnDecoder, ImageInfo};
 use crate::midata::MiData;
 use crate::EncoderParams;
@@ -16,11 +18,7 @@ impl EnDecoder for LVGL {
         let header_data = &data[..header_size];
 
         let header = ImageHeader::decode(Vec::from(header_data));
-        if header.magic != 0x19 && header.cf != ColorFormat::UNKNOWN {
-            return false;
-        }
-
-        true
+        header.version != LVGLVersion::Unknown
     }
 
     fn encode(&self, data: &MiData, encoder_params: EncoderParams) -> Vec<u8> {
@@ -42,6 +40,7 @@ impl EnDecoder for LVGL {
                 buf.write_all(
                     &ImageDescriptor::new(
                         ImageHeader::new(
+                            encoder_params.lvgl_version,
                             color_format,
                             Flags::NONE,
                             img.width() as u16,
@@ -64,22 +63,22 @@ impl EnDecoder for LVGL {
         log::trace!("Decoding image with data size: {}", data.len());
         let img_desc = ImageDescriptor::decode(data);
 
-        let header = &img_desc.header;
+        let header = &img_desc.header.header;
 
-        log::trace!("Decoding image with color format: {:?}", header.cf);
+        log::trace!("Decoding image with color format: {:?}", header.cf());
         log::trace!("Decoded image header: {:#?}", img_desc.header);
         log::trace!("Converting image data to RGBA");
 
         // Convert image data to RGBA
         let img_buffer = RgbaImage::from_vec(
-            img_desc.header.w as u32,
-            img_desc.header.h as u32,
+            header.w() as u32,
+            header.h() as u32,
             rgba8888_from(
                 img_desc.data.clone().as_mut(),
-                header.cf,
-                header.w as u32,
-                header.h as u32,
-                header.stride as u32,
+                header.cf(),
+                header.w() as u32,
+                header.h() as u32,
+                header.stride() as u32,
             ),
         )
         .unwrap();
@@ -100,13 +99,13 @@ impl EnDecoder for LVGL {
 
         let header_data = &data[..header_size];
 
-        let header = ImageHeader::decode(Vec::from(header_data));
+        let header = ImageHeader::decode(Vec::from(header_data)).header;
 
         ImageInfo {
-            width: header.w as u32,
-            height: header.h as u32,
+            width: header.w() as u32,
+            height: header.h() as u32,
             data_size: data.len() as u32,
-            format: format!("LVGL.V9({:?})", header.cf),
+            format: format!("LVGL.V9({:?})", header.cf()),
             other_info: Default::default(),
         }
     }
