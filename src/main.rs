@@ -167,7 +167,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .with_dither(*dither)
                         .with_color_format(
                             (*output_color_format).map(|f| f.into()).unwrap_or_default(),
-                        );
+                        )
+                        .with_lvgl_version((*lvgl_version).into());
 
                     let data = mid.encode_into(ed, params);
 

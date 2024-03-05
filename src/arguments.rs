@@ -133,6 +133,15 @@ impl From<OutputColorFormats> for lvgl_v9::ColorFormat {
     }
 }
 
+impl From<LVGL_Version> for lvgl_v9::LVGLVersion {
+    fn from(lvgl_version: LVGL_Version) -> lvgl_v9::LVGLVersion {
+        match lvgl_version {
+            LVGL_Version::V9 => lvgl_v9::LVGLVersion::V9,
+            LVGL_Version::V8 => lvgl_v9::LVGLVersion::V8,
+        }
+    }
+}
+
 #[derive(Parser, Debug)]
 #[command(author, version, long_about)]
 #[command(

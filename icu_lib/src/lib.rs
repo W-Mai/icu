@@ -40,4 +40,9 @@ impl EncoderParams {
         self.dither = dither;
         self
     }
+
+    pub fn with_lvgl_version(mut self, lvgl_version: lvgl_v9::LVGLVersion) -> Self {
+        self.lvgl_version = lvgl_version;
+        self
+    }
 }
