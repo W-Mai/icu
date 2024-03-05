@@ -103,7 +103,7 @@ impl EnDecoder for LVGL {
             width: header.w() as u32,
             height: header.h() as u32,
             data_size: data.len() as u32,
-            format: format!("LVGL.V9({:?})", header.cf()),
+            format: format!("LVGL.{:?}({:?})", header.version(), header.cf()),
             other_info: Default::default(),
         }
     }
