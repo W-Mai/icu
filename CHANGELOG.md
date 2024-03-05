@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.1.9] - 2024-03-06
+### 🔖 Version Tag
+- 🚀 **New Features**: Added support for LVGL version 8 encode and decode.
+- 🚀 **New Features**: Added support for image show for LVGL version 8.
+- 🚀 **New Features**: Added support for more image information logging for LVGL version 8 and 9.
+- 🔄 **Version Bump**: Version was bumped to 0.1.9 to reflect the updates and improvements.
+
 ## [v0.1.8] - 2024-03-04
 ### 🔖 Version Tag
 - 🌍 **Oranda Updates**: Configurations were updated to improve the oranda module's functionality.
