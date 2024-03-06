@@ -106,7 +106,9 @@ impl EnDecoder for LVGL {
         );
         other_info.insert("Color Format".to_string(), format!("{:?}", header.cf()));
         other_info.insert("Flags".to_string(), format!("{:?}", header.flags()));
-        other_info.insert("Stride".to_string(), format!("{:?}", header.stride()));
+        if header.version() == LVGLVersion::V9 {
+            other_info.insert("Stride".to_string(), format!("{:?}", header.stride()));
+        }
 
         ImageInfo {
             width: header.w() as u32,

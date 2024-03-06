@@ -133,10 +133,6 @@ impl ImageHeader {
                 log::trace!("Decoded image header: {:#?}", header);
                 if header.cf_or_err().is_err() || header.reserved() != 0 {
                     ImageHeader::Unknown
-                } else if header.cf() == ColorFormat::TrueColor {
-                    ImageHeader::V8(header.with_cf(ColorFormat::XRGB8888))
-                } else if header.cf() == ColorFormat::TrueColorAlpha {
-                    ImageHeader::V8(header.with_cf(ColorFormat::ARGB8888))
                 } else {
                     ImageHeader::V8(header)
                 }
@@ -349,7 +345,8 @@ impl ColorFormat {
             ColorFormat::A1 => 1,
             ColorFormat::A2 => 2,
             ColorFormat::A4 => 4,
-            _ => 0,
+            ColorFormat::TrueColor => ColorFormat::XRGB8888.get_bpp(),
+            ColorFormat::TrueColorAlpha => ColorFormat::ARGB8888.get_bpp(),
         }
     }
 

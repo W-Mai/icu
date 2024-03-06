@@ -22,7 +22,10 @@ pub fn rgba8888_to(
                     .take(stride_bytes)
             })
             .collect(),
-        ColorFormat::ARGB8888 | ColorFormat::XRGB8888 => data
+        ColorFormat::ARGB8888
+        | ColorFormat::XRGB8888
+        | ColorFormat::TrueColor
+        | ColorFormat::TrueColorAlpha => data
             .chunks_exact(width_bytes)
             .flat_map(|row| {
                 row.chunks_exact(color_bytes)
@@ -189,7 +192,10 @@ pub fn rgba8888_from(
                     .flat_map(|chunk| chunk.iter().rev().chain(iter::once(&0xFFu8)).copied())
             })
             .collect(),
-        ColorFormat::ARGB8888 | ColorFormat::XRGB8888 => data
+        ColorFormat::ARGB8888
+        | ColorFormat::XRGB8888
+        | ColorFormat::TrueColor
+        | ColorFormat::TrueColorAlpha => data
             .chunks_exact(stride_bytes)
             .flat_map(|row| {
                 row[..width_bytes]
