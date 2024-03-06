@@ -9,7 +9,7 @@ use icu_lib::endecoder::{common, find_endecoder, lvgl_v9, EnDecoder};
 use icu_lib::midata::MiData;
 use icu_lib::{endecoder, EncoderParams};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 fn decode_with(
     data: Vec<u8>,
@@ -18,7 +18,7 @@ fn decode_with(
     match input_format {
         ImageFormatCategory::Auto => {
             let ed = find_endecoder(&data);
-            Ok(ed.ok_or("No endecoder found")?.decode(data))
+            Ok(ed.ok_or("No supported endecoder found")?.decode(data))
         }
         ImageFormatCategory::Common => Ok(MiData::decode_from(&common::AutoDectect {}, data)),
         ImageFormatCategory::LVGL_V9 => Ok(MiData::decode_from(&lvgl_v9::LVGL {}, data)),
@@ -96,10 +96,13 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
             let mut converted_files = 0;
 
             let is_folder_input = input_files.len() == 1 && Path::new(&input_files[0]).is_dir();
-            let input_folder = input_files
-                .first()
-                .map(|path| Path::new(path).canonicalize().unwrap_or_default())
-                .unwrap_or_default();
+            let input_folder = if is_folder_input {
+                input_files
+                    .first()
+                    .map(|path| Path::new(path).canonicalize().unwrap_or_default())
+            } else {
+                None
+            };
 
             log::trace!("files to be converted: {:#?}", input_files);
             log::info!(
@@ -108,50 +111,19 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
             );
             log::info!("");
 
-            let input_files_vec =
-                deal_input_file_paths(input_files, is_folder_input, &input_folder)?;
+            let input_files_vec = deal_input_file_paths(input_files, &input_folder)?;
 
             for file_path in input_files_vec {
                 let file_path = Path::new(&file_path).canonicalize()?;
-                if !file_path.exists() {
-                    log::error!("File not found: {}", file_path.to_string_lossy());
-                    continue;
-                }
 
                 // calculate converting time
                 let start_time = std::time::Instant::now();
 
-                let file_folder = if is_folder_input {
-                    file_path.strip_prefix(&input_folder)?
-                } else {
-                    Path::new(&file_path)
-                };
-                let file_folder = file_folder
-                    .parent()
-                    .ok_or("Unable to get parent folder of input file")?;
-
-                let file_name = Path::new(&file_path).file_name().unwrap_or_default();
-
-                let output_file_name =
-                    Path::new(file_name).with_extension(output_format.get_file_extension());
-
-                let mut output_file_path = file_folder.join(&output_file_name);
-
-                if let Some(output_folder) = output_folder {
-                    let output_folder = if is_folder_input {
-                        Path::new(output_folder).join(file_folder)
-                    } else {
-                        Path::new(output_folder).to_path_buf()
-                    };
-                    if !output_folder.exists() {
-                        fs::create_dir_all(&output_folder)?;
-                    }
-
-                    output_file_path = output_folder.join(&output_file_name);
-                }
+                let output_file_path =
+                    deal_path_without_extension(&file_path, &input_folder, output_folder.clone())?
+                        .with_extension(output_format.get_file_extension());
 
                 let output_file_exists = output_file_path.exists();
-
                 if output_file_exists && !*override_output {
                     log::error!(
                         "Can't convert <{}> to <{}>, output file already exists",
@@ -167,27 +139,38 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
                         );
                     }
 
-                    let data = fs::read(&file_path).expect("Unable to read file");
-                    let mid = decode_with(data, *input_format)?;
+                    let deal_one_file = || -> Result<(), Box<dyn std::error::Error>> {
+                        let params = EncoderParams::new()
+                            .with_stride_align(*output_stride_align)
+                            .with_dither(*dither)
+                            .with_color_format(
+                                (*output_color_format).map(|f| f.into()).unwrap_or_default(),
+                            )
+                            .with_lvgl_version((*lvgl_version).into());
 
-                    let ed = output_format.get_endecoder();
-                    let params = EncoderParams::new()
-                        .with_stride_align(*output_stride_align)
-                        .with_dither(*dither)
-                        .with_color_format(
-                            (*output_color_format).map(|f| f.into()).unwrap_or_default(),
-                        )
-                        .with_lvgl_version((*lvgl_version).into());
+                        let data = fs::read(&file_path)?;
+                        let ed = output_format.get_endecoder();
+                        let mid = decode_with(data, *input_format)?;
+                        let data = mid.encode_into(ed, params);
 
-                    let data = mid.encode_into(ed, params);
-
-                    match output_category {
-                        OutputFileFormatCategory::Common | OutputFileFormatCategory::Bin => {
-                            fs::write(&output_file_path, data).expect("Unable to write file");
+                        match output_category {
+                            OutputFileFormatCategory::Common | OutputFileFormatCategory::Bin => {
+                                fs::write(&output_file_path, data)?;
+                            }
+                            OutputFileFormatCategory::C_Array => {
+                                return Err("C_Array output format is not supported yet".into());
+                            }
                         }
-                        OutputFileFormatCategory::C_Array => {
-                            return Err("C_Array output format is not supported yet".into());
-                        }
+                        Ok(())
+                    };
+
+                    if let Err(e) = deal_one_file() {
+                        log::error!(
+                            "Failed to convert <{}> to <{}>: {}",
+                            file_path.to_string_lossy(),
+                            output_file_path.to_string_lossy(),
+                            e
+                        );
                     }
                 }
 
@@ -236,11 +219,10 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
 
 fn deal_input_file_paths(
     input_files: &[String],
-    is_folder_input: bool,
-    input_folder: &Path,
+    input_folder: &Option<PathBuf>,
 ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    Ok(if is_folder_input {
-        let mut folder_list = vec![input_folder.to_path_buf()];
+    Ok(if let Some(folder) = input_folder {
+        let mut folder_list = vec![folder.to_path_buf()];
         let mut files = Vec::new();
 
         while !folder_list.is_empty() {
@@ -280,4 +262,40 @@ fn deal_input_file_paths(
             })
             .collect::<Vec<String>>()
     })
+}
+
+fn deal_path_without_extension(
+    file_path: &PathBuf,
+    folder: &Option<PathBuf>,
+    output_folder: Option<String>,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    if !file_path.exists() {
+        return Err(format!("File not found: {}", file_path.to_string_lossy()).into());
+    }
+
+    let file_folder = match folder {
+        None => Path::new(&file_path),
+        Some(folder) => file_path.strip_prefix(folder)?,
+    }
+    .parent()
+    .ok_or("Unable to get parent folder of input file")?;
+
+    let file_name = Path::new(&file_path).file_name().unwrap_or_default();
+    let output_file_name = Path::new(file_name).with_extension("");
+    let mut output_file_path = file_folder.join(&output_file_name);
+
+    if let Some(output_folder) = output_folder {
+        let output_folder = match folder {
+            None => Path::new(&output_folder).to_path_buf(),
+            Some(_) => Path::new(&output_folder).join(file_folder),
+        };
+
+        if !output_folder.exists() {
+            fs::create_dir_all(&output_folder)?;
+        }
+
+        output_file_path = output_folder.join(&output_file_name);
+    }
+
+    Ok(output_file_path)
 }
