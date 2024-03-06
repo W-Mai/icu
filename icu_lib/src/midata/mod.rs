@@ -18,19 +18,3 @@ impl MiData {
         ed.encode(self, encoder_params)
     }
 }
-
-pub fn decode_from(data: Vec<u8>) -> MiData {
-    let eds = vec![
-        &endecoder::common::AutoDectect {} as &dyn EnDecoder,
-        &endecoder::lvgl_v9::LVGL {} as &dyn EnDecoder,
-    ];
-
-    for ed in eds {
-        let can_decode = ed.can_decode(&data);
-        if can_decode {
-            return ed.decode(data);
-        }
-    }
-
-    panic!("No decoder found for this data")
-}

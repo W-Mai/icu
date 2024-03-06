@@ -22,7 +22,7 @@ pub trait EnDecoder {
     fn info(&self, data: &[u8]) -> ImageInfo;
 }
 
-pub fn get_info(data: &[u8]) -> ImageInfo {
+pub fn find_endecoder(data: &[u8]) -> Option<&'static dyn EnDecoder> {
     let eds = vec![
         &endecoder::common::AutoDectect {} as &dyn EnDecoder,
         &endecoder::lvgl_v9::LVGL {} as &dyn EnDecoder,
@@ -31,9 +31,9 @@ pub fn get_info(data: &[u8]) -> ImageInfo {
     for ed in eds {
         let can_decode = ed.can_decode(data);
         if can_decode {
-            return ed.info(data);
+            return Some(ed);
         }
     }
 
-    panic!("No decoder found for this data")
+    None
 }

@@ -5,15 +5,18 @@ use crate::arguments::{
     parse_args, ImageFormatCategory, ImageFormats, OutputFileFormatCategory, SubCommands,
 };
 use crate::image_shower::show_image;
-use icu_lib::endecoder::{common, get_info, lvgl_v9, EnDecoder};
-use icu_lib::midata::{decode_from, MiData};
+use icu_lib::endecoder::{common, find_endecoder, lvgl_v9, EnDecoder};
+use icu_lib::midata::MiData;
 use icu_lib::{endecoder, EncoderParams};
 use std::fs;
 use std::path::Path;
 
 fn decode_with(data: Vec<u8>, input_format: ImageFormatCategory) -> MiData {
     match input_format {
-        ImageFormatCategory::Auto => decode_from(data),
+        ImageFormatCategory::Auto => {
+            let ed = find_endecoder(&data);
+            ed.unwrap().decode(data)
+        }
         ImageFormatCategory::Common => MiData::decode_from(&common::AutoDectect {}, data),
         ImageFormatCategory::LVGL_V9 => MiData::decode_from(&lvgl_v9::LVGL {}, data),
     }
@@ -21,7 +24,10 @@ fn decode_with(data: Vec<u8>, input_format: ImageFormatCategory) -> MiData {
 
 fn get_info_with(data: Vec<u8>, input_format: ImageFormatCategory) -> endecoder::ImageInfo {
     match input_format {
-        ImageFormatCategory::Auto => get_info(&data),
+        ImageFormatCategory::Auto => {
+            let ed = find_endecoder(&data);
+            ed.unwrap().info(&data)
+        }
         ImageFormatCategory::Common => common::AutoDectect {}.info(&data),
         ImageFormatCategory::LVGL_V9 => lvgl_v9::LVGL {}.info(&data),
     }
