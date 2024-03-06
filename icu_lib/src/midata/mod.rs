@@ -1,4 +1,3 @@
-use crate::endecoder;
 use crate::endecoder::EnDecoder;
 use crate::EncoderParams;
 use image::{GrayAlphaImage, RgbaImage};

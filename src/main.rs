@@ -39,7 +39,16 @@ fn get_info_with(
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
+    let res = process();
+
+    if let Err(e) = res {
+        log::error!("{}", e);
+        std::process::exit(1);
+    }
+}
+
+fn process() -> Result<(), Box<dyn std::error::Error>> {
     let args = parse_args();
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(
@@ -57,25 +66,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match &commands {
         SubCommands::Info { file, input_format } => {
-            // check file exists
-            if fs::metadata(file).is_err() {
-                log::error!("File not found: {}", file);
-                return Err(format!("File not found: {}", file).into());
-            }
-
-            let data = fs::read(file).expect("Unable to read file");
+            let data = fs::read(file)?;
             let info = get_info_with(data, *input_format)?;
 
             println!("{:#?}", info);
         }
         SubCommands::Show { file, input_format } => {
-            // check file exists
-            if fs::metadata(file).is_err() {
-                log::error!("File not found: {}", file);
-                return Err(format!("File not found: {}", file).into());
-            }
-
-            let data = fs::read(file).expect("Unable to read file");
+            let data = fs::read(file)?;
             let mid = decode_with(data, *input_format);
 
             show_image(mid?);
@@ -189,7 +186,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             fs::write(&output_file_path, data).expect("Unable to write file");
                         }
                         OutputFileFormatCategory::C_Array => {
-                            panic!("C_Array output format is not supported yet");
+                            return Err("C_Array output format is not supported yet".into());
                         }
                     }
                 }
