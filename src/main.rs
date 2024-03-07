@@ -104,11 +104,9 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
                 None
             };
 
-            log::trace!("files to be converted: {:#?}", input_files);
-            log::info!(
-                "Start converting {}",
-                if is_folder_input { "folder" } else { "file" }
-            );
+            let file_or_folder = if is_folder_input { "folder" } else { "file" };
+            log::trace!("{} to be converted: {:#?}", file_or_folder, input_files);
+            log::info!("Start converting {}", file_or_folder);
             log::info!("");
 
             let input_files_vec = deal_input_file_paths(input_files, &input_folder)?;
@@ -124,13 +122,9 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
                         .with_extension(output_format.get_file_extension());
 
                 let output_file_exists = output_file_path.exists();
-                if output_file_exists && !*override_output {
-                    log::error!(
-                        "Can't convert <{}> to <{}>, output file already exists",
-                        file_path.to_string_lossy(),
-                        output_file_path.to_string_lossy()
-                    )
-                } else {
+                let should_convert = !output_file_exists || *override_output;
+
+                if should_convert {
                     if output_file_exists {
                         log::warn!(
                             "Override output file <{}> for converting <{}>",
@@ -138,8 +132,16 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
                             file_path.to_string_lossy()
                         );
                     }
+                } else {
+                    log::error!(
+                        "Can't convert <{}> to <{}>, output file already exists",
+                        file_path.to_string_lossy(),
+                        output_file_path.to_string_lossy()
+                    );
+                }
 
-                    let deal_one_file = || -> Result<(), Box<dyn std::error::Error>> {
+                if should_convert {
+                    if let Err(e) = (|| -> Result<(), Box<dyn std::error::Error>> {
                         let params = EncoderParams::new()
                             .with_stride_align(*output_stride_align)
                             .with_dither(*dither)
@@ -162,9 +164,7 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
                         Ok(())
-                    };
-
-                    if let Err(e) = deal_one_file() {
+                    })() {
                         log::error!(
                             "Failed to convert <{}> to <{}>: {}",
                             file_path.to_string_lossy(),
