@@ -95,30 +95,28 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
             let mut user_duration = 0.0;
             let mut converted_files = 0;
 
-            let is_folder_input = input_files.len() == 1 && Path::new(&input_files[0]).is_dir();
-            let input_folder = if is_folder_input {
-                input_files
-                    .first()
-                    .map(|path| Path::new(path).canonicalize().unwrap_or_default())
-            } else {
-                None
-            };
+            let input_folder = input_files.first()
+                .filter(|&path| input_files.len() == 1 && Path::new(path).is_dir())
+                .map(|path| Path::new(path).canonicalize().unwrap_or_default());
 
-            let file_or_folder = if is_folder_input { "folder" } else { "file" };
+            let file_or_folder = if input_folder.is_some() {
+                "folder"
+            } else {
+                "file"
+            };
             log::trace!("{} to be converted: {:#?}", file_or_folder, input_files);
             log::info!("Start converting {}", file_or_folder);
             log::info!("");
 
-            let input_files_vec = deal_input_file_paths(input_files, &input_folder)?;
-
-            for file_path in input_files_vec {
-                let file_path = Path::new(&file_path).canonicalize()?;
+            deal_input_file_paths(input_files, &input_folder, |file_path| {
+                let file_path = Path::new(&file_path).canonicalize().unwrap_or_default();
 
                 // calculate converting time
                 let start_time = std::time::Instant::now();
 
                 let output_file_path =
-                    deal_path_without_extension(&file_path, &input_folder, output_folder.clone())?
+                    deal_path_without_extension(&file_path, &input_folder, output_folder.clone())
+                        .unwrap_or_default()
                         .with_extension(output_format.get_file_extension());
 
                 let output_file_exists = output_file_path.exists();
@@ -195,7 +193,7 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
                 );
 
                 converted_files += 1;
-            }
+            });
 
             let end_time = std::time::Instant::now();
             let duration = end_time - total_start_time;
@@ -217,29 +215,29 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn deal_input_file_paths(
+fn deal_input_file_paths<F: FnMut(&String)>(
     input_files: &[String],
     input_folder: &Option<PathBuf>,
-) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    Ok(if let Some(folder) = input_folder {
+    mut deal_func: F,
+) {
+    if let Some(folder) = input_folder {
         let mut folder_list = vec![folder.to_path_buf()];
-        let mut files = Vec::new();
 
         while !folder_list.is_empty() {
             if let Some(folder) = folder_list.pop() {
-                folder.read_dir()?.for_each(|entry| {
+                folder.read_dir().unwrap().for_each(|entry| {
                     let entry = entry.unwrap();
                     let path = entry.path();
                     if path.is_file() {
                         log::trace!("converting file: {}", path.to_str().unwrap());
-                        files.push(path.to_string_lossy().into())
+                        let path_string = path.to_string_lossy().into();
+                        deal_func(&path_string);
                     } else if path.is_dir() {
                         folder_list.push(path);
                     }
                 });
             }
         }
-        files
     } else {
         input_files
             .iter()
@@ -260,8 +258,8 @@ fn deal_input_file_paths(
                     }
                 }
             })
-            .collect::<Vec<String>>()
-    })
+            .for_each(|file_name| deal_func(&file_name));
+    }
 }
 
 fn deal_path_without_extension(
