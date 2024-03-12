@@ -70,7 +70,7 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
             let input_folder = input_files
                 .first()
                 .filter(|&path| input_files.len() == 1 && Path::new(path).is_dir())
-                .map(|path| Path::new(path).canonicalize().unwrap_or_default());
+                .map(|path| Path::new(path).to_path_buf());
 
             let file_or_folder = if input_folder.is_some() {
                 "folder"
@@ -246,7 +246,7 @@ fn deal_path_without_extension(
 
     let file_folder = match folder {
         None => Path::new(&file_path),
-        Some(folder) => full_path.strip_prefix(folder)?,
+        Some(folder) => full_path.strip_prefix(folder.canonicalize()?)?,
     }
     .parent()
     .ok_or("Unable to get parent folder of input file")?;
