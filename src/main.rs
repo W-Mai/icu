@@ -11,34 +11,6 @@ use icu_lib::{endecoder, EncoderParams};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-fn decode_with(
-    data: Vec<u8>,
-    input_format: ImageFormatCategory,
-) -> Result<MiData, Box<dyn std::error::Error>> {
-    match input_format {
-        ImageFormatCategory::Auto => {
-            let ed = find_endecoder(&data);
-            Ok(ed.ok_or("No supported endecoder found")?.decode(data))
-        }
-        ImageFormatCategory::Common => Ok(MiData::decode_from(&common::AutoDectect {}, data)),
-        ImageFormatCategory::LVGL_V9 => Ok(MiData::decode_from(&lvgl_v9::LVGL {}, data)),
-    }
-}
-
-fn get_info_with(
-    data: Vec<u8>,
-    input_format: ImageFormatCategory,
-) -> Result<endecoder::ImageInfo, Box<dyn std::error::Error>> {
-    match input_format {
-        ImageFormatCategory::Auto => {
-            let ed = find_endecoder(&data);
-            Ok(ed.ok_or("No endecoder found")?.info(&data))
-        }
-        ImageFormatCategory::Common => Ok(common::AutoDectect {}.info(&data)),
-        ImageFormatCategory::LVGL_V9 => Ok(lvgl_v9::LVGL {}.info(&data)),
-    }
-}
-
 fn main() {
     let res = process();
 
@@ -297,4 +269,32 @@ fn deal_path_without_extension(
     }
 
     Ok(output_file_path)
+}
+
+fn decode_with(
+    data: Vec<u8>,
+    input_format: ImageFormatCategory,
+) -> Result<MiData, Box<dyn std::error::Error>> {
+    match input_format {
+        ImageFormatCategory::Auto => {
+            let ed = find_endecoder(&data);
+            Ok(ed.ok_or("No supported endecoder found")?.decode(data))
+        }
+        ImageFormatCategory::Common => Ok(MiData::decode_from(&common::AutoDectect {}, data)),
+        ImageFormatCategory::LVGL_V9 => Ok(MiData::decode_from(&lvgl_v9::LVGL {}, data)),
+    }
+}
+
+fn get_info_with(
+    data: Vec<u8>,
+    input_format: ImageFormatCategory,
+) -> Result<endecoder::ImageInfo, Box<dyn std::error::Error>> {
+    match input_format {
+        ImageFormatCategory::Auto => {
+            let ed = find_endecoder(&data);
+            Ok(ed.ok_or("No endecoder found")?.info(&data))
+        }
+        ImageFormatCategory::Common => Ok(common::AutoDectect {}.info(&data)),
+        ImageFormatCategory::LVGL_V9 => Ok(lvgl_v9::LVGL {}.info(&data)),
+    }
 }
