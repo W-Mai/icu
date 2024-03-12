@@ -63,6 +63,34 @@ After that, you can install ICU by running the following command:
 cargo install icu_tool
 ```
 
+# How to use auto-completion feature
+
+ICU supports auto-completion feature for shells like `bash`, `zsh`, `fish` and `powershell`.
+
+- **Bash**
+
+Add the following line to your `.bashrc` or `.bash_profile` file:
+
+```shell
+eval "$(icu -I bash)"
+```
+
+- **Zsh**
+
+Add the following line to your `.zshrc` file:
+
+```shell
+eval "$(icu -I zsh)"
+```
+
+- **Fish**
+
+Add the following line to your `config.fish` file:
+
+```shell
+icu -I fish | source
+```
+
 # How to build yourself
 
 ```shell
