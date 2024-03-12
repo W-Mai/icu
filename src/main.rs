@@ -62,7 +62,7 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
     ))
     .init();
 
-    let commands = args.commands;
+    let commands = args.commands.ok_or("No subcommand provided")?;
 
     match &commands {
         SubCommands::Info { file, input_format } => {
@@ -95,7 +95,8 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
             let mut user_duration = 0.0;
             let mut converted_files = 0;
 
-            let input_folder = input_files.first()
+            let input_folder = input_files
+                .first()
                 .filter(|&path| input_files.len() == 1 && Path::new(path).is_dir())
                 .map(|path| Path::new(path).canonicalize().unwrap_or_default());
 

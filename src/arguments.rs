@@ -1,6 +1,8 @@
 use clap::error::ErrorKind;
-use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
+use clap::{Command, CommandFactory, Parser, Subcommand, ValueEnum};
+use clap_complete;
 use icu_lib::endecoder::{lvgl_v9, EnDecoder};
+use std::io;
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq, ValueEnum, Default)]
@@ -39,7 +41,7 @@ pub(crate) enum LVGL_Version {
 #[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq, ValueEnum)]
 pub(crate) enum ImageFormats {
-    /// Common image formats like: PNG, JPEG, BMP, etc.
+    // Common image formats like: PNG, JPEG, BMP, etc.
     PNG,
     JPEG,
     BMP,
@@ -59,7 +61,7 @@ pub(crate) enum ImageFormats {
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq, ValueEnum)]
 pub(crate) enum OutputColorFormats {
-    /// Color formats: RGB565, RGB888, ARGB8888, etc.
+    // Color formats: RGB565, RGB888, ARGB8888, etc.
     RGB565,
     RGB565A8,
     RGB888,
@@ -145,11 +147,16 @@ impl From<LVGL_Version> for lvgl_v9::LVGLVersion {
 #[derive(Parser, Debug)]
 #[command(author, version, long_about)]
 #[command(
+    name = "icu",
     about = "`Show` or `Convert` image files to any other image format including LVGL image formats."
 )]
 pub struct Args {
     #[command(subcommand)]
-    pub(crate) commands: SubCommands,
+    pub(crate) commands: Option<SubCommands>,
+
+    /// Generate auto-completion script for the specified shell
+    #[arg(short = 'I', long, value_name = "SHELL", value_enum)]
+    pub(crate) init: Option<clap_complete::Shell>,
 
     /// verbose mode
     #[arg(short = 'v', long, action = clap::ArgAction::Count)]
@@ -228,23 +235,37 @@ pub fn parse_args() -> Args {
     let mut command = Args::command();
     let args = Args::parse();
 
-    match &args.commands {
-        SubCommands::Show { .. } | SubCommands::Info { .. } => {}
-        SubCommands::Convert {
-            output_format,
-            output_color_format,
-            ..
-        } => {
-            if output_format == &ImageFormats::LVGL && output_color_format.is_none() {
-                let error = command.error(
-                    ErrorKind::MissingRequiredArgument,
-                    "Output color format is required for LVGL image format. \
-                 Please specify it using the [-C --output-color-format] option.",
-                );
+    if let Some(generator) = &args.init {
+        let mut cmd = Args::command();
+        fn print_completions<G: clap_complete::Generator>(gen: G, cmd: &mut Command) {
+            clap_complete::generate(gen, cmd, cmd.get_name().to_string(), &mut io::stdout());
+        }
+        print_completions(*generator, &mut cmd);
+        std::process::exit(0);
+    }
 
-                error.exit();
+    if let Some(sub_commands) = &args.commands {
+        match sub_commands {
+            SubCommands::Show { .. } | SubCommands::Info { .. } => {}
+            SubCommands::Convert {
+                output_format,
+                output_color_format,
+                ..
+            } => {
+                if output_format == &ImageFormats::LVGL && output_color_format.is_none() {
+                    let error = command.error(
+                        ErrorKind::MissingRequiredArgument,
+                        "Output color format is required for LVGL image format. \
+                 Please specify it using the [-C --output-color-format] option.",
+                    );
+
+                    error.exit();
+                }
             }
         }
+    } else {
+        command.flatten_help(true).print_long_help().unwrap();
+        std::process::exit(0);
     }
 
     args
