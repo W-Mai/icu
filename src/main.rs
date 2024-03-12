@@ -82,7 +82,7 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
             log::info!("");
 
             deal_input_file_paths(input_files, &input_folder, |file_path| {
-                let file_path = Path::new(&file_path).canonicalize().unwrap_or_default();
+                let file_path = Path::new(&file_path);
 
                 // calculate converting time
                 let start_time = std::time::Instant::now();
@@ -202,7 +202,6 @@ fn deal_input_file_paths<F: FnMut(&String)>(
                     let entry = entry.unwrap();
                     let path = entry.path();
                     if path.is_file() {
-                        log::trace!("converting file: {}", path.to_str().unwrap());
                         let path_string = path.to_string_lossy().into();
                         deal_func(&path_string);
                     } else if path.is_dir() {
@@ -236,22 +235,23 @@ fn deal_input_file_paths<F: FnMut(&String)>(
 }
 
 fn deal_path_without_extension(
-    file_path: &PathBuf,
+    file_path: &Path,
     folder: &Option<PathBuf>,
     output_folder: Option<String>,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let full_path = file_path.canonicalize()?;
     if !file_path.exists() {
         return Err(format!("File not found: {}", file_path.to_string_lossy()).into());
     }
 
     let file_folder = match folder {
         None => Path::new(&file_path),
-        Some(folder) => file_path.strip_prefix(folder)?,
+        Some(folder) => full_path.strip_prefix(folder)?,
     }
     .parent()
     .ok_or("Unable to get parent folder of input file")?;
 
-    let file_name = Path::new(&file_path).file_name().unwrap_or_default();
+    let file_name = file_path.file_name().unwrap_or_default();
     let output_file_name = Path::new(file_name).with_extension("");
     let mut output_file_path = file_folder.join(&output_file_name);
 
