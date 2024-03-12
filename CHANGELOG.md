@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.1.10] - 2024-03-12
+### 🔖 Version Tag
+- 🚧 **Refactoring**: Refactored code to improve maintainability and readability.
+- 🚧 **Refactoring**: Refactored error handling to improve user experience and reduce code complexity.
+- 🚀 **New Features**: The way to display the path is more reasonable.
+- 🚀 **New Features**: Added support for Auto-Complete feature for the command line interface. See `README.md` for more information.
+- 🔄 **Version Bump**: Version was bumped to 0.1.10 to reflect the updates and improvements.
+
 ## [v0.1.9] - 2024-03-06
 ### 🔖 Version Tag
 - 🚀 **New Features**: Added support for LVGL version 8 encode and decode.
