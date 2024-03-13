@@ -3,6 +3,7 @@ use crate::endecoder::lvgl_v9::{Flags, ImageDescriptor, ImageHeader, LVGLVersion
 use crate::endecoder::{EnDecoder, ImageInfo};
 use crate::midata::MiData;
 use crate::EncoderParams;
+use image::imageops;
 use image::RgbaImage;
 use std::io::{Cursor, Write};
 
@@ -26,12 +27,19 @@ impl EnDecoder for LVGL {
             MiData::RGBA(img) => {
                 let stride = color_format.get_stride_size(img.width(), encoder_params.stride_align);
                 let mut img_data = img.clone();
+
+                if encoder_params.dither {
+                    let cmap = color_quant::NeuQuant::new(10, 256, img_data.as_mut());
+                    imageops::dither(&mut img_data, &cmap);
+                }
+
                 let img_data = rgba8888_to(
                     img_data.as_mut(),
                     color_format,
                     img.width(),
                     img.height(),
                     stride,
+                    encoder_params.dither,
                 );
 
                 let mut buf = Cursor::new(Vec::new());

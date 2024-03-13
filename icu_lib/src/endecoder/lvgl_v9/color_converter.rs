@@ -1,4 +1,6 @@
 use crate::endecoder::lvgl_v9::ColorFormat;
+use image::imageops;
+use image::RgbaImage;
 use std::iter;
 
 pub fn rgba8888_to(
@@ -7,6 +9,7 @@ pub fn rgba8888_to(
     width: u32,
     height: u32,
     stride: u32,
+    dither: bool,
 ) -> Vec<u8> {
     let stride_bytes = stride as usize;
     let color_bytes = ColorFormat::ARGB8888.get_size() as usize;
@@ -129,12 +132,21 @@ pub fn rgba8888_to(
             let bpp = color_format.get_bpp();
             let color_map_size = 1 << bpp;
             let nq = color_quant::NeuQuant::new(30, color_map_size, data);
+            let mut data = data.to_vec();
+
+            if dither {
+                let mut rgba_image = RgbaImage::from_raw(width, height, data.to_vec()).unwrap();
+                imageops::dither(&mut rgba_image, &nq);
+                data = rgba_image.clone().into_raw();
+            }
+
             let color_map = rgba8888_to(
                 &nq.color_map_rgba(),
                 ColorFormat::ARGB8888,
                 color_map_size as u32,
                 1,
                 ColorFormat::ARGB8888.get_stride_size(color_map_size as u32, 1),
+                dither,
             );
 
             let mut indexes_iter = data.chunks(color_bytes).map(|pix| nq.index_of(pix) as u8);
