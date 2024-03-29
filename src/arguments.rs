@@ -1,7 +1,7 @@
 use clap::error::ErrorKind;
 use clap::{Command, CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete;
-use icu_lib::endecoder::{lvgl_v9, EnDecoder};
+use icu_lib::endecoder::{lvgl, EnDecoder};
 use std::io;
 
 #[allow(non_camel_case_types)]
@@ -92,7 +92,7 @@ impl ImageFormats {
             ImageFormats::PGM => &icu_lib::endecoder::common::PGM {} as &dyn EnDecoder,
             ImageFormats::PPM => &icu_lib::endecoder::common::PPM {} as &dyn EnDecoder,
             ImageFormats::PAM => &icu_lib::endecoder::common::PAM {} as &dyn EnDecoder,
-            ImageFormats::LVGL => &icu_lib::endecoder::lvgl_v9::LVGL {} as &dyn EnDecoder,
+            ImageFormats::LVGL => &icu_lib::endecoder::lvgl::LVGL {} as &dyn EnDecoder,
         }
     }
 
@@ -114,32 +114,32 @@ impl ImageFormats {
     }
 }
 
-impl From<OutputColorFormats> for lvgl_v9::ColorFormat {
-    fn from(color_format: OutputColorFormats) -> lvgl_v9::ColorFormat {
+impl From<OutputColorFormats> for lvgl::ColorFormat {
+    fn from(color_format: OutputColorFormats) -> lvgl::ColorFormat {
         match color_format {
-            OutputColorFormats::RGB565 => lvgl_v9::ColorFormat::RGB565,
-            OutputColorFormats::RGB565A8 => lvgl_v9::ColorFormat::RGB565A8,
-            OutputColorFormats::RGB888 => lvgl_v9::ColorFormat::RGB888,
-            OutputColorFormats::ARGB8888 => lvgl_v9::ColorFormat::ARGB8888,
-            OutputColorFormats::XRGB8888 => lvgl_v9::ColorFormat::XRGB8888,
-            OutputColorFormats::A1 => lvgl_v9::ColorFormat::A1,
-            OutputColorFormats::A2 => lvgl_v9::ColorFormat::A2,
-            OutputColorFormats::A4 => lvgl_v9::ColorFormat::A4,
-            OutputColorFormats::A8 => lvgl_v9::ColorFormat::A8,
-            OutputColorFormats::L8 => lvgl_v9::ColorFormat::L8,
-            OutputColorFormats::I1 => lvgl_v9::ColorFormat::I1,
-            OutputColorFormats::I2 => lvgl_v9::ColorFormat::I2,
-            OutputColorFormats::I4 => lvgl_v9::ColorFormat::I4,
-            OutputColorFormats::I8 => lvgl_v9::ColorFormat::I8,
+            OutputColorFormats::RGB565 => lvgl::ColorFormat::RGB565,
+            OutputColorFormats::RGB565A8 => lvgl::ColorFormat::RGB565A8,
+            OutputColorFormats::RGB888 => lvgl::ColorFormat::RGB888,
+            OutputColorFormats::ARGB8888 => lvgl::ColorFormat::ARGB8888,
+            OutputColorFormats::XRGB8888 => lvgl::ColorFormat::XRGB8888,
+            OutputColorFormats::A1 => lvgl::ColorFormat::A1,
+            OutputColorFormats::A2 => lvgl::ColorFormat::A2,
+            OutputColorFormats::A4 => lvgl::ColorFormat::A4,
+            OutputColorFormats::A8 => lvgl::ColorFormat::A8,
+            OutputColorFormats::L8 => lvgl::ColorFormat::L8,
+            OutputColorFormats::I1 => lvgl::ColorFormat::I1,
+            OutputColorFormats::I2 => lvgl::ColorFormat::I2,
+            OutputColorFormats::I4 => lvgl::ColorFormat::I4,
+            OutputColorFormats::I8 => lvgl::ColorFormat::I8,
         }
     }
 }
 
-impl From<LVGL_Version> for lvgl_v9::LVGLVersion {
-    fn from(lvgl_version: LVGL_Version) -> lvgl_v9::LVGLVersion {
+impl From<LVGL_Version> for lvgl::LVGLVersion {
+    fn from(lvgl_version: LVGL_Version) -> lvgl::LVGLVersion {
         match lvgl_version {
-            LVGL_Version::V9 => lvgl_v9::LVGLVersion::V9,
-            LVGL_Version::V8 => lvgl_v9::LVGLVersion::V8,
+            LVGL_Version::V9 => lvgl::LVGLVersion::V9,
+            LVGL_Version::V8 => lvgl::LVGLVersion::V8,
         }
     }
 }

@@ -1,13 +1,13 @@
-use crate::endecoder::lvgl_v9;
+use crate::endecoder::lvgl;
 
 pub mod endecoder;
 pub mod midata;
 
 pub struct EncoderParams {
-    pub color_format: lvgl_v9::ColorFormat,
+    pub color_format: lvgl::ColorFormat,
     pub stride_align: u32,
     pub dither: bool,
-    pub lvgl_version: lvgl_v9::LVGLVersion,
+    pub lvgl_version: lvgl::LVGLVersion,
 }
 
 impl Default for EncoderParams {
@@ -16,7 +16,7 @@ impl Default for EncoderParams {
             color_format: Default::default(),
             stride_align: 1,
             dither: false,
-            lvgl_version: lvgl_v9::LVGLVersion::Unknown,
+            lvgl_version: lvgl::LVGLVersion::Unknown,
         }
     }
 }
@@ -26,7 +26,7 @@ impl EncoderParams {
         Self::default()
     }
 
-    pub fn with_color_format(mut self, color_format: lvgl_v9::ColorFormat) -> Self {
+    pub fn with_color_format(mut self, color_format: lvgl::ColorFormat) -> Self {
         self.color_format = color_format;
         self
     }
@@ -41,7 +41,7 @@ impl EncoderParams {
         self
     }
 
-    pub fn with_lvgl_version(mut self, lvgl_version: lvgl_v9::LVGLVersion) -> Self {
+    pub fn with_lvgl_version(mut self, lvgl_version: lvgl::LVGLVersion) -> Self {
         self.lvgl_version = lvgl_version;
         self
     }

@@ -1,4 +1,4 @@
-use crate::endecoder::lvgl_v9::ColorFormat;
+use crate::endecoder::lvgl::ColorFormat;
 use image::imageops;
 use image::RgbaImage;
 use std::iter;

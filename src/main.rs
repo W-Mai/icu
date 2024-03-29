@@ -5,7 +5,7 @@ use crate::arguments::{
     parse_args, ImageFormatCategory, ImageFormats, OutputFileFormatCategory, SubCommands,
 };
 use crate::image_shower::show_image;
-use icu_lib::endecoder::{common, find_endecoder, lvgl_v9, EnDecoder};
+use icu_lib::endecoder::{common, find_endecoder, lvgl, EnDecoder};
 use icu_lib::midata::MiData;
 use icu_lib::{endecoder, EncoderParams};
 use std::fs;
@@ -281,7 +281,7 @@ fn decode_with(
             Ok(ed.ok_or("No supported endecoder found")?.decode(data))
         }
         ImageFormatCategory::Common => Ok(MiData::decode_from(&common::AutoDectect {}, data)),
-        ImageFormatCategory::LVGL_V9 => Ok(MiData::decode_from(&lvgl_v9::LVGL {}, data)),
+        ImageFormatCategory::LVGL_V9 => Ok(MiData::decode_from(&lvgl::LVGL {}, data)),
     }
 }
 
@@ -295,6 +295,6 @@ fn get_info_with(
             Ok(ed.ok_or("No endecoder found")?.info(&data))
         }
         ImageFormatCategory::Common => Ok(common::AutoDectect {}.info(&data)),
-        ImageFormatCategory::LVGL_V9 => Ok(lvgl_v9::LVGL {}.info(&data)),
+        ImageFormatCategory::LVGL_V9 => Ok(lvgl::LVGL {}.info(&data)),
     }
 }

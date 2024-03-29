@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use icu_lib::endecoder::{common, lvgl_v9};
+    use icu_lib::endecoder::{common, lvgl};
     use icu_lib::midata::MiData;
     use icu_lib::EncoderParams;
     use std::fs;
@@ -13,9 +13,9 @@ mod tests {
             let data = ($data).clone();
             let mid = MiData::decode_from(&common::AutoDectect {}, Vec::from(data));
             let data = mid.encode_into(
-                &lvgl_v9::LVGL {},
+                &lvgl::LVGL {},
                 EncoderParams {
-                    color_format: lvgl_v9::ColorFormat::$cf,
+                    color_format: lvgl::ColorFormat::$cf,
                     stride_align: 256,
                     dither: false,
                 },
@@ -23,13 +23,13 @@ mod tests {
             fs::write("./res/img_0.bin", data).expect("Unable to write file");
 
             let data = fs::read("./res/img_0.bin").expect("Unable to read file");
-            MiData::decode_from(&lvgl_v9::LVGL {}, data);
+            MiData::decode_from(&lvgl::LVGL {}, data);
         }};
     }
 
     #[test]
     fn it_works() {
-        use lvgl_v9::ImageHeader;
+        use lvgl::ImageHeader;
         assert_eq!(size_of::<ImageHeader>(), 12);
 
         test_encode_decode!(DATA, RGB565);
@@ -48,7 +48,7 @@ mod tests {
         test_encode_decode!(DATA, I8);
 
         let data = fs::read("./res/img_0.bin").expect("Unable to read file");
-        let mid = MiData::decode_from(&lvgl_v9::LVGL {}, data);
+        let mid = MiData::decode_from(&lvgl::LVGL {}, data);
         let data = mid.encode_into(&common::PNG {}, Default::default());
         fs::write("img_0_after.png", data).expect("Unable to write file");
 

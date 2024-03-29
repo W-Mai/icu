@@ -1,5 +1,5 @@
 pub mod common;
-pub mod lvgl_v9;
+pub mod lvgl;
 
 use crate::midata::MiData;
 use crate::{endecoder, EncoderParams};
@@ -25,7 +25,7 @@ pub trait EnDecoder {
 pub fn find_endecoder(data: &[u8]) -> Option<&'static dyn EnDecoder> {
     let eds = vec![
         &endecoder::common::AutoDectect {} as &dyn EnDecoder,
-        &endecoder::lvgl_v9::LVGL {} as &dyn EnDecoder,
+        &endecoder::lvgl::LVGL {} as &dyn EnDecoder,
     ];
 
     for ed in eds {
