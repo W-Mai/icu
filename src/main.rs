@@ -280,7 +280,7 @@ fn decode_with(
             let ed = find_endecoder(&data);
             Ok(ed.ok_or("No supported endecoder found")?.decode(data))
         }
-        ImageFormatCategory::Common => Ok(MiData::decode_from(&common::AutoDectect {}, data)),
+        ImageFormatCategory::Common => Ok(MiData::decode_from(&common::AutoDetect {}, data)),
         ImageFormatCategory::LVGL_V9 => Ok(MiData::decode_from(&lvgl::LVGL {}, data)),
     }
 }
@@ -294,7 +294,7 @@ fn get_info_with(
             let ed = find_endecoder(&data);
             Ok(ed.ok_or("No endecoder found")?.info(&data))
         }
-        ImageFormatCategory::Common => Ok(common::AutoDectect {}.info(&data)),
+        ImageFormatCategory::Common => Ok(common::AutoDetect {}.info(&data)),
         ImageFormatCategory::LVGL_V9 => Ok(lvgl::LVGL {}.info(&data)),
     }
 }

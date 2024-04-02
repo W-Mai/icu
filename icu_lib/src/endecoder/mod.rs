@@ -24,7 +24,7 @@ pub trait EnDecoder {
 
 pub fn find_endecoder(data: &[u8]) -> Option<&'static dyn EnDecoder> {
     let eds = vec![
-        &endecoder::common::AutoDectect {} as &dyn EnDecoder,
+        &endecoder::common::AutoDetect {} as &dyn EnDecoder,
         &endecoder::lvgl::LVGL {} as &dyn EnDecoder,
     ];
 

@@ -11,7 +11,7 @@ mod tests {
     macro_rules! test_encode_decode {
         ($data:expr, $cf:tt) => {{
             let data = ($data).clone();
-            let mid = MiData::decode_from(&common::AutoDectect {}, Vec::from(data));
+            let mid = MiData::decode_from(&common::AutoDetect {}, Vec::from(data));
             let data = mid.encode_into(
                 &lvgl::LVGL {},
                 EncoderParams {

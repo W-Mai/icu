@@ -7,7 +7,7 @@ use icu_lib::midata::MiData;
 macro_rules! test_encode_decode {
     ($data:expr, $cf:ty) => {{
         let data = ($data).clone();
-        let mid = MiData::decode_from::<common::AutoDectect>(Vec::from(data));
+        let mid = MiData::decode_from::<common::AutoDetect>(Vec::from(data));
         let data = mid.encode_into::<$cf>();
         fs::write("img_0.bin", data).expect("Unable to write file");
 

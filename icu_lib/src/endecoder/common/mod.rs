@@ -4,7 +4,7 @@ use std::io::Cursor;
 use crate::endecoder::{EnDecoder, ImageInfo};
 use crate::midata::MiData;
 
-pub struct AutoDectect {}
+pub struct AutoDetect {}
 
 pub struct PNG {}
 
@@ -30,7 +30,7 @@ pub struct PAM {}
 
 pub struct TGA {}
 
-impl EnDecoder for AutoDectect {
+impl EnDecoder for AutoDetect {
     fn can_decode(&self, data: &[u8]) -> bool {
         image::guess_format(data).is_ok()
     }
