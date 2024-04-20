@@ -20,10 +20,11 @@ pub fn rgba8888_to(
             .chunks_exact(width_bytes)
             .flat_map(|row| {
                 row.chunks_exact(color_bytes)
-                    .flat_map(|chunk| chunk[0..3].iter().rev().copied())
-                    .chain(std::iter::repeat(0))
+                    .flat_map(|chunk| chunk[0..3].iter().rev())
+                    .chain(std::iter::repeat(&0))
                     .take(stride_bytes)
             })
+            .copied()
             .collect(),
         ColorFormat::ARGB8888
         | ColorFormat::XRGB8888
@@ -39,11 +40,11 @@ pub fn rgba8888_to(
                             .cycle()
                             .skip(1)
                             .take(ColorFormat::ARGB8888.get_size() as usize)
-                            .copied()
                     })
-                    .chain(std::iter::repeat(0))
+                    .chain(std::iter::repeat(&0))
                     .take(stride_bytes)
             })
+            .copied()
             .collect(),
         ColorFormat::RGB565 => data
             .chunks_exact(width_bytes)
@@ -219,9 +220,9 @@ pub fn rgba8888_from(
                             .cycle()
                             .skip(1)
                             .take(ColorFormat::ARGB8888.get_size() as usize)
-                            .copied()
                     })
             })
+            .copied()
             .collect(),
         ColorFormat::RGB565 => data
             .chunks_exact(stride_bytes)
