@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.1.11] - 2024-05-01
+### 🔖 Version Tag
+
+劳动节快乐🎉
+Happy Labor Day🎉
+
+- 🚀 **New Features**: Added support for PNG indexes 1/2/4/8.
+  - Now you can easily convert by using the `-C` option with `i1/2/4/8` color format.
+- 🚀 **New Features**: Added support for Dither feature! By using `--dither` option you can make your pictures better and more natural.
+- 🔄 **Version Bump**: Version was bumped to 0.1.11 to reflect the updates and improvements.
+
 ## [v0.1.10] - 2024-03-12
 ### 🔖 Version Tag
 - 🚧 **Refactoring**: Refactored code to improve maintainability and readability.

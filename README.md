@@ -35,13 +35,13 @@ brew install icu_tool
 - **PowerShell**
 
 ```powershell
-powershell -c "irm https://github.com/W-Mai/icu/releases/download/v0.1.10/icu_tool-installer.ps1 | iex"
+powershell -c "irm https://github.com/W-Mai/icu/releases/download/v0.1.11/icu_tool-installer.ps1 | iex"
 ```
 
 - **Shell**
 
 ```shell
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/W-Mai/icu/releases/download/v0.1.10/icu_tool-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/W-Mai/icu/releases/download/v0.1.11/icu_tool-installer.sh | sh
 ```
 
 - **Windows MSI Installer**
