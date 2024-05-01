@@ -3,7 +3,7 @@ use image::{codecs, ImageError};
 use png;
 use std::io::Cursor;
 
-use crate::endecoder::{EnDecoder, ImageInfo};
+use crate::endecoder::{lvgl, EnDecoder, ImageInfo};
 use crate::midata::MiData;
 
 pub struct AutoDetect {}
@@ -74,38 +74,78 @@ impl EnDecoder for PNG {
         }
     }
 
-    fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
+    fn encode(&self, data: &MiData, encoder_params: EncoderParams) -> Vec<u8> {
         match data {
             MiData::RGBA(img) => {
+                let color_format = if encoder_params.color_format == lvgl::ColorFormat::UNKNOWN {
+                    lvgl::ColorFormat::ARGB8888
+                } else {
+                    encoder_params.color_format
+                };
+
                 let mut buf = Cursor::new(Vec::new());
 
-                {
-                    let data = img.to_vec();
-                    let mut encoder = png::Encoder::new(&mut buf, img.width(), img.height());
-                    encoder.set_color(png::ColorType::Indexed);
-                    encoder.set_depth(png::BitDepth::Eight);
-                    encoder.set_compression(png::Compression::Default);
-                    encoder.set_filter(png::FilterType::NoFilter);
-                    encoder.set_adaptive_filter(png::AdaptiveFilterType::NonAdaptive);
+                let mut encoder = png::Encoder::new(&mut buf, img.width(), img.height());
+                encoder.set_compression(png::Compression::Default);
+                encoder.set_filter(png::FilterType::NoFilter);
+                encoder.set_adaptive_filter(png::AdaptiveFilterType::NonAdaptive);
 
-                    let nq = color_quant::NeuQuant::new(30, 256, &data);
-                    let indexes_iter = data.chunks(4).map(|pix| nq.index_of(pix) as u8);
-                    let trns = nq
-                        .color_map_rgba()
-                        .iter()
-                        .skip(3)
-                        .step_by(4)
-                        .copied()
-                        .collect::<Vec<_>>();
+                match color_format {
+                    lvgl::ColorFormat::I1
+                    | lvgl::ColorFormat::I2
+                    | lvgl::ColorFormat::I4
+                    | lvgl::ColorFormat::I8 => {
+                        let bpp = color_format.get_bpp();
+                        let color_map_size = 1 << bpp;
 
-                    encoder.set_palette(nq.color_map_rgb());
-                    encoder.set_trns(trns);
+                        let data = img.to_vec();
+                        let nq = color_quant::NeuQuant::new(30, color_map_size, &data);
+                        let mut indexes_iter = data.chunks(4).map(|pix| nq.index_of(pix) as u8);
+                        let palette = nq.color_map_rgb();
+                        let trns = nq
+                            .color_map_rgba()
+                            .iter()
+                            .skip(3)
+                            .step_by(4)
+                            .copied()
+                            .collect::<Vec<_>>();
 
-                    let img_data = indexes_iter.collect::<Vec<u8>>();
+                        encoder.set_color(png::ColorType::Indexed);
+                        encoder.set_depth(png::BitDepth::from_u8(bpp as u8).unwrap());
 
-                    let mut writer = encoder.write_header().unwrap();
-                    writer.write_image_data(&img_data).unwrap();
+                        encoder.set_palette(palette);
+                        encoder.set_trns(trns);
+
+                        let width = img.width();
+                        let stride_bytes = color_format.get_stride_size(width, 1) as usize;
+                        let mut indexes = vec![0; stride_bytes * img.height() as usize];
+                        indexes.chunks_exact_mut(stride_bytes).for_each(|row| {
+                            let mut iter = row.iter_mut();
+                            let mut byte = &mut 0u8;
+
+                            for i in 0..width as u16 {
+                                let alpha = indexes_iter.next().unwrap();
+                                if i % (8 / bpp) == 0 {
+                                    if let Some(next_byte) = iter.next() {
+                                        byte = next_byte;
+                                    } else {
+                                        break;
+                                    }
+                                }
+                                *byte |= (alpha) << ((8 / bpp - 1 - i % (8 / bpp)) * bpp);
+                            }
+                        });
+
+                        let mut writer = encoder.write_header().unwrap();
+                        writer.write_image_data(&indexes).unwrap();
+                    }
+                    lvgl::ColorFormat::RGB888 => {}
+                    lvgl::ColorFormat::ARGB8888 => {}
+                    _ => {
+                        unimplemented!()
+                    }
                 }
+                {}
 
                 buf.into_inner()
             }
