@@ -1,4 +1,6 @@
 use crate::EncoderParams;
+use image::{codecs, ImageError};
+use png;
 use std::io::Cursor;
 
 use crate::endecoder::{EnDecoder, ImageInfo};
@@ -76,7 +78,35 @@ impl EnDecoder for PNG {
         match data {
             MiData::RGBA(img) => {
                 let mut buf = Cursor::new(Vec::new());
-                img.write_to(&mut buf, image::ImageFormat::Png).unwrap();
+
+                {
+                    let data = img.to_vec();
+                    let mut encoder = png::Encoder::new(&mut buf, img.width(), img.height());
+                    encoder.set_color(png::ColorType::Indexed);
+                    encoder.set_depth(png::BitDepth::Eight);
+                    encoder.set_compression(png::Compression::Default);
+                    encoder.set_filter(png::FilterType::NoFilter);
+                    encoder.set_adaptive_filter(png::AdaptiveFilterType::NonAdaptive);
+
+                    let nq = color_quant::NeuQuant::new(30, 256, &data);
+                    let indexes_iter = data.chunks(4).map(|pix| nq.index_of(pix) as u8);
+                    let trns = nq
+                        .color_map_rgba()
+                        .iter()
+                        .skip(3)
+                        .step_by(4)
+                        .copied()
+                        .collect::<Vec<_>>();
+
+                    encoder.set_palette(nq.color_map_rgb());
+                    encoder.set_trns(trns);
+
+                    let img_data = indexes_iter.collect::<Vec<u8>>();
+
+                    let mut writer = encoder.write_header().unwrap();
+                    writer.write_image_data(&img_data).unwrap();
+                }
+
                 buf.into_inner()
             }
             _ => Vec::new(),
