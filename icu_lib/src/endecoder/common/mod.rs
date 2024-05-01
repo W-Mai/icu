@@ -1,5 +1,4 @@
 use crate::EncoderParams;
-use image::{codecs, ImageError};
 use png;
 use std::io::Cursor;
 
@@ -139,8 +138,27 @@ impl EnDecoder for PNG {
                         let mut writer = encoder.write_header().unwrap();
                         writer.write_image_data(&indexes).unwrap();
                     }
-                    lvgl::ColorFormat::RGB888 => {}
-                    lvgl::ColorFormat::ARGB8888 => {}
+                    lvgl::ColorFormat::RGB888 => {
+                        let data = img
+                            .to_vec()
+                            .chunks_exact(4)
+                            .flat_map(|pix| [pix[0], pix[1], pix[2]])
+                            .collect::<Vec<_>>();
+
+                        encoder.set_color(png::ColorType::Rgb);
+                        encoder.set_depth(png::BitDepth::Eight);
+
+                        let mut writer = encoder.write_header().unwrap();
+                        writer.write_image_data(&data).unwrap();
+                    }
+                    lvgl::ColorFormat::ARGB8888 => {
+                        let data = img.to_vec();
+                        encoder.set_color(png::ColorType::Rgba);
+                        encoder.set_depth(png::BitDepth::Eight);
+
+                        let mut writer = encoder.write_header().unwrap();
+                        writer.write_image_data(&data).unwrap();
+                    }
                     _ => {
                         unimplemented!()
                     }
