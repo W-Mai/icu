@@ -252,7 +252,7 @@ fn deal_path_without_extension(
     .ok_or("Unable to get parent folder of input file")?;
 
     let file_name = file_path.file_name().unwrap_or_default();
-    let output_file_name = Path::new(file_name).with_extension("");
+    let output_file_name = Path::new(file_name).with_extension("PLACEHOLDER");
     let mut output_file_path = file_folder.join(&output_file_name);
 
     if let Some(output_folder) = output_folder {
