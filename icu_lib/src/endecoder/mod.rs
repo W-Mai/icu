@@ -28,6 +28,8 @@ pub fn find_endecoder(data: &[u8]) -> Option<&'static dyn EnDecoder> {
         &endecoder::common::AutoDetect {} as &dyn EnDecoder,
         &endecoder::lvgl::LVGL {} as &dyn EnDecoder,
         &endecoder::svg::SVG {} as &dyn EnDecoder,
+        &endecoder::svg::SVGBin {} as &dyn EnDecoder,
+        
     ];
 
     for ed in eds {
