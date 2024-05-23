@@ -20,6 +20,7 @@ color_quant = "1.1.0"
 log = "0.4.20"
 env_logger = "0.11.2"
 png = "0.17.13"
+usvg = "0.41.0"
 
 [dev-dependencies]
 criterion = "0.5.1"
