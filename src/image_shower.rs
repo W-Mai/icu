@@ -28,7 +28,7 @@ pub fn show_image(image: MiData) {
             .expect("Failed to run eframe");
         }
         MiData::GRAY(_) => {}
-        MiData::PATH => {}
+        MiData::PATH(_) => {}
     };
 }
 

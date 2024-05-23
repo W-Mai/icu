@@ -5,7 +5,7 @@ use image::{GrayAlphaImage, RgbaImage};
 pub enum MiData {
     RGBA(RgbaImage),
     GRAY(GrayAlphaImage),
-    PATH,
+    PATH(usvg::Tree),
 }
 
 impl MiData {
