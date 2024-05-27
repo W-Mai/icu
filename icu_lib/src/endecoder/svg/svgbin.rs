@@ -17,7 +17,7 @@ struct FileHeader {
     uncompress_data_bits: u32,
 }
 
-#[repr(C, packed)]
+#[repr(C)]
 struct Section {
     section_type: u8,
     section_flags: u8,
@@ -112,22 +112,86 @@ enum Tag {
     TextContents = 0x83,
 }
 
-#[repr(C, packed)]
+#[repr(C)]
 struct SVGBinFile {
     header: FileHeader,
     sections: Vec<Section>,
 }
 
+impl SVGBinFile {
+    fn into_bytes(self) -> Vec<u8> {
+        let mut bytes = vec![];
+
+        bytes.extend_from_slice(&self.header.signature);
+        bytes.extend_from_slice(&self.header.version.to_le_bytes());
+        bytes.extend_from_slice(&self.header.num_sections.to_le_bytes());
+        bytes.extend_from_slice(&self.header.width.to_le_bytes());
+        bytes.extend_from_slice(&self.header.height.to_le_bytes());
+        bytes.extend_from_slice(&self.header.data_size.to_le_bytes());
+        bytes.extend_from_slice(&self.header.compress_flag.to_le_bytes());
+        bytes.extend_from_slice(&self.header.reserved_bytes);
+        bytes.extend_from_slice(&self.header.uncompress_data_size.to_le_bytes());
+        bytes.extend_from_slice(&self.header.uncompress_data_bits.to_le_bytes());
+        for section in &self.sections {
+            bytes.extend_from_slice(&section.section_type.to_le_bytes());
+            bytes.extend_from_slice(&section.section_flags.to_le_bytes());
+            bytes.extend_from_slice(&section.section_length.to_le_bytes());
+            for data_block in &section.section_data {
+                match data_block {
+                    DataBlock::FixedLength(tag, data) => {
+                        bytes.extend_from_slice(&tag.to_le_bytes());
+                        bytes.extend_from_slice(data);
+                    }
+                    DataBlock::VariableLength(tag, length, data) => {
+                        bytes.extend_from_slice(&tag.to_le_bytes());
+                        bytes.extend_from_slice(&length.to_le_bytes());
+                        bytes.extend_from_slice(data);
+                    }
+                }
+            }
+        }
+        bytes
+    }
+}
+
 impl EnDecoder for SVGBin {
     fn can_decode(&self, data: &[u8]) -> bool {
-        if data.len() < 8 {
+        if data.len() < 12 {
             return false;
         }
+
         &data[0..8] == b"VelaVG\x00\x00"
+            && u32::from_le_bytes((&data[8..12]).try_into().unwrap()) == 0x01_00_00_00
     }
 
     fn encode(&self, data: &MiData, encoder_params: EncoderParams) -> Vec<u8> {
-        todo!()
+        let tree = match data {
+            MiData::PATH(tree) => tree,
+            _ => {
+                return vec![];
+            }
+        };
+
+        let view_box = tree.view_box();
+
+        let sections = vec![];
+
+        let header = FileHeader {
+            signature: [b'V', b'e', b'l', b'a', b'V', b'G', 0, 0],
+            version: 0x01_00_00_00,
+            num_sections: 0,
+            width: view_box.rect.width() as u32,
+            height: view_box.rect.height() as u32,
+            data_size: 0,
+            compress_flag: 0,
+            reserved_bytes: [0; 3],
+            uncompress_data_size: 0,
+            uncompress_data_bits: 0,
+        };
+
+        let file = SVGBinFile { header, sections };
+
+        file.into_bytes()
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {

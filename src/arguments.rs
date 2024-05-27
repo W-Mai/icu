@@ -53,9 +53,12 @@ pub(crate) enum ImageFormats {
     PGM,
     PPM,
     PAM,
+    SVG,
 
     /// LVGL image formats
     LVGL,
+    
+    SVGBin,
 }
 
 #[allow(non_camel_case_types)]
@@ -92,7 +95,9 @@ impl ImageFormats {
             ImageFormats::PGM => &icu_lib::endecoder::common::PGM {} as &dyn EnDecoder,
             ImageFormats::PPM => &icu_lib::endecoder::common::PPM {} as &dyn EnDecoder,
             ImageFormats::PAM => &icu_lib::endecoder::common::PAM {} as &dyn EnDecoder,
+            ImageFormats::SVG => &icu_lib::endecoder::svg::SVG {} as &dyn EnDecoder,
             ImageFormats::LVGL => &icu_lib::endecoder::lvgl::LVGL {} as &dyn EnDecoder,
+            ImageFormats::SVGBin => &icu_lib::endecoder::svg::SVGBin {} as &dyn EnDecoder,
         }
     }
 
@@ -109,7 +114,9 @@ impl ImageFormats {
             ImageFormats::PGM => "pgm",
             ImageFormats::PPM => "ppm",
             ImageFormats::PAM => "pam",
+            ImageFormats::SVG => "svg",
             ImageFormats::LVGL => "bin",
+            ImageFormats::SVGBin => "bin"
         }
     }
 }

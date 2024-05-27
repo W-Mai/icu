@@ -1,6 +1,6 @@
 pub mod common;
 pub mod lvgl;
-mod svg;
+pub mod svg;
 
 use crate::midata::MiData;
 use crate::{endecoder, EncoderParams};

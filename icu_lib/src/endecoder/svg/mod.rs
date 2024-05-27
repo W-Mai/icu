@@ -1,9 +1,5 @@
-mod svgbin;
 mod svg;
-
-use crate::endecoder::{EnDecoder, ImageInfo};
-use crate::midata::MiData;
-use crate::EncoderParams;
+mod svgbin;
 
 pub struct SVG {}
 pub struct SVGBin {}
