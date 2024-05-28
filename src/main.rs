@@ -10,6 +10,7 @@ use icu_lib::midata::MiData;
 use icu_lib::{endecoder, EncoderParams};
 use std::fs;
 use std::path::{Path, PathBuf};
+use icu_lib::endecoder::lvgl::ColorFormat;
 
 fn main() {
     let res = process();
