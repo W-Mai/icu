@@ -9,7 +9,7 @@ pub fn rgba8888_to(
     width: u32,
     height: u32,
     stride: u32,
-    dither: bool,
+    dither: Option<u32>,
 ) -> Vec<u8> {
     let stride_bytes = stride as usize;
     let color_bytes = ColorFormat::ARGB8888.get_size() as usize;
@@ -132,10 +132,10 @@ pub fn rgba8888_to(
         ColorFormat::I1 | ColorFormat::I2 | ColorFormat::I4 | ColorFormat::I8 => {
             let bpp = color_format.get_bpp();
             let color_map_size = 1 << bpp;
-            let nq = color_quant::NeuQuant::new(30, color_map_size, data);
+            let nq = color_quant::NeuQuant::new(dither.unwrap_or(30) as i32, color_map_size, data);
             let mut data = data.to_vec();
 
-            if dither {
+            if dither.is_some() {
                 let mut rgba_image = RgbaImage::from_raw(width, height, data.to_vec()).unwrap();
                 imageops::dither(&mut rgba_image, &nq);
                 data = rgba_image.clone().into_raw();

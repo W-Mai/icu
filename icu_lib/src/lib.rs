@@ -6,7 +6,7 @@ pub mod midata;
 pub struct EncoderParams {
     pub color_format: lvgl::ColorFormat,
     pub stride_align: u32,
-    pub dither: bool,
+    pub dither: Option<u32>,
     pub lvgl_version: lvgl::LVGLVersion,
 }
 
@@ -15,7 +15,7 @@ impl Default for EncoderParams {
         Self {
             color_format: Default::default(),
             stride_align: 1,
-            dither: false,
+            dither: None,
             lvgl_version: lvgl::LVGLVersion::Unknown,
         }
     }
@@ -36,7 +36,7 @@ impl EncoderParams {
         self
     }
 
-    pub fn with_dither(mut self, dither: bool) -> Self {
+    pub fn with_dither(mut self, dither: Option<u32>) -> Self {
         self.dither = dither;
         self
     }

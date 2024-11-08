@@ -28,8 +28,8 @@ impl EnDecoder for LVGL {
                 let stride = color_format.get_stride_size(img.width(), encoder_params.stride_align);
                 let mut img_data = img.clone();
 
-                if encoder_params.dither {
-                    let cmap = color_quant::NeuQuant::new(10, 256, img_data.as_mut());
+                if let Some(dither) = encoder_params.dither {
+                    let cmap = color_quant::NeuQuant::new(dither as i32, 256, img_data.as_mut());
                     imageops::dither(&mut img_data, &cmap);
                 }
 
