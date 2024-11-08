@@ -98,7 +98,11 @@ impl EnDecoder for PNG {
                         let color_map_size = 1 << bpp;
 
                         let data = img.to_vec();
-                        let nq = color_quant::NeuQuant::new(encoder_params.dither.unwrap_or(1) as i32, color_map_size, &data);
+                        let nq = color_quant::NeuQuant::new(
+                            encoder_params.dither.unwrap_or(1) as i32,
+                            color_map_size,
+                            &data,
+                        );
                         let mut indexes_iter = data.chunks(4).map(|pix| nq.index_of(pix) as u8);
                         let palette = nq.color_map_rgb();
                         let trns = nq

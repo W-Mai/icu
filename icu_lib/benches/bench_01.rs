@@ -14,8 +14,8 @@ macro_rules! test_encode_decode {
             EncoderParams {
                 color_format: lvgl::ColorFormat::$cf,
                 stride_align: 256,
-                dither: false,
                 lvgl_version: lvgl::LVGLVersion::V9,
+                ..Default::default()
             },
         );
         fs::write("img_0.bin", data).expect("Unable to write file");
