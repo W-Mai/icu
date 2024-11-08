@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.1.12] - 2024-11-08
+### 🔖 Version Tag
+
+- 🚀 **New Features**: support custom dither params, support 1 to 30 levels. 1 is the best level.
+- 🔄 **Version Bump**: Version was bumped to 0.1.12 to reflect the updates and improvements.
+
 ## [v0.1.11] - 2024-05-01
 ### 🔖 Version Tag
 

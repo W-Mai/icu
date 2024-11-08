@@ -35,13 +35,13 @@ brew install icu_tool
 - **PowerShell**
 
 ```powershell
-powershell -c "irm https://github.com/W-Mai/icu/releases/download/v0.1.11/icu_tool-installer.ps1 | iex"
+powershell -c "irm https://github.com/W-Mai/icu/releases/download/v0.1.12/icu_tool-installer.ps1 | iex"
 ```
 
 - **Shell**
 
 ```shell
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/W-Mai/icu/releases/download/v0.1.11/icu_tool-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/W-Mai/icu/releases/download/v0.1.12/icu_tool-installer.sh | sh
 ```
 
 - **Windows MSI Installer**
@@ -162,8 +162,8 @@ Options:
           stride of the output image [default: 1]
   -C, --output-color-format <OUTPUT_COLOR_FORMAT>
           output color formats [possible values: rgb565, rgb565a8, rgb888, argb8888, xrgb8888, a1, a2, a4, a8, l8, i1, i2, i4, i8]
-      --dither
-          dither the output image so that it will look better on screens with low color depth
+      --dither <DITHER>
+          dither the output image so that it will look better on screens with low color depth 1 to 30, 1 is the best quality and 30 is the worst quality. 10 is recommended
       --lvgl-version <LVGL_VERSION>
           LVGL Version, needed if [`ImageFormats`] is [`ImageFormats::LVGL`] [default: v9] [possible values: v9, v8]
   -h, --help
