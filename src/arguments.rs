@@ -222,8 +222,10 @@ pub(crate) enum SubCommands {
         output_color_format: Option<OutputColorFormats>,
 
         /// dither the output image so that it will look better on screens with low color depth
+        /// 1 to 30, 1 is the best quality and 30 is the worst quality.
+        /// 10 is recommended.
         #[arg(long)]
-        dither: bool,
+        dither: Option<u32>,
 
         /// LVGL Version, needed if [`ImageFormats`] is [`ImageFormats::LVGL`]
         #[arg(long, value_enum, default_value = "v9")]
@@ -250,6 +252,7 @@ pub fn parse_args() -> Args {
             SubCommands::Convert {
                 output_format,
                 output_color_format,
+                dither,
                 ..
             } => {
                 if output_format == &ImageFormats::LVGL && output_color_format.is_none() {
@@ -260,6 +263,15 @@ pub fn parse_args() -> Args {
                     );
 
                     error.exit();
+                }
+                if let Some(dither) = *dither {
+                    if !(1..=30).contains(&dither) {
+                        let error = command.error(
+                            ErrorKind::InvalidValue,
+                            "Dither value must be between 1 and 30.",
+                        );
+                        error.exit();
+                    }
                 }
             }
         }
