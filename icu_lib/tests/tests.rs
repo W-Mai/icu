@@ -18,6 +18,7 @@ mod tests {
                     color_format: lvgl::ColorFormat::$cf,
                     stride_align: 256,
                     dither: false,
+                    lvgl_version: lvgl::LVGLVersion::V9,
                 },
             );
             fs::write("./res/img_0.bin", data).expect("Unable to write file");
@@ -29,8 +30,8 @@ mod tests {
 
     #[test]
     fn it_works() {
-        use lvgl::ImageHeader;
-        assert_eq!(size_of::<ImageHeader>(), 12);
+        use lvgl::ImageHeaderV9;
+        assert_eq!(size_of::<ImageHeaderV9>(), 12);
 
         test_encode_decode!(DATA, RGB565);
         test_encode_decode!(DATA, RGB565A8);
