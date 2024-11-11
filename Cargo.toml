@@ -1,6 +1,6 @@
 [package]
 name = "icu_tool"
-version = "0.1.12"
+version = "0.1.12-1"
 edition = "2021"
 authors = ["Benign X", "W-Mai"]
 homepage = "https://github.com/W-Mai/icu"
@@ -45,20 +45,3 @@ members = [
 [profile.dist]
 inherits = "release"
 lto = "thin"
-
-# Config for 'cargo dist'
-[workspace.metadata.dist]
-# The preferred cargo-dist version to use in CI (Cargo.toml SemVer syntax)
-cargo-dist-version = "0.11.1"
-# CI backends to support
-ci = ["github"]
-# The installers to generate for each app
-installers = ["shell", "powershell", "homebrew", "msi"]
-# A GitHub repo to push Homebrew formulas to
-tap = "W-Mai/homebrew-cellar"
-# Target platforms to build apps for (Rust target-triple syntax)
-targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
-# Publish jobs to run in CI
-publish-jobs = ["homebrew"]
-# Publish jobs to run in CI
-pr-run-mode = "plan"
