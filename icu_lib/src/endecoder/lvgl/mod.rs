@@ -21,7 +21,7 @@ pub enum LVGLVersion {
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
 #[repr(u8)]
 pub enum ColorFormat {
-    // Unkonw
+    // Unknown
     #[default]
     UNKNOWN = 0x00,
 
