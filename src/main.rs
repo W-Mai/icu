@@ -41,7 +41,9 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
             let data = fs::read(file)?;
             let info = get_info_with(data, *input_format)?;
 
-            println!("{:#?}", info);
+            let yaml = serde_yaml::to_string(&info)?;
+
+            println!("{}", yaml);
         }
         SubCommands::Show { file, input_format } => {
             let data = fs::read(file)?;

@@ -7,7 +7,7 @@ use crate::midata::MiData;
 use crate::EncoderParams;
 use image::imageops;
 use image::RgbaImage;
-use std::collections::BTreeMap;
+use serde_json::{json, Value};
 use std::io::{Cursor, Write};
 
 impl EnDecoder for LVGL {
@@ -110,15 +110,22 @@ impl EnDecoder for LVGL {
 
         let header = ImageHeader::decode(Vec::from(header_data));
 
-        let mut other_info = BTreeMap::new();
+        let mut other_info = serde_json::Map::new();
+
         other_info.insert(
             "LVGL Version".to_string(),
-            format!("{:?}", header.version()),
+            Value::from(format!("{:#?}", header.version())),
         );
-        other_info.insert("Color Format".to_string(), format!("{:?}", header.cf()));
-        other_info.insert("Flags".to_string(), format!("{:?}", header.flags()));
+        other_info.insert(
+            "Color Format".to_string(),
+            Value::from(format!("{:#?}", header.cf())),
+        );
+        other_info.insert(
+            "Flags".to_string(),
+            Value::from(format!("{:#?}", header.flags())),
+        );
         if header.version() == LVGLVersion::V9 {
-            other_info.insert("Stride".to_string(), format!("{:?}", header.stride()));
+            other_info.insert("Stride".to_string(), Value::from(header.stride()));
         }
 
         // Deal Flag has Compressed
@@ -129,20 +136,13 @@ impl EnDecoder for LVGL {
                 data[9], data[10], data[11],
             ]);
 
-            let compressed_info = BTreeMap::from([
-                ("Method", format!("{:#?}", compressed_header.method())),
-                (
-                    "Size",
-                    format!("{:#?}", compressed_header.compressed_size()),
-                ),
-                (
-                    "Decompressed Size",
-                    format!("{:#?}", compressed_header.decompressed_size()),
-                ),
-            ]);
             other_info.insert(
                 "Compressed Info".to_owned(),
-                format!("{:#?}", compressed_info),
+                json!({
+                    "Method": format!("{:#?}", compressed_header.method()),
+                    "Size": compressed_header.compressed_size(),
+                    "Decompressed Size": compressed_header.decompressed_size()
+                }),
             );
         }
 
@@ -151,7 +151,7 @@ impl EnDecoder for LVGL {
             height: header.h() as u32,
             data_size: data.len() as u32,
             format: format!("LVGL.{:?}({:?})", header.version(), header.cf()),
-            other_info,
+            other_info: Value::from(other_info),
         }
     }
 }

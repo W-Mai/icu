@@ -4,15 +4,16 @@ pub mod utils;
 
 use crate::midata::MiData;
 use crate::{endecoder, EncoderParams};
+use serde::Serialize;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct ImageInfo {
     pub width: u32,
     pub height: u32,
     pub data_size: u32,
     pub format: String,
 
-    pub other_info: std::collections::BTreeMap<String, String>,
+    pub other_info: serde_json::Value,
 }
 
 pub trait EnDecoder {

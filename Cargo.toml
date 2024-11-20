@@ -28,6 +28,7 @@ eframe = { version = "0.26.0", features = ["glow"] }
 egui_plot = "0.26.0"
 log = "0.4.20"
 env_logger = "0.11.2"
+serde_yaml = "0.9.33"
 
 [patch.crates-io]
 icu_lib = { path = "icu_lib" }

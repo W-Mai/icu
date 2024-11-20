@@ -338,7 +338,9 @@ impl ImageDescriptor {
                             use super::utils::rle::RleCoder;
                             let rle_coder = RleCoder::new(1).unwrap();
                             if compressed_header.decompressed_size() != data_size {
-                                log::error!("Compressed data size mismatch, but still try to decode");
+                                log::error!(
+                                    "Compressed data size mismatch, but still try to decode"
+                                );
                             }
                             let decoded = rle_coder
                                 .decode(&data[std::mem::size_of::<ImageCompressedHeader>()..]);

@@ -33,7 +33,8 @@ impl RleCoder {
             let block = blocks[i];
 
             // Count repeated blocks
-            let repeat_count = blocks[i..].iter()
+            let repeat_count = blocks[i..]
+                .iter()
                 .take_while(|&x| x == &block)
                 .count()
                 .min(127);
@@ -45,7 +46,8 @@ impl RleCoder {
                 i += repeat_count;
             } else {
                 // Direct copy mode
-                let literal_end = blocks[i..].iter()
+                let literal_end = blocks[i..]
+                    .iter()
                     .take(127)
                     .take_while(|&&x| {
                         let next_pos = i + 1;
@@ -54,7 +56,8 @@ impl RleCoder {
                     .count();
 
                 result.push(0x80 | (literal_end as u8));
-                blocks[i..i + literal_end].iter()
+                blocks[i..i + literal_end]
+                    .iter()
                     .for_each(|block| result.extend_from_slice(block));
                 i += literal_end;
             }
@@ -71,7 +74,8 @@ impl RleCoder {
             let ctrl = *data.get(i).ok_or(RleError::InvalidInput)?;
             i += 1;
 
-            let block = data.get(i..i + self.block_size)
+            let block = data
+                .get(i..i + self.block_size)
                 .ok_or(RleError::InvalidInput)?;
 
             if ctrl & 0x80 == 0 {
@@ -81,8 +85,7 @@ impl RleCoder {
                 // Direct copy mode
                 let count = (ctrl & 0x7f) as usize;
                 let bytes = count * self.block_size;
-                let slice = data.get(i..i + bytes)
-                    .ok_or(RleError::InvalidInput)?;
+                let slice = data.get(i..i + bytes).ok_or(RleError::InvalidInput)?;
                 result.extend_from_slice(slice);
                 i += bytes - self.block_size;
             }
