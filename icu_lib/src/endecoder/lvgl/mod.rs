@@ -75,6 +75,26 @@ pub enum Flags {
     USER8 = 0x0800,
 }
 
+#[derive(BitfieldSpecifier)]
+#[bits = 4]
+#[derive(Copy, Clone, Debug)]
+#[repr(u8)]
+pub enum Compress {
+    NONE = 0,
+    RLE = 1, // LVGL custom RLE compression
+    LZ4 = 2,
+}
+
+#[bitfield]
+#[derive(Debug, Copy, Clone)]
+#[repr(C, packed)]
+struct ImageCompressed {
+    method: Compress,       /*Compression method, see `lv_image_compress_t`*/
+    reserved: B28,          /*Reserved to be used later*/
+    compressed_size: u32,   /*Compressed data size in byte*/
+    decompressed_size: u32, /*Decompressed data size in byte*/
+}
+
 #[bitfield]
 #[derive(Debug, Copy, Clone)]
 #[repr(C, packed)]
@@ -112,6 +132,12 @@ pub enum ImageHeader {
     Unknown,
     V8(ImageHeaderV8),
     V9(ImageHeaderV9),
+}
+
+impl Flags {
+    pub fn has_flag(&self, flag: Flags) -> bool {
+        *self as u8 & flag as u8 != 0
+    }
 }
 
 impl ImageHeader {
@@ -299,7 +325,12 @@ impl ImageDescriptor {
                     ColorFormat::RGB565A8 => header.w() as u32 * header.h() as u32,
                     _ => 0,
                 };
-                assert_eq!(idea_data_size, data_size, "Data size mismatch {:?}", header);
+
+                if header.flags().has_flag(Flags::COMPRESSED) {
+                    unimplemented!("Compressed image not supported yet");
+                } else {
+                    assert_eq!(idea_data_size, data_size, "Data size mismatch {:?}", header);
+                }
             }
             ImageHeader::V8(_) => {}
             ImageHeader::Unknown => {
