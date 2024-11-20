@@ -1,10 +1,13 @@
 use crate::endecoder::lvgl::color_converter::{rgba8888_from, rgba8888_to};
-use crate::endecoder::lvgl::{Flags, ImageDescriptor, ImageHeader, LVGLVersion, LVGL};
+use crate::endecoder::lvgl::{
+    Flags, ImageCompressedHeader, ImageDescriptor, ImageHeader, LVGLVersion, LVGL,
+};
 use crate::endecoder::{EnDecoder, ImageInfo};
 use crate::midata::MiData;
 use crate::EncoderParams;
 use image::imageops;
 use image::RgbaImage;
+use std::collections::BTreeMap;
 use std::io::{Cursor, Write};
 
 impl EnDecoder for LVGL {
@@ -107,7 +110,7 @@ impl EnDecoder for LVGL {
 
         let header = ImageHeader::decode(Vec::from(header_data));
 
-        let mut other_info = std::collections::HashMap::new();
+        let mut other_info = BTreeMap::new();
         other_info.insert(
             "LVGL Version".to_string(),
             format!("{:?}", header.version()),
@@ -116,6 +119,31 @@ impl EnDecoder for LVGL {
         other_info.insert("Flags".to_string(), format!("{:?}", header.flags()));
         if header.version() == LVGLVersion::V9 {
             other_info.insert("Stride".to_string(), format!("{:?}", header.stride()));
+        }
+
+        // Deal Flag has Compressed
+        if header.flags().has_flag(Flags::COMPRESSED) {
+            let data = &data[header.header_size()..];
+            let compressed_header = ImageCompressedHeader::from_bytes([
+                data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8],
+                data[9], data[10], data[11],
+            ]);
+
+            let compressed_info = BTreeMap::from([
+                ("Method", format!("{:#?}", compressed_header.method())),
+                (
+                    "Size",
+                    format!("{:#?}", compressed_header.compressed_size()),
+                ),
+                (
+                    "Decompressed Size",
+                    format!("{:#?}", compressed_header.decompressed_size()),
+                ),
+            ]);
+            other_info.insert(
+                "Compressed Info".to_owned(),
+                format!("{:#?}", compressed_info),
+            );
         }
 
         ImageInfo {

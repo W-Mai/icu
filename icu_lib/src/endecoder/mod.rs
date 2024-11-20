@@ -12,7 +12,7 @@ pub struct ImageInfo {
     pub data_size: u32,
     pub format: String,
 
-    pub other_info: std::collections::HashMap<String, String>,
+    pub other_info: std::collections::BTreeMap<String, String>,
 }
 
 pub trait EnDecoder {
