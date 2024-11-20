@@ -88,7 +88,7 @@ pub enum Compress {
 #[bitfield]
 #[derive(Debug, Copy, Clone)]
 #[repr(C, packed)]
-struct ImageCompressed {
+struct ImageCompressedHeader {
     method: Compress,       /*Compression method, see `lv_image_compress_t`*/
     reserved: B28,          /*Reserved to be used later*/
     compressed_size: u32,   /*Compressed data size in byte*/
@@ -327,7 +327,38 @@ impl ImageDescriptor {
                 };
 
                 if header.flags().has_flag(Flags::COMPRESSED) {
-                    unimplemented!("Compressed image not supported yet");
+                    log::trace!("Dealing Compressed image");
+                    let compressed_header = ImageCompressedHeader::from_bytes([
+                        data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
+                        data[8], data[9], data[10], data[11],
+                    ]);
+                    let method = compressed_header.method();
+                    match method {
+                        Compress::RLE => {
+                            use super::utils::rle::RleCoder;
+                            let rle_coder = RleCoder::new(1).unwrap();
+                            if compressed_header.decompressed_size() != data_size {
+                                log::error!("Compressed data size mismatch, but still try to decode");
+                            }
+                            let decoded = rle_coder
+                                .decode(&data[std::mem::size_of::<ImageCompressedHeader>()..]);
+                            match decoded {
+                                Ok(decoded) => {
+                                    return Self {
+                                        header: ImageHeader::V9(header),
+                                        data_size: decoded.len() as u32,
+                                        data: decoded,
+                                    };
+                                }
+                                Err(err) => {
+                                    log::error!("Failed to decode RLE data: {:?}", err);
+                                }
+                            };
+                        }
+                        _ => {
+                            log::error!("Unsupported compression method {:?}", method)
+                        }
+                    }
                 } else {
                     assert_eq!(idea_data_size, data_size, "Data size mismatch {:?}", header);
                 }
