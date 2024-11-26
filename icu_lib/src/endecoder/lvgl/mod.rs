@@ -90,6 +90,8 @@ pub enum Compress {
 #[repr(C, packed)]
 struct ImageCompressedHeader {
     method: Compress,       /*Compression method, see `lv_image_compress_t`*/
+    
+    #[allow(unused)]
     reserved: B28,          /*Reserved to be used later*/
     compressed_size: u32,   /*Compressed data size in byte*/
     decompressed_size: u32, /*Decompressed data size in byte*/
