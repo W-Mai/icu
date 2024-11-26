@@ -39,21 +39,18 @@ impl RleCoder {
                 .count()
                 .min(127);
 
-            if repeat_count > 1 {
+            if repeat_count == 0 {
+                break;
+            }
+
+            if repeat_count >= 16 {
                 // Run-length mode
                 result.push(repeat_count as u8);
                 result.extend_from_slice(block);
                 i += repeat_count;
             } else {
                 // Direct copy mode
-                let literal_end = blocks[i..]
-                    .iter()
-                    .take(127)
-                    .take_while(|&&x| {
-                        let next_pos = i + 1;
-                        next_pos >= blocks.len() || x != blocks[next_pos]
-                    })
-                    .count();
+                let literal_end = blocks[i..].iter().take(127).count();
 
                 result.push(0x80 | (literal_end as u8));
                 blocks[i..i + literal_end]

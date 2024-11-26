@@ -1,6 +1,7 @@
 use crate::endecoder::lvgl::color_converter::{rgba8888_from, rgba8888_to};
 use crate::endecoder::lvgl::{
-    Flags, ImageCompressedHeader, ImageDescriptor, ImageHeader, LVGLVersion, LVGL,
+    has_flag, with_flag, Compress, Flags, HeaderFlag, ImageCompressedHeader, ImageDescriptor,
+    ImageHeader, LVGLVersion, LVGL,
 };
 use crate::endecoder::{EnDecoder, ImageInfo};
 use crate::midata::MiData;
@@ -36,7 +37,7 @@ impl EnDecoder for LVGL {
                     imageops::dither(&mut img_data, &cmap);
                 }
 
-                let img_data = rgba8888_to(
+                let mut img_data = rgba8888_to(
                     img_data.as_mut(),
                     color_format,
                     img.width(),
@@ -45,13 +46,42 @@ impl EnDecoder for LVGL {
                     encoder_params.dither,
                 );
 
+                let mut flags = Flags::from(0u16);
+
+                match encoder_params.compress {
+                    Compress::NONE => {}
+                    Compress::RLE => {
+                        use super::super::utils::rle::RleCoder;
+                        let blk_size = ((color_format.get_bpp() + 7) >> 3) as usize;
+                        let rle_coder = RleCoder::new(blk_size).unwrap();
+                        let mut data = match rle_coder.encode(&img_data) {
+                            Ok(data) => data,
+                            Err(err) => {
+                                log::error!("RLE encoding failed: {:?}", err);
+                                return vec![];
+                            }
+                        };
+
+                        let image_compressed_header = ImageCompressedHeader::new()
+                            .with_method(encoder_params.compress)
+                            .with_compressed_size(data.len() as u32)
+                            .with_decompressed_size(img_data.len() as u32);
+                        let mut ich_vec = image_compressed_header.into_bytes().to_vec();
+                        ich_vec.append(&mut data);
+
+                        img_data = ich_vec;
+                        flags = with_flag(flags, HeaderFlag::COMPRESSED);
+                    }
+                    _ => {}
+                }
+
                 let mut buf = Cursor::new(Vec::new());
                 buf.write_all(
                     &ImageDescriptor::new(
                         ImageHeader::new(
                             encoder_params.lvgl_version,
                             color_format,
-                            Flags::NONE,
+                            flags,
                             img.width() as u16,
                             img.height() as u16,
                             stride as u16,
@@ -129,7 +159,7 @@ impl EnDecoder for LVGL {
         }
 
         // Deal Flag has Compressed
-        if header.flags().has_flag(Flags::COMPRESSED) {
+        if has_flag(header.flags(), HeaderFlag::COMPRESSED) {
             let data = &data[header.header_size()..];
             let compressed_header = ImageCompressedHeader::from_bytes([
                 data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8],

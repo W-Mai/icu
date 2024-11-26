@@ -58,7 +58,7 @@ pub struct LVGL {}
 #[bits = 16]
 #[derive(Copy, Clone, Debug)]
 #[repr(u16)]
-pub enum Flags {
+pub enum HeaderFlag {
     NONE = 0,
     PREMULTIPLIED = 1 << 0,
     MODIFIABLE = 1 << 1,
@@ -74,6 +74,8 @@ pub enum Flags {
     USER7 = 0x0400,
     USER8 = 0x0800,
 }
+
+type Flags = u16;
 
 #[derive(BitfieldSpecifier)]
 #[bits = 4]
@@ -137,10 +139,12 @@ pub enum ImageHeader {
     V9(ImageHeaderV9),
 }
 
-impl Flags {
-    pub fn has_flag(&self, flag: Flags) -> bool {
-        *self as u8 & flag as u8 != 0
-    }
+pub fn has_flag(flags: Flags, flag: HeaderFlag) -> bool {
+    flags & flag as u16 != 0
+}
+
+pub fn with_flag(flags: Flags, flag: HeaderFlag) -> Flags {
+    flags | flag as u16
 }
 
 impl ImageHeader {
@@ -207,8 +211,8 @@ impl ImageHeader {
 
     pub fn flags(&self) -> Flags {
         match self {
-            ImageHeader::Unknown => Flags::NONE,
-            ImageHeader::V8(_) => Flags::NONE,
+            ImageHeader::Unknown => 0,
+            ImageHeader::V8(_) => 0,
             ImageHeader::V9(header) => header.flags(),
         }
     }
@@ -329,7 +333,7 @@ impl ImageDescriptor {
                     _ => 0,
                 };
 
-                if header.flags().has_flag(Flags::COMPRESSED) {
+                if has_flag(header.flags(), HeaderFlag::COMPRESSED) {
                     log::trace!("Dealing Compressed image");
                     let compressed_header = ImageCompressedHeader::from_bytes([
                         data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
@@ -338,11 +342,14 @@ impl ImageDescriptor {
                     let method = compressed_header.method();
                     match method {
                         Compress::RLE => {
+                            let blk_size = ((header.cf().get_bpp() + 7) >> 3) as usize;
                             use super::utils::rle::RleCoder;
-                            let rle_coder = RleCoder::new(1).unwrap();
-                            if compressed_header.decompressed_size() != data_size {
+                            let rle_coder = RleCoder::new(blk_size).unwrap();
+                            if compressed_header.compressed_size() != data_size - 12 {
                                 log::error!(
-                                    "Compressed data size mismatch, but still try to decode"
+                                    "Compressed data size mismatch, but still try to decode. current: {} expected {}",
+                                    compressed_header.compressed_size(),
+                                    data_size
                                 );
                             }
                             let decoded = rle_coder
