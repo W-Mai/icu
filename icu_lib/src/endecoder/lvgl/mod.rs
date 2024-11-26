@@ -77,9 +77,10 @@ pub enum Flags {
 
 #[derive(BitfieldSpecifier)]
 #[bits = 4]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug, Default)]
 #[repr(u8)]
 pub enum Compress {
+    #[default]
     NONE = 0,
     RLE = 1, // LVGL custom RLE compression
     LZ4 = 2,
@@ -89,10 +90,10 @@ pub enum Compress {
 #[derive(Debug, Copy, Clone)]
 #[repr(C, packed)]
 struct ImageCompressedHeader {
-    method: Compress,       /*Compression method, see `lv_image_compress_t`*/
-    
+    method: Compress, /*Compression method, see `lv_image_compress_t`*/
+
     #[allow(unused)]
-    reserved: B28,          /*Reserved to be used later*/
+    reserved: B28, /*Reserved to be used later*/
     compressed_size: u32,   /*Compressed data size in byte*/
     decompressed_size: u32, /*Decompressed data size in byte*/
 }

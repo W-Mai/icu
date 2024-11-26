@@ -7,6 +7,7 @@ pub struct EncoderParams {
     pub color_format: lvgl::ColorFormat,
     pub stride_align: u32,
     pub dither: Option<u32>,
+    pub compress: lvgl::Compress,
     pub lvgl_version: lvgl::LVGLVersion,
 }
 
@@ -16,6 +17,7 @@ impl Default for EncoderParams {
             color_format: Default::default(),
             stride_align: 1,
             dither: None,
+            compress: Default::default(),
             lvgl_version: lvgl::LVGLVersion::Unknown,
         }
     }
@@ -38,6 +40,11 @@ impl EncoderParams {
 
     pub fn with_dither(mut self, dither: Option<u32>) -> Self {
         self.dither = dither;
+        self
+    }
+
+    pub fn with_compress(mut self, compress: lvgl::Compress) -> Self {
+        self.compress = compress;
         self
     }
 

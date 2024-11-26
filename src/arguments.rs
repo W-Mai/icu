@@ -78,6 +78,14 @@ pub(crate) enum OutputColorFormats {
     I8,
 }
 
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialOrd, PartialEq, ValueEnum)]
+pub(crate) enum OutputCompressedMethod {
+    None,
+    RLE,
+    LZ4,
+}
+
 impl ImageFormats {
     pub fn get_endecoder(&self) -> &dyn EnDecoder {
         match &self {
@@ -140,6 +148,16 @@ impl From<LVGL_Version> for lvgl::LVGLVersion {
         match lvgl_version {
             LVGL_Version::V9 => lvgl::LVGLVersion::V9,
             LVGL_Version::V8 => lvgl::LVGLVersion::V8,
+        }
+    }
+}
+
+impl From<OutputCompressedMethod> for lvgl::Compress {
+    fn from(compressed_method: OutputCompressedMethod) -> Self {
+        match compressed_method {
+            OutputCompressedMethod::None => lvgl::Compress::NONE,
+            OutputCompressedMethod::RLE => lvgl::Compress::RLE,
+            OutputCompressedMethod::LZ4 => lvgl::Compress::LZ4,
         }
     }
 }
@@ -220,6 +238,9 @@ pub(crate) enum SubCommands {
         /// output color formats
         #[arg(short = 'C', long, value_enum)]
         output_color_format: Option<OutputColorFormats>,
+
+        #[arg(long, value_enum)]
+        output_compressed_method: Option<OutputCompressedMethod>,
 
         /// dither the output image so that it will look better on screens with low color depth
         /// 1 to 30, 1 is the best quality and 30 is the worst quality.
