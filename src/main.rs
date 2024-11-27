@@ -91,7 +91,7 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
                 let start_time = std::time::Instant::now();
 
                 let output_file_path =
-                    deal_path_without_extension(&file_path, &input_folder, output_folder.clone())
+                    deal_path_without_extension(file_path, &input_folder, output_folder.clone())
                         .unwrap_or_default()
                         .with_extension(output_format.get_file_extension());
 
@@ -129,7 +129,7 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
                             )
                             .with_lvgl_version((*lvgl_version).into());
 
-                        let data = fs::read(&file_path)?;
+                        let data = fs::read(file_path)?;
                         let ed = output_format.get_endecoder();
                         let mid = decode_with(data, *input_format)?;
                         let data = mid.encode_into(ed, params);

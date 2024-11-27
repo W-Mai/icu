@@ -3,7 +3,7 @@ pub mod lvgl;
 pub mod utils;
 
 use crate::midata::MiData;
-use crate::{endecoder, EncoderParams};
+use crate::EncoderParams;
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -26,8 +26,8 @@ pub trait EnDecoder {
 
 pub fn find_endecoder(data: &[u8]) -> Option<&'static dyn EnDecoder> {
     let eds = vec![
-        &endecoder::common::AutoDetect {} as &dyn EnDecoder,
-        &endecoder::lvgl::LVGL {} as &dyn EnDecoder,
+        &common::AutoDetect {} as &dyn EnDecoder,
+        &lvgl::LVGL {} as &dyn EnDecoder,
     ];
 
     for ed in eds {

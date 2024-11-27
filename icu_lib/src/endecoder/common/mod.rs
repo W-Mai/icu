@@ -49,7 +49,7 @@ impl EnDecoder for AutoDetect {
 
     fn info(&self, data: &[u8]) -> ImageInfo {
         log::trace!("AutoDectect::decoding");
-        let img = image::load_from_memory(&data).unwrap();
+        let img = image::load_from_memory(data).unwrap();
         let img_format = image::guess_format(data).unwrap();
         log::trace!("AutoDectect::decoded");
 
