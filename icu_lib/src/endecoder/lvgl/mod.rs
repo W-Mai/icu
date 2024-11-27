@@ -324,7 +324,15 @@ impl ImageDescriptor {
 
         match header {
             ImageHeader::V9(header) => {
-                let mut idea_data_size = header.stride() as u32 * header.h() as u32;
+                let stride = if header.stride() == 0 {
+                    let assuming_stride = header.cf().get_stride_size(header.w() as u32, 1);
+                    log::error!("Invalid image header, stride is 0, assuming stride to be width * color_format.byte() = {assuming_stride}");
+                    assuming_stride
+                } else {
+                    header.stride() as u32
+                };
+
+                let mut idea_data_size = stride * header.h() as u32;
                 idea_data_size += match header.cf() {
                     ColorFormat::I1 | ColorFormat::I2 | ColorFormat::I4 | ColorFormat::I8 => {
                         (1u32 << header.cf().get_bpp()) * ColorFormat::ARGB8888.get_size() as u32
@@ -374,7 +382,7 @@ impl ImageDescriptor {
                         }
                     }
                 } else {
-                    assert_eq!(idea_data_size, data_size, "Data size mismatch {:?}", header);
+                    log::error!("Data size mismatch ideal_data_size: {idea_data_size}, data_size: {data_size}, {:#?}", header);
                 }
             }
             ImageHeader::V8(_) => {}
