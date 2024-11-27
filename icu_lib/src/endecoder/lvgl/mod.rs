@@ -84,7 +84,7 @@ type Flags = u16;
 pub enum Compress {
     #[default]
     NONE = 0,
-    RLE = 1, // LVGL custom RLE compression
+    Rle = 1, // LVGL custom RLE compression
     LZ4 = 2,
 }
 
@@ -196,8 +196,8 @@ impl ImageHeader {
     pub fn header_size(&self) -> usize {
         match self {
             ImageHeader::Unknown => 0,
-            ImageHeader::V8(_) => std::mem::size_of::<ImageHeaderV8>(),
-            ImageHeader::V9(_) => std::mem::size_of::<ImageHeaderV9>(),
+            ImageHeader::V8(_) => size_of::<ImageHeaderV8>(),
+            ImageHeader::V9(_) => size_of::<ImageHeaderV9>(),
         }
     }
 
@@ -349,21 +349,21 @@ impl ImageDescriptor {
                     ]);
                     let method = compressed_header.method();
                     match method {
-                        Compress::RLE => {
+                        Compress::Rle => {
                             let blk_size = ((header.cf().get_bpp() + 7) >> 3) as usize;
                             use super::utils::rle::RleCoder;
                             let rle_coder = RleCoder::new().with_block_size(blk_size).unwrap();
                             if compressed_header.compressed_size()
-                                != data_size - std::mem::size_of::<ImageCompressedHeader>() as u32
+                                != data_size - size_of::<ImageCompressedHeader>() as u32
                             {
                                 log::error!(
                                     "Compressed data size mismatch, but still try to decode. current: {} expected {}",
                                     compressed_header.compressed_size(),
-                                    data_size - std::mem::size_of::<ImageCompressedHeader>() as u32
+                                    data_size - size_of::<ImageCompressedHeader>() as u32
                                 );
                             }
-                            let decoded = rle_coder
-                                .decode(&data[std::mem::size_of::<ImageCompressedHeader>()..]);
+                            let decoded =
+                                rle_coder.decode(&data[size_of::<ImageCompressedHeader>()..]);
                             match decoded {
                                 Ok(decoded) => {
                                     return Self {

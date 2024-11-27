@@ -21,7 +21,7 @@ pub fn rgba8888_to(
             .flat_map(|row| {
                 row.chunks_exact(color_bytes)
                     .flat_map(|chunk| chunk[0..3].iter().rev())
-                    .chain(std::iter::repeat(&0))
+                    .chain(iter::repeat(&0))
                     .take(stride_bytes)
             })
             .copied()
@@ -41,7 +41,7 @@ pub fn rgba8888_to(
                             .skip(1)
                             .take(ColorFormat::ARGB8888.get_size() as usize)
                     })
-                    .chain(std::iter::repeat(&0))
+                    .chain(iter::repeat(&0))
                     .take(stride_bytes)
             })
             .copied()
@@ -57,7 +57,7 @@ pub fn rgba8888_to(
                         let rgb = (r << 11) | (g << 5) | b;
                         rgb.to_le_bytes()
                     })
-                    .chain(std::iter::repeat(0))
+                    .chain(iter::repeat(0))
                     .take(stride_bytes)
             })
             .collect(),
@@ -72,7 +72,7 @@ pub fn rgba8888_to(
                         let rgb = (r << 11) | (g << 5) | b;
                         rgb.to_le_bytes()
                     })
-                    .chain(std::iter::repeat(0))
+                    .chain(iter::repeat(0))
                     .take(stride_bytes)
             })
             .chain(data.chunks_exact(color_bytes).map(|chunk| chunk[3]))
@@ -157,7 +157,7 @@ pub fn rgba8888_to(
                 let argb_iter = indexes
                     .chunks_exact(width as usize)
                     .flat_map(|row| row.iter().chain(iter::repeat(&0)).take(stride_bytes));
-                return color_map.iter().chain(argb_iter).copied().collect();
+                color_map.iter().chain(argb_iter).copied().collect()
             } else {
                 let mut indexes = vec![0; stride_bytes * height as usize];
                 indexes.chunks_exact_mut(stride_bytes).for_each(|row| {

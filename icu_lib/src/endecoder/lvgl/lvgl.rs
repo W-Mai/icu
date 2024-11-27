@@ -13,7 +13,7 @@ use std::io::{Cursor, Write};
 
 impl EnDecoder for LVGL {
     fn can_decode(&self, data: &[u8]) -> bool {
-        let header_size = std::mem::size_of::<ImageHeader>();
+        let header_size = size_of::<ImageHeader>();
         if data.len() < header_size {
             return false;
         }
@@ -50,7 +50,7 @@ impl EnDecoder for LVGL {
 
                 match encoder_params.compress {
                     Compress::NONE => {}
-                    Compress::RLE => {
+                    Compress::Rle => {
                         use super::super::utils::rle::RleCoder;
                         let blk_size = ((color_format.get_bpp() + 7) >> 3) as usize;
                         let rle_coder = RleCoder::new().with_block_size(blk_size).unwrap();
@@ -134,7 +134,7 @@ impl EnDecoder for LVGL {
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        let header_size = std::mem::size_of::<ImageHeader>();
+        let header_size = size_of::<ImageHeader>();
 
         let header_data = &data[..header_size];
 

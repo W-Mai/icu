@@ -1,6 +1,5 @@
 use clap::error::ErrorKind;
 use clap::{Command, CommandFactory, Parser, Subcommand, ValueEnum};
-use clap_complete;
 use icu_lib::endecoder::{lvgl, EnDecoder};
 use std::io;
 
@@ -82,7 +81,7 @@ pub(crate) enum OutputColorFormats {
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq, ValueEnum)]
 pub(crate) enum OutputCompressedMethod {
     None,
-    RLE,
+    Rle,
     LZ4,
 }
 
@@ -100,7 +99,7 @@ impl ImageFormats {
             ImageFormats::PGM => &icu_lib::endecoder::common::PGM {} as &dyn EnDecoder,
             ImageFormats::PPM => &icu_lib::endecoder::common::PPM {} as &dyn EnDecoder,
             ImageFormats::PAM => &icu_lib::endecoder::common::PAM {} as &dyn EnDecoder,
-            ImageFormats::LVGL => &icu_lib::endecoder::lvgl::LVGL {} as &dyn EnDecoder,
+            ImageFormats::LVGL => &lvgl::LVGL {} as &dyn EnDecoder,
         }
     }
 
@@ -156,7 +155,7 @@ impl From<OutputCompressedMethod> for lvgl::Compress {
     fn from(compressed_method: OutputCompressedMethod) -> Self {
         match compressed_method {
             OutputCompressedMethod::None => lvgl::Compress::NONE,
-            OutputCompressedMethod::RLE => lvgl::Compress::RLE,
+            OutputCompressedMethod::Rle => lvgl::Compress::Rle,
             OutputCompressedMethod::LZ4 => lvgl::Compress::LZ4,
         }
     }
