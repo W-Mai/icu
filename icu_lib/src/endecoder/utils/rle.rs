@@ -20,6 +20,8 @@ impl RleCoder {
         Ok(Self { block_size })
     }
 
+    /// Refer to https://github.com/lvgl/lvgl/blob/8c2289f87feee210e354c8d5311a36e85e63891c/scripts/LVGLImage.py#L1070-L1148
+    /// This method is really eye-catching.
     pub fn encode(&self, data: &[u8]) -> Result<Vec<u8>> {
         if data.len() % self.block_size != 0 {
             return Err(RleError::InvalidInput);
@@ -49,8 +51,36 @@ impl RleCoder {
                 result.extend_from_slice(block);
                 i += repeat_count;
             } else {
+                let mut block_index = i;
+
                 // Direct copy mode
-                let literal_end = blocks[i..].iter().take(127).count();
+                let literal_end = blocks[i..]
+                    .iter()
+                    .take(127)
+                    .take_while(|&block| {
+                        let mut repeat_count = 0;
+                        let repeat_count_break = loop {
+                            if repeat_count >= 16 {
+                                break true;
+                            }
+
+                            if !(block_index + repeat_count < blocks.len()
+                                && block == &blocks[block_index + repeat_count])
+                            {
+                                break false;
+                            }
+
+                            repeat_count += 1;
+                        };
+
+                        if repeat_count_break {
+                            return false;
+                        }
+
+                        block_index += 1;
+                        true
+                    })
+                    .count();
 
                 result.push(0x80 | (literal_end as u8));
                 blocks[i..i + literal_end]
