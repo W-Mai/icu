@@ -1,7 +1,7 @@
 use eframe::egui;
 use eframe::egui::load::SizedTexture;
 use eframe::egui::{Color32, ColorImage, PointerButton};
-use egui_plot::{CoordinatesFormatter, Corner, PlotImage, PlotPoint, Polygon};
+use egui_plot::{BoxElem, BoxPlot, CoordinatesFormatter, Corner, PlotImage, PlotPoint, Polygon};
 use icu_lib::midata::MiData;
 
 pub fn show_image(image: MiData) {
@@ -85,12 +85,13 @@ impl eframe::App for MyEguiApp {
                     |ui| {
                         let plot = egui_plot::Plot::new("plot")
                             .data_aspect(1.0)
+                            .y_axis_formatter(move |y, _, _| format!("{:.0}", -y.value))
                             .coordinates_formatter(
                                 Corner::LeftBottom,
                                 CoordinatesFormatter::new(|p, _b| unsafe {
                                     match COLOR_DATA {
                                         None => {
-                                            format!("Nothing {:.2} {:.2}", p.x, p.y)
+                                            format!("Nothing {:.0} {:.0}", p.x, p.y)
                                         }
                                         Some(pixel) => {
                                             format!(
@@ -135,24 +136,24 @@ impl eframe::App for MyEguiApp {
                         plot.show(ui, |plot_ui| {
                             plot_ui.image(PlotImage::new(
                                 texture.id,
-                                PlotPoint::new(0.0, 0.0),
+                                PlotPoint::new(img_w / 2.0, -img_h / 2.0),
                                 texture.size,
                             ));
+
+                            let plot_bounds = plot_ui.plot_bounds();
+                            let plot_size = plot_ui.response().rect;
+                            let scale = 1.0 / (plot_bounds.width() as f32 / plot_size.width());
+
                             if let Some(pos) = unsafe { CURSOR_POS } {
                                 if let Some(pixel) = unsafe { COLOR_DATA } {
-                                    let pos_floored = [pos[0].floor(), pos[1].floor()];
-                                    let pos_ceiled = [pos[0].ceil(), pos[1].ceil()];
-                                    plot_ui.polygon(
-                                        Polygon::new(vec![
-                                            [pos_floored[0], pos_floored[1]],
-                                            [pos_floored[0], pos_ceiled[1]],
-                                            [pos_ceiled[0], pos_ceiled[1]],
-                                            [pos_ceiled[0], pos_floored[1]],
-                                            [pos_floored[0], pos_floored[1]],
-                                        ])
-                                        .width(10.0)
-                                        .fill_color(pixel),
-                                    )
+                                    let pos = [pos[0].floor() + 0.5, pos[1].floor() + 0.5];
+
+                                    plot_ui.points(
+                                        egui_plot::Points::new(vec![pos])
+                                            .shape(egui_plot::MarkerShape::Square)
+                                            .radius(scale)
+                                            .color(pixel),
+                                    );
                                 }
                             }
                         });
