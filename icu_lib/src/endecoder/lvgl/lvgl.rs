@@ -54,7 +54,7 @@ impl EnDecoder for LVGL {
                         use super::super::utils::rle::RleCoder;
                         let blk_size = ((color_format.get_bpp() + 7) >> 3) as usize;
                         let rle_coder = RleCoder::new(blk_size).unwrap();
-                        let mut data = match rle_coder.encode(&img_data) {
+                        let mut compressed_data = match rle_coder.encode(&img_data) {
                             Ok(data) => data,
                             Err(err) => {
                                 log::error!("RLE encoding failed: {:?}", err);
@@ -64,10 +64,10 @@ impl EnDecoder for LVGL {
 
                         let image_compressed_header = ImageCompressedHeader::new()
                             .with_method(encoder_params.compress)
-                            .with_compressed_size(data.len() as u32)
+                            .with_compressed_size(compressed_data.len() as u32)
                             .with_decompressed_size(img_data.len() as u32);
                         let mut ich_vec = image_compressed_header.into_bytes().to_vec();
-                        ich_vec.append(&mut data);
+                        ich_vec.append(&mut compressed_data);
 
                         img_data = ich_vec;
                         flags = with_flag(flags, HeaderFlag::COMPRESSED);

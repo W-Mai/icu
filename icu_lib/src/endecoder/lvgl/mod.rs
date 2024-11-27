@@ -345,11 +345,13 @@ impl ImageDescriptor {
                             let blk_size = ((header.cf().get_bpp() + 7) >> 3) as usize;
                             use super::utils::rle::RleCoder;
                             let rle_coder = RleCoder::new(blk_size).unwrap();
-                            if compressed_header.compressed_size() != data_size - 12 {
+                            if compressed_header.compressed_size()
+                                != data_size - std::mem::size_of::<ImageCompressedHeader>() as u32
+                            {
                                 log::error!(
                                     "Compressed data size mismatch, but still try to decode. current: {} expected {}",
                                     compressed_header.compressed_size(),
-                                    data_size
+                                    data_size - std::mem::size_of::<ImageCompressedHeader>() as u32
                                 );
                             }
                             let decoded = rle_coder
