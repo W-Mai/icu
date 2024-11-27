@@ -1,6 +1,7 @@
 #[derive(Debug)]
 pub enum RleError {
     InvalidBlockSize,
+    InvalidThreshold,
     InvalidInput,
 }
 
@@ -10,14 +11,35 @@ type Result<T> = std::result::Result<T, RleError>;
 #[derive(Debug, Clone)]
 pub struct RleCoder {
     block_size: usize,
+    threshold: usize,
 }
 
 impl RleCoder {
-    pub fn new(block_size: usize) -> Result<Self> {
+    pub fn new() -> Self {
+        Self {
+            block_size: 1,
+            threshold: 16,
+        }
+    }
+
+    pub fn with_block_size(self, block_size: usize) -> Result<Self> {
         if block_size == 0 {
             return Err(RleError::InvalidBlockSize);
         }
-        Ok(Self { block_size })
+        Ok(Self {
+            block_size,
+            threshold: self.threshold,
+        })
+    }
+
+    pub fn with_threshold(self, threshold: usize) -> Result<Self> {
+        if threshold == 0 {
+            return Err(RleError::InvalidBlockSize);
+        }
+        Ok(Self {
+            block_size: self.block_size,
+            threshold,
+        })
     }
 
     /// Refer to https://github.com/lvgl/lvgl/blob/8c2289f87feee210e354c8d5311a36e85e63891c/scripts/LVGLImage.py#L1070-L1148
@@ -136,7 +158,7 @@ mod tests {
         ];
 
         for data in cases {
-            let coder = RleCoder::new(2)?;
+            let coder = RleCoder::new().with_block_size(2)?;
             let encoded = coder.encode(&data)?;
             let decoded = coder.decode(&encoded)?;
             assert_eq!(data, decoded);
@@ -147,9 +169,9 @@ mod tests {
     #[test]
     fn test_invalid_cases() {
         // Invalid block size
-        assert!(RleCoder::new(0).is_err());
+        assert!(RleCoder::new().with_block_size(0).is_err());
 
-        let coder = RleCoder::new(2).unwrap();
+        let coder = RleCoder::new().with_block_size(2).unwrap();
 
         // Unaligned input
         assert!(coder.encode(&[1, 2, 3]).is_err());

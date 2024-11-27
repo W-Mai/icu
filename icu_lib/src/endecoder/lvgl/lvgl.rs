@@ -53,7 +53,7 @@ impl EnDecoder for LVGL {
                     Compress::RLE => {
                         use super::super::utils::rle::RleCoder;
                         let blk_size = ((color_format.get_bpp() + 7) >> 3) as usize;
-                        let rle_coder = RleCoder::new(blk_size).unwrap();
+                        let rle_coder = RleCoder::new().with_block_size(blk_size).unwrap();
                         let mut compressed_data = match rle_coder.encode(&img_data) {
                             Ok(data) => data,
                             Err(err) => {

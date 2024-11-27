@@ -344,7 +344,7 @@ impl ImageDescriptor {
                         Compress::RLE => {
                             let blk_size = ((header.cf().get_bpp() + 7) >> 3) as usize;
                             use super::utils::rle::RleCoder;
-                            let rle_coder = RleCoder::new(blk_size).unwrap();
+                            let rle_coder = RleCoder::new().with_block_size(blk_size).unwrap();
                             if compressed_header.compressed_size()
                                 != data_size - std::mem::size_of::<ImageCompressedHeader>() as u32
                             {
