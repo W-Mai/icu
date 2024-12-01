@@ -37,6 +37,8 @@ struct MyEguiApp {
     width: u32,
     height: u32,
     image_data: Option<Vec<Color32>>,
+
+    show_grid: bool,
 }
 
 impl MyEguiApp {
@@ -50,6 +52,8 @@ impl MyEguiApp {
             width,
             height,
             image_data,
+
+            show_grid: true,
         }
     }
 }
@@ -60,7 +64,11 @@ static mut CURSOR_POS: Option<[f64; 2]> = None;
 impl eframe::App for MyEguiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            egui::widgets::global_dark_light_mode_switch(ui);
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                egui::widgets::global_dark_light_mode_switch(ui);
+                ui.separator();
+                ui.toggle_value(&mut self.show_grid, "Show Grid");
+            });
         });
         egui::CentralPanel::default().show(ctx, |ui| match &self.image_data {
             None => {}
@@ -127,7 +135,7 @@ impl eframe::App for MyEguiApp {
                                 }
                             })
                             .boxed_zoom_pointer_button(PointerButton::Extra2)
-                            .show_grid([false, false]);
+                            .show_grid([self.show_grid, self.show_grid]);
 
                         plot.show(ui, |plot_ui| {
                             plot_ui.image(PlotImage::new(
