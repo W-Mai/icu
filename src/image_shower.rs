@@ -1,7 +1,7 @@
 use eframe::egui;
 use eframe::egui::load::SizedTexture;
 use eframe::egui::{Color32, ColorImage, PointerButton};
-use egui_plot::{BoxElem, BoxPlot, CoordinatesFormatter, Corner, PlotImage, PlotPoint, Polygon};
+use egui_plot::{CoordinatesFormatter, Corner, PlotImage, PlotPoint};
 use icu_lib::midata::MiData;
 
 pub fn show_image(image: MiData) {
