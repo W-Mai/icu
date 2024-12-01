@@ -39,6 +39,7 @@ struct MyEguiApp {
     image_data: Option<Vec<Color32>>,
 
     show_grid: bool,
+    anti_alias: bool,
 }
 
 impl MyEguiApp {
@@ -54,6 +55,7 @@ impl MyEguiApp {
             image_data,
 
             show_grid: true,
+            anti_alias: true,
         }
     }
 }
@@ -68,6 +70,7 @@ impl eframe::App for MyEguiApp {
                 egui::widgets::global_dark_light_mode_switch(ui);
                 ui.separator();
                 ui.toggle_value(&mut self.show_grid, "Show Grid");
+                ui.toggle_value(&mut self.anti_alias, "Anti-Aliases");
             });
         });
         egui::CentralPanel::default().show(ctx, |ui| match &self.image_data {
@@ -77,9 +80,15 @@ impl eframe::App for MyEguiApp {
                     size: [self.width as usize, self.height as usize],
                     pixels: image_data.clone(),
                 };
-                let texture = ui
-                    .ctx()
-                    .load_texture("showing_image", image, Default::default());
+                let texture = ui.ctx().load_texture(
+                    "showing_image",
+                    image,
+                    if self.anti_alias {
+                        egui::TextureOptions::LINEAR
+                    } else {
+                        egui::TextureOptions::NEAREST
+                    },
+                );
 
                 let texture =
                     SizedTexture::new(texture.id(), [self.width as f32, self.height as f32]);
