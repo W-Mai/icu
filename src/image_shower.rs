@@ -99,7 +99,7 @@ impl eframe::App for MyEguiApp {
                                 CoordinatesFormatter::new(|p, _b| unsafe {
                                     match COLOR_DATA {
                                         None => {
-                                            format!("Nothing {:.0} {:.0}", p.x, p.y)
+                                            format!("Nothing {:.0} {:.0}", p.x.floor(), p.y.ceil())
                                         }
                                         Some(pixel) => {
                                             format!(
@@ -135,7 +135,9 @@ impl eframe::App for MyEguiApp {
                                 }
                             })
                             .boxed_zoom_pointer_button(PointerButton::Extra2)
-                            .show_grid([self.show_grid, self.show_grid]);
+                            .show_grid([self.show_grid, self.show_grid])
+                            .clamp_grid(true)
+                            .sharp_grid_lines(false);
 
                         plot.show(ui, |plot_ui| {
                             plot_ui.image(PlotImage::new(
