@@ -106,13 +106,9 @@ impl eframe::App for MyEguiApp {
                                 }),
                             )
                             .label_formatter(move |_text, pos| {
-                                if pos.x >= (-img_w / 2.0)
-                                    && pos.x < (img_w / 2.0)
-                                    && pos.y >= (-img_h / 2.0)
-                                    && pos.y < (img_h / 2.0)
-                                {
-                                    let row = (img_h - (pos.y + img_h / 2.0)) as usize;
-                                    let col = (pos.x + img_w / 2.0) as usize;
+                                if pos.x > 0.0 && pos.x < img_w && pos.y < 0.0 && pos.y > -img_h {
+                                    let row = -pos.y as usize;
+                                    let col = pos.x as usize;
                                     let index = row * img_w as usize + col;
                                     let pixel = copy_image_data[index];
 
