@@ -70,7 +70,7 @@ impl eframe::App for MyEguiApp {
                 egui::widgets::global_dark_light_mode_switch(ui);
                 ui.separator();
                 ui.toggle_value(&mut self.show_grid, "Show Grid");
-                ui.toggle_value(&mut self.anti_alias, "Anti-Aliases");
+                ui.toggle_value(&mut self.anti_alias, "Anti-Aliasing");
             });
         });
         egui::CentralPanel::default().show(ctx, |ui| match &self.image_data {
