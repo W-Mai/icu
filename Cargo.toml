@@ -24,11 +24,15 @@ path = "src/main.rs"
 icu_lib = { version = "0.1.11" }
 clap = { version = "4.5.20", features = ["derive", "suggestions"] }
 clap_complete = "4.5.1"
-eframe = { version = "0.26.0", features = ["glow"] }
+eframe = { version = "0.26.0", features = [
+    "glow",
+    "persistence", # Enable restoring app state when restarting the app.
+] }
 egui_plot = "0.26.0"
 log = "0.4.20"
 env_logger = "0.11.2"
 serde_yaml = "0.9.33"
+serde = { version = "1.0.197", features = ["derive"] }
 
 [patch.crates-io]
 icu_lib = { path = "icu_lib" }

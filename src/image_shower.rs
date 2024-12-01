@@ -3,6 +3,7 @@ use eframe::egui::load::SizedTexture;
 use eframe::egui::{Color32, ColorImage, PointerButton};
 use egui_plot::{CoordinatesFormatter, Corner, PlotImage, PlotPoint};
 use icu_lib::midata::MiData;
+use serde::{Deserialize, Serialize};
 
 pub fn show_image(image: MiData) {
     let native_options = eframe::NativeOptions::default();
@@ -38,24 +39,43 @@ struct MyEguiApp {
     height: u32,
     image_data: Option<Vec<Color32>>,
 
+    context: AppContext,
+}
+
+#[derive(Serialize, Deserialize)]
+struct AppContext {
     show_grid: bool,
     anti_alias: bool,
 }
 
+impl Default for AppContext {
+    fn default() -> Self {
+        Self {
+            show_grid: true,
+            anti_alias: true,
+        }
+    }
+}
+
 impl MyEguiApp {
     fn new(
-        _cc: &eframe::CreationContext<'_>,
+        cc: &eframe::CreationContext<'_>,
         width: u32,
         height: u32,
         image_data: Option<Vec<Color32>>,
     ) -> Self {
+        let context = if let Some(storage) = cc.storage {
+            eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
+        } else {
+            Default::default()
+        };
+
         Self {
             width,
             height,
             image_data,
 
-            show_grid: true,
-            anti_alias: true,
+            context,
         }
     }
 }
@@ -69,8 +89,8 @@ impl eframe::App for MyEguiApp {
             ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                 egui::widgets::global_dark_light_mode_switch(ui);
                 ui.separator();
-                ui.toggle_value(&mut self.show_grid, "Show Grid");
-                ui.toggle_value(&mut self.anti_alias, "Anti-Aliasing");
+                ui.toggle_value(&mut self.context.show_grid, "Show Grid");
+                ui.toggle_value(&mut self.context.anti_alias, "Anti-Aliasing");
             });
         });
         egui::CentralPanel::default().show(ctx, |ui| match &self.image_data {
@@ -83,7 +103,7 @@ impl eframe::App for MyEguiApp {
                 let texture = ui.ctx().load_texture(
                     "showing_image",
                     image,
-                    if self.anti_alias {
+                    if self.context.anti_alias {
                         egui::TextureOptions::LINEAR
                     } else {
                         egui::TextureOptions::NEAREST
@@ -144,7 +164,7 @@ impl eframe::App for MyEguiApp {
                                 }
                             })
                             .boxed_zoom_pointer_button(PointerButton::Extra2)
-                            .show_grid([self.show_grid, self.show_grid])
+                            .show_grid([self.context.show_grid, self.context.show_grid])
                             .clamp_grid(true)
                             .sharp_grid_lines(false);
 
@@ -176,5 +196,9 @@ impl eframe::App for MyEguiApp {
                 );
             }
         });
+    }
+
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, eframe::APP_KEY, &self.context);
     }
 }
