@@ -102,6 +102,10 @@ impl EnDecoder for LVGL {
         log::trace!("Decoding image with data size: {}", data.len());
         let img_desc = ImageDescriptor::decode(data);
 
+        if img_desc.data_size == 0 {
+            return MiData::RGBA(RgbaImage::new(0, 0));
+        }
+
         let header = &img_desc.header;
 
         log::trace!("Decoding image with color format: {:?}", header.cf());

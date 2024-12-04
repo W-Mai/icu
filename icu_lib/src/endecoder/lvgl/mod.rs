@@ -384,6 +384,11 @@ impl ImageDescriptor {
                 } else {
                     log::error!("Data size mismatch ideal_data_size: {idea_data_size}, data_size: {data_size}, {:#?}", header);
                 }
+                return Self {
+                    header: ImageHeader::V9(header),
+                    data_size: 0,
+                    data: vec![],
+                };
             }
             ImageHeader::V8(_) => {}
             ImageHeader::Unknown => {

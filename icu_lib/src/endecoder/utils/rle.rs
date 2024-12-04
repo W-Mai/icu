@@ -130,15 +130,15 @@ impl RleCoder {
             if ctrl & 0x80 == 0 {
                 // Run-length mode
                 result.extend((0..ctrl).flat_map(|_| block.iter().copied()));
+                i += self.block_size;
             } else {
                 // Direct copy mode
                 let count = (ctrl & 0x7f) as usize;
                 let bytes = count * self.block_size;
                 let slice = data.get(i..i + bytes).ok_or(RleError::InvalidInput)?;
                 result.extend_from_slice(slice);
-                i += bytes - self.block_size;
+                i += bytes;
             }
-            i += self.block_size;
         }
 
         Ok(result)
