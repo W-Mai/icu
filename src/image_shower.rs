@@ -1,3 +1,4 @@
+use crate::image_plotter::ImagePlotter;
 use eframe::egui;
 use eframe::egui::load::SizedTexture;
 use eframe::egui::{Color32, ColorImage, PointerButton};
@@ -84,9 +85,6 @@ impl MyEguiApp {
     }
 }
 
-static mut COLOR_DATA: Option<Color32> = None;
-static mut CURSOR_POS: Option<[f64; 2]> = None;
-
 impl eframe::App for MyEguiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -97,108 +95,16 @@ impl eframe::App for MyEguiApp {
                 ui.toggle_value(&mut self.context.anti_alias, "Anti-Aliasing");
             });
         });
-        egui::CentralPanel::default().show(ctx, |ui| match &self.image_data {
-            None => {}
-            Some(image_data) => {
-                let image = ColorImage {
-                    size: [self.width as usize, self.height as usize],
-                    pixels: image_data.clone(),
-                };
-                let texture = ui.ctx().load_texture(
-                    "showing_image",
-                    image,
-                    if self.context.anti_alias {
-                        egui::TextureOptions::LINEAR
-                    } else {
-                        egui::TextureOptions::NEAREST
-                    },
-                );
+        egui::CentralPanel::default().show(ctx, |ui| {
+            let mut image_plotter = ImagePlotter::new()
+                .anti_alias(self.context.anti_alias)
+                .show_grid(self.context.show_grid);
 
-                let texture =
-                    SizedTexture::new(texture.id(), [self.width as f32, self.height as f32]);
-
-                let img_w = self.width as f64;
-                let img_h = self.height as f64;
-                let copy_image_data = image_data.clone();
-
-                ui.with_layout(
-                    egui::Layout::centered_and_justified(egui::Direction::TopDown),
-                    |ui| {
-                        let plot = egui_plot::Plot::new("plot")
-                            .data_aspect(1.0)
-                            .y_axis_formatter(move |y, _, _| format!("{:.0}", -y.value))
-                            .coordinates_formatter(
-                                Corner::LeftBottom,
-                                CoordinatesFormatter::new(|p, _b| unsafe {
-                                    match COLOR_DATA {
-                                        None => {
-                                            format!("Nothing {:.0} {:.0}", p.x.floor(), p.y.ceil())
-                                        }
-                                        Some(pixel) => {
-                                            format!(
-                                                "RGBA: #{:02X}_{:02X}_{:02X}_{:02X}",
-                                                pixel.r(),
-                                                pixel.g(),
-                                                pixel.b(),
-                                                pixel.a(),
-                                            )
-                                        }
-                                    }
-                                }),
-                            )
-                            .label_formatter(move |_text, pos| {
-                                if pos.x > 0.0 && pos.x < img_w && pos.y < 0.0 && pos.y > -img_h {
-                                    let row = -pos.y as usize;
-                                    let col = pos.x as usize;
-                                    let index = row * img_w as usize + col;
-                                    let pixel = copy_image_data[index];
-
-                                    unsafe {
-                                        COLOR_DATA = Some(pixel);
-                                        CURSOR_POS = Some([pos.x, pos.y]);
-                                    }
-
-                                    format!("Pos: {:.2} {:.2}", pos.x, pos.y)
-                                } else {
-                                    unsafe {
-                                        COLOR_DATA = None;
-                                        CURSOR_POS = None;
-                                    }
-                                    "".into()
-                                }
-                            })
-                            .boxed_zoom_pointer_button(PointerButton::Extra2)
-                            .show_grid([self.context.show_grid, self.context.show_grid])
-                            .clamp_grid(true)
-                            .sharp_grid_lines(false);
-
-                        plot.show(ui, |plot_ui| {
-                            plot_ui.image(PlotImage::new(
-                                texture.id,
-                                PlotPoint::new(img_w / 2.0, -img_h / 2.0),
-                                texture.size,
-                            ));
-
-                            let plot_bounds = plot_ui.plot_bounds();
-                            let plot_size = plot_ui.response().rect;
-                            let scale = 1.0 / (plot_bounds.width() as f32 / plot_size.width());
-
-                            if let Some(pos) = unsafe { CURSOR_POS } {
-                                if let Some(pixel) = unsafe { COLOR_DATA } {
-                                    let pos = [pos[0].floor() + 0.5, pos[1].floor() + 0.5];
-
-                                    plot_ui.points(
-                                        egui_plot::Points::new(vec![pos])
-                                            .shape(egui_plot::MarkerShape::Square)
-                                            .radius(scale)
-                                            .color(pixel),
-                                    );
-                                }
-                            }
-                        });
-                    },
-                );
-            }
+            image_plotter.show(
+                ui,
+                self.image_data.clone(),
+                [self.width as f32, self.height as f32].into(),
+            );
         });
 
         self.ui_file_drag_and_drop(ctx);

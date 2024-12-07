@@ -1,5 +1,6 @@
 mod arguments;
 mod image_shower;
+mod image_plotter;
 
 use crate::arguments::{
     parse_args, ImageFormatCategory, ImageFormats, OutputFileFormatCategory, SubCommands,
