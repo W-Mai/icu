@@ -1,8 +1,6 @@
 use crate::image_plotter::ImagePlotter;
 use eframe::egui;
-use eframe::egui::load::SizedTexture;
-use eframe::egui::{Color32, ColorImage, PointerButton};
-use egui_plot::{CoordinatesFormatter, Corner, PlotImage, PlotPoint};
+use eframe::egui::Color32;
 use icu_lib::midata::MiData;
 use serde::{Deserialize, Serialize};
 

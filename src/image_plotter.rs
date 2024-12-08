@@ -32,9 +32,9 @@ impl ImagePlotter {
         s
     }
 
-    pub fn show_only(self) -> Self {
+    pub fn show_only(self, only: bool) -> Self {
         let mut s = self;
-        s.show_only = true;
+        s.show_only = only;
         s
     }
 
@@ -121,7 +121,13 @@ impl ImagePlotter {
                     .boxed_zoom_pointer_button(PointerButton::Extra2)
                     .show_grid([self.show_grid, self.show_grid])
                     .clamp_grid(true)
-                    .sharp_grid_lines(false);
+                    .sharp_grid_lines(false)
+                    .show_axes([!self.show_only, !self.show_only])
+                    .allow_scroll(!self.show_only)
+                    .allow_zoom(!self.show_only)
+                    .allow_drag(!self.show_only)
+                    .show_x(!self.show_only)
+                    .show_y(!self.show_only);
 
                 plot.show(ui, |plot_ui| {
                     plot_ui.image(PlotImage::new(
