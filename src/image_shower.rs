@@ -3,6 +3,7 @@ use eframe::egui;
 use eframe::egui::Color32;
 use icu_lib::midata::MiData;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 pub fn show_image(image: MiData) {
     let native_options = eframe::NativeOptions::default();
@@ -32,11 +33,21 @@ pub fn show_image(image: MiData) {
     };
 }
 
+struct ImageItem {
+    path: String,
+
+    width: u32,
+    height: u32,
+    image_data: Vec<Color32>,
+}
+
 #[derive(Default)]
 struct MyEguiApp {
     width: u32,
     height: u32,
     image_data: Option<Vec<Color32>>,
+
+    image_items: Vec<ImageItem>,
 
     dropped_files: Vec<egui::DroppedFile>,
 
@@ -76,6 +87,7 @@ impl MyEguiApp {
             height,
             image_data,
 
+            image_items: vec![],
             dropped_files: Default::default(),
 
             context,
@@ -93,6 +105,34 @@ impl eframe::App for MyEguiApp {
                 ui.toggle_value(&mut self.context.anti_alias, "Anti-Aliasing");
             });
         });
+
+        if !self.image_items.is_empty() {
+            egui::SidePanel::left("ImagePicker").show(ctx, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    for image_item in &self.image_items {
+                        egui::containers::Frame::default()
+                            .inner_margin(10.0)
+                            .outer_margin(10.0)
+                            .rounding(10.0)
+                            .show(ui, |ui| {
+                                ui.vertical_centered_justified(|ui| {
+                                    let mut image_plotter = ImagePlotter::new()
+                                        .anti_alias(self.context.anti_alias)
+                                        .show_grid(false)
+                                        .show_only(true);
+
+                                    image_plotter.show(
+                                        ui,
+                                        Some(image_item.image_data.clone()),
+                                        [image_item.width as f32, image_item.height as f32].into(),
+                                    );
+                                });
+                            });
+                    }
+                })
+            });
+        }
+
         egui::CentralPanel::default().show(ctx, |ui| {
             let mut image_plotter = ImagePlotter::new()
                 .anti_alias(self.context.anti_alias)
@@ -175,7 +215,7 @@ impl MyEguiApp {
                         }
                     }
                     None => {
-                        let data = std::fs::read(info);
+                        let data = std::fs::read(&info);
                         match data {
                             Ok(data) => {
                                 if let Some(coder) = icu_lib::endecoder::find_endecoder(&data) {
@@ -206,15 +246,21 @@ impl MyEguiApp {
 
                         self.width = width;
                         self.height = height;
-                        self.image_data = image_data;
+                        self.image_data = image_data.clone();
 
-                        self.dropped_files.clear();
-                        break;
+                        self.image_items.push(ImageItem {
+                            path: info,
+                            width,
+                            height,
+                            image_data: image_data.unwrap(),
+                        });
                     }
                     MiData::GRAY(_) => {}
                     MiData::PATH => {}
                 };
             }
+
+            self.dropped_files.clear();
         }
     }
 }

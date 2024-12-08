@@ -33,6 +33,7 @@ log = "0.4.20"
 env_logger = "0.11.2"
 serde_yaml = "0.9.33"
 serde = { version = "1.0.197", features = ["derive"] }
+rand = "0.8.5"
 
 [patch.crates-io]
 icu_lib = { path = "icu_lib" }
