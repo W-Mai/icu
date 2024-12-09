@@ -1,6 +1,6 @@
 use crate::image_plotter::ImagePlotter;
 use eframe::egui;
-use eframe::egui::Color32;
+use eframe::egui::{Color32, Sense};
 use icu_lib::midata::MiData;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -48,6 +48,8 @@ struct MyEguiApp {
     image_data: Option<Vec<Color32>>,
 
     image_items: Vec<ImageItem>,
+    selected_image_item_index: Option<usize>,
+    hovered_image_item_index: Option<usize>,
 
     dropped_files: Vec<egui::DroppedFile>,
 
@@ -88,6 +90,8 @@ impl MyEguiApp {
             image_data,
 
             image_items: vec![],
+            selected_image_item_index: None,
+            hovered_image_item_index: None,
             dropped_files: Default::default(),
 
             context,
@@ -109,24 +113,73 @@ impl eframe::App for MyEguiApp {
         if !self.image_items.is_empty() {
             egui::SidePanel::left("ImagePicker").show(ctx, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    for image_item in &self.image_items {
+                    for (index, image_item) in self.image_items.iter().enumerate() {
+                        let is_selected = self.selected_image_item_index == Some(index);
                         egui::containers::Frame::default()
                             .inner_margin(10.0)
                             .outer_margin(10.0)
                             .rounding(10.0)
                             .show(ui, |ui| {
-                                ui.vertical_centered_justified(|ui| {
-                                    let mut image_plotter = ImagePlotter::new()
-                                        .anti_alias(self.context.anti_alias)
-                                        .show_grid(false)
-                                        .show_only(true);
+                                ui.set_height(100.0);
+                                let one_sample = ui.vertical_centered(|ui| {
+                                    ui.vertical_centered(|ui| {
+                                        let mut image_plotter = ImagePlotter::new()
+                                            .anti_alias(self.context.anti_alias)
+                                            .show_grid(false)
+                                            .show_only(true);
 
-                                    image_plotter.show(
-                                        ui,
-                                        Some(image_item.image_data.clone()),
-                                        [image_item.width as f32, image_item.height as f32].into(),
-                                    );
+                                        image_plotter.show(
+                                            ui,
+                                            Some(image_item.image_data.clone()),
+                                            [image_item.width as f32, image_item.height as f32]
+                                                .into(),
+                                        );
+                                        ui.add(egui::Label::new(&image_item.path).truncate(true));
+                                    })
                                 });
+
+                                let response = one_sample.response;
+
+                                let visuals =
+                                    ui.style().interact_selectable(&response, is_selected);
+
+                                let rect = response.rect;
+                                let response = ui.allocate_rect(rect, Sense::click());
+                                if response.clicked() {
+                                    if is_selected {
+                                        self.selected_image_item_index = None;
+                                    } else {
+                                        self.selected_image_item_index = Some(index);
+                                        self.width = image_item.width;
+                                        self.height = image_item.height;
+                                        self.image_data = Some(image_item.image_data.clone());
+                                    }
+                                }
+                                if response.hovered() {
+                                    self.hovered_image_item_index = Some(index);
+                                }
+
+                                if is_selected
+                                    || response.hovered()
+                                    || response.highlighted()
+                                    || response.has_focus()
+                                {
+                                    let rect = rect.expand(10.0);
+                                    let painter = ui.painter_at(rect);
+                                    let rect = rect.expand(-2.0);
+                                    painter.rect(
+                                        rect,
+                                        10.0,
+                                        egui::Color32::TRANSPARENT,
+                                        egui::Stroke::new(2.0, ui.style().visuals.hyperlink_color),
+                                    );
+                                    painter.rect(
+                                        rect,
+                                        10.0,
+                                        visuals.text_color().linear_multiply(0.3),
+                                        egui::Stroke::NONE,
+                                    );
+                                }
                             });
                     }
                 })
