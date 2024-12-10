@@ -112,6 +112,16 @@ impl eframe::App for MyEguiApp {
 
         if !self.image_items.is_empty() {
             egui::SidePanel::left("ImagePicker").show(ctx, |ui| {
+                ui.separator();
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .button(egui::RichText::new("🗑").color(egui::Color32::RED))
+                        .clicked()
+                    {
+                        self.image_items.clear();
+                    }
+                });
+                ui.separator();
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     for (index, image_item) in self.image_items.iter().enumerate() {
                         let is_selected = self.selected_image_item_index == Some(index);
