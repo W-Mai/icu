@@ -146,14 +146,10 @@ impl eframe::App for MyEguiApp {
                                 let rect = response.rect;
                                 let response = ui.allocate_rect(rect, Sense::click());
                                 if response.clicked() {
-                                    if is_selected {
-                                        self.selected_image_item_index = None;
-                                    } else {
-                                        self.selected_image_item_index = Some(index);
-                                        self.width = image_item.width;
-                                        self.height = image_item.height;
-                                        self.image_data = Some(image_item.image_data.clone());
-                                    }
+                                    self.selected_image_item_index = Some(index);
+                                    self.width = image_item.width;
+                                    self.height = image_item.height;
+                                    self.image_data = Some(image_item.image_data.clone());
                                 }
                                 if response.hovered() {
                                     self.hovered_image_item_index = Some(index);
