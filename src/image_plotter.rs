@@ -1,10 +1,11 @@
+use crate::image_shower::ImageItem;
 use eframe::egui;
 use eframe::egui::load::SizedTexture;
 use eframe::egui::{Color32, ColorImage, PointerButton};
 use egui_plot::{CoordinatesFormatter, Corner, PlotImage, PlotPoint};
+use rand::random;
 use std::cell::RefCell;
 use std::rc::Rc;
-use rand::random;
 
 pub struct ImagePlotter {
     anti_alias: bool,
@@ -39,26 +40,19 @@ impl ImagePlotter {
         s
     }
 
-    pub fn show(
-        &mut self,
-        ui: &mut egui::Ui,
-        image_data: Option<Vec<Color32>>,
-        image_size: egui::Vec2,
-    ) {
-        let egui::Vec2 {
-            x: width,
-            y: height,
-        } = image_size;
-
+    pub fn show(&mut self, ui: &mut egui::Ui, image_item: &Option<ImageItem>) {
         let color_data: Rc<RefCell<Option<Color32>>> = Default::default();
         let cursor_pos: Rc<RefCell<Option<[f64; 2]>>> = Default::default();
 
-        match image_data {
+        match image_item {
             None => {}
             Some(image_data) => {
+                let width = image_data.width as f32;
+                let height = image_data.height as f32;
+
                 let image = ColorImage {
                     size: [width as usize, height as usize],
-                    pixels: image_data.clone(),
+                    pixels: image_data.image_data.clone(),
                 };
                 let texture = ui.ctx().load_texture(
                     format!("showing_image_{}", random::<u32>()),
@@ -74,7 +68,7 @@ impl ImagePlotter {
 
                 let img_w = width as f64;
                 let img_h = height as f64;
-                let copy_image_data = image_data.clone();
+                let copy_image_data = image_data.image_data.clone();
 
                 let color_data_1 = color_data.clone();
                 let color_data_2 = color_data.clone();

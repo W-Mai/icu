@@ -11,19 +11,22 @@ pub fn show_image(image: MiData) {
         MiData::RGBA(img_buffer) => {
             let width = img_buffer.width();
             let height = img_buffer.height();
-            let image_data = Some(
-                img_buffer
+            let image_data = Some(ImageItem {
+                path: "".to_string(),
+                width,
+                height,
+                image_data: img_buffer
                     .chunks(4)
                     .map(|pixel| {
                         Color32::from_rgba_unmultiplied(pixel[0], pixel[1], pixel[2], pixel[3])
                     })
                     .collect::<Vec<Color32>>(),
-            );
+            });
 
             eframe::run_native(
                 "ICU Preview",
                 native_options,
-                Box::new(move |cc| Box::new(MyEguiApp::new(cc, width, height, image_data))),
+                Box::new(move |cc| Box::new(MyEguiApp::new(cc, image_data))),
             )
             .expect("Failed to run eframe");
         }
@@ -96,19 +99,18 @@ fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
         .collect()
 }
 
-struct ImageItem {
-    path: String,
+#[derive(Clone)]
+pub struct ImageItem {
+    pub path: String,
 
-    width: u32,
-    height: u32,
-    image_data: Vec<Color32>,
+    pub width: u32,
+    pub height: u32,
+    pub image_data: Vec<Color32>,
 }
 
 #[derive(Default)]
 struct MyEguiApp {
-    width: u32,
-    height: u32,
-    image_data: Option<Vec<Color32>>,
+    current_image: Option<ImageItem>,
 
     image_items: Vec<ImageItem>,
     selected_image_item_index: Option<usize>,
@@ -135,12 +137,7 @@ impl Default for AppContext {
 }
 
 impl MyEguiApp {
-    fn new(
-        cc: &eframe::CreationContext<'_>,
-        width: u32,
-        height: u32,
-        image_data: Option<Vec<Color32>>,
-    ) -> Self {
+    fn new(cc: &eframe::CreationContext<'_>, image_item: Option<ImageItem>) -> Self {
         let context = if let Some(storage) = cc.storage {
             eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
         } else {
@@ -148,9 +145,7 @@ impl MyEguiApp {
         };
 
         Self {
-            width,
-            height,
-            image_data,
+            current_image: image_item,
 
             image_items: vec![],
             selected_image_item_index: None,
@@ -201,12 +196,7 @@ impl eframe::App for MyEguiApp {
                                             .show_grid(false)
                                             .show_only(true);
 
-                                        image_plotter.show(
-                                            ui,
-                                            Some(image_item.image_data.clone()),
-                                            [image_item.width as f32, image_item.height as f32]
-                                                .into(),
-                                        );
+                                        image_plotter.show(ui, &Some(image_item.clone()));
                                         ui.add(egui::Label::new(&image_item.path).truncate(true));
                                     })
                                 });
@@ -220,9 +210,7 @@ impl eframe::App for MyEguiApp {
                                 let response = ui.allocate_rect(rect, Sense::click());
                                 if response.clicked() {
                                     self.selected_image_item_index = Some(index);
-                                    self.width = image_item.width;
-                                    self.height = image_item.height;
-                                    self.image_data = Some(image_item.image_data.clone());
+                                    self.current_image = Some(image_item.clone());
                                 }
                                 if response.hovered() {
                                     self.hovered_image_item_index = Some(index);
@@ -260,11 +248,7 @@ impl eframe::App for MyEguiApp {
                 .anti_alias(self.context.anti_alias)
                 .show_grid(self.context.show_grid);
 
-            image_plotter.show(
-                ui,
-                self.image_data.clone(),
-                [self.width as f32, self.height as f32].into(),
-            );
+            image_plotter.show(ui, &self.current_image);
         });
 
         self.ui_file_drag_and_drop(ctx);
@@ -321,9 +305,7 @@ impl MyEguiApp {
         if !self.dropped_files.is_empty() {
             self.image_items = process_images(&self.dropped_files);
             if let Some(image) = self.image_items.first() {
-                self.width = image.width;
-                self.height = image.height;
-                self.image_data = Some(image.image_data.clone());
+                self.current_image = Some(image.clone());
             }
             self.dropped_files.clear();
         }
