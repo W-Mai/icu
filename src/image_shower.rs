@@ -54,22 +54,18 @@ fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
                 MiData::RGBA(img_buffer) => {
                     let width = img_buffer.width();
                     let height = img_buffer.height();
-                    let image_data = Some(
-                        img_buffer
-                            .chunks(4)
-                            .map(|pixel| {
-                                Color32::from_rgba_unmultiplied(
-                                    pixel[0], pixel[1], pixel[2], pixel[3],
-                                )
-                            })
-                            .collect::<Vec<Color32>>(),
-                    );
+                    let image_data = img_buffer
+                        .chunks(4)
+                        .map(|pixel| {
+                            Color32::from_rgba_unmultiplied(pixel[0], pixel[1], pixel[2], pixel[3])
+                        })
+                        .collect::<Vec<Color32>>();
 
                     Some(ImageItem {
                         path: info,
                         width,
                         height,
-                        image_data: image_data.unwrap(),
+                        image_data,
                     })
                 }
                 MiData::GRAY(_) => None,
@@ -96,7 +92,7 @@ struct MyEguiApp {
     selected_image_item_index: Option<usize>,
     hovered_image_item_index: Option<usize>,
 
-    dropped_files: Vec<egui::DroppedFile>,
+    dropped_files: Vec<DroppedFile>,
 
     context: AppContext,
 }
@@ -155,7 +151,7 @@ impl eframe::App for MyEguiApp {
                 ui.separator();
                 ui.horizontal_wrapped(|ui| {
                     if ui
-                        .button(egui::RichText::new("🗑").color(egui::Color32::RED))
+                        .button(egui::RichText::new("🗑").color(Color32::RED))
                         .clicked()
                     {
                         self.image_items.clear();
@@ -209,7 +205,7 @@ impl eframe::App for MyEguiApp {
                                     painter.rect(
                                         rect,
                                         10.0,
-                                        egui::Color32::TRANSPARENT,
+                                        Color32::TRANSPARENT,
                                         egui::Stroke::new(2.0, ui.style().visuals.hyperlink_color),
                                     );
                                     painter.rect(
