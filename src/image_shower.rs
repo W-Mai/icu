@@ -169,10 +169,11 @@ impl eframe::App for MyEguiApp {
                                 ui.set_height(100.0);
                                 let one_sample = ui.vertical_centered(|ui| {
                                     ui.vertical_centered(|ui| {
-                                        let mut image_plotter = ImagePlotter::new()
-                                            .anti_alias(self.context.anti_alias)
-                                            .show_grid(false)
-                                            .show_only(true);
+                                        let mut image_plotter =
+                                            ImagePlotter::new(index.to_string())
+                                                .anti_alias(self.context.anti_alias)
+                                                .show_grid(false)
+                                                .show_only(true);
 
                                         image_plotter.show(ui, &Some(image_item.clone()));
                                         ui.add(egui::Label::new(&image_item.path).truncate(true));
@@ -222,7 +223,7 @@ impl eframe::App for MyEguiApp {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            let mut image_plotter = ImagePlotter::new()
+            let mut image_plotter = ImagePlotter::new("viewer")
                 .anti_alias(self.context.anti_alias)
                 .show_grid(self.context.show_grid);
 

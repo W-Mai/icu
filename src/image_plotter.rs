@@ -3,19 +3,20 @@ use eframe::egui;
 use eframe::egui::load::SizedTexture;
 use eframe::egui::{Color32, ColorImage, PointerButton};
 use egui_plot::{CoordinatesFormatter, Corner, PlotImage, PlotPoint};
-use rand::random;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 pub struct ImagePlotter {
+    id: String,
     anti_alias: bool,
     show_grid: bool,
     show_only: bool,
 }
 
 impl ImagePlotter {
-    pub fn new() -> ImagePlotter {
+    pub fn new(id: impl ToString) -> ImagePlotter {
         Self {
+            id: id.to_string(),
             anti_alias: false,
             show_grid: false,
             show_only: false,
@@ -55,7 +56,7 @@ impl ImagePlotter {
                     pixels: image_data.image_data.clone(),
                 };
                 let texture = ui.ctx().load_texture(
-                    format!("showing_image_{}", random::<u32>()),
+                    format!("showing_image_{}", self.id),
                     image,
                     if self.anti_alias {
                         egui::TextureOptions::LINEAR
@@ -74,7 +75,7 @@ impl ImagePlotter {
                 let color_data_2 = color_data.clone();
                 let cursor_pos_2 = cursor_pos.clone();
 
-                let plot = egui_plot::Plot::new(format!("plot{}", random::<u32>()))
+                let plot = egui_plot::Plot::new(format!("plot{}", self.id))
                     .data_aspect(1.0)
                     .y_axis_formatter(move |y, _, _| format!("{:.0}", -y.value))
                     .coordinates_formatter(
