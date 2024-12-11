@@ -4,35 +4,15 @@ use eframe::egui::{Color32, DroppedFile, Sense};
 use icu_lib::midata::MiData;
 use serde::{Deserialize, Serialize};
 
-pub fn show_image(image: MiData) {
+pub fn show_image(files: Vec<DroppedFile>) {
     let native_options = eframe::NativeOptions::default();
 
-    match image {
-        MiData::RGBA(img_buffer) => {
-            let width = img_buffer.width();
-            let height = img_buffer.height();
-            let image_data = Some(ImageItem {
-                path: "".to_string(),
-                width,
-                height,
-                image_data: img_buffer
-                    .chunks(4)
-                    .map(|pixel| {
-                        Color32::from_rgba_unmultiplied(pixel[0], pixel[1], pixel[2], pixel[3])
-                    })
-                    .collect::<Vec<Color32>>(),
-            });
-
-            eframe::run_native(
-                "ICU Preview",
-                native_options,
-                Box::new(move |cc| Box::new(MyEguiApp::new(cc, image_data))),
-            )
-            .expect("Failed to run eframe");
-        }
-        MiData::GRAY(_) => {}
-        MiData::PATH => {}
-    };
+    eframe::run_native(
+        "ICU Preview",
+        native_options,
+        Box::new(move |cc| Box::new(MyEguiApp::new(cc, files))),
+    )
+    .expect("Failed to run eframe");
 }
 
 fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
@@ -137,17 +117,19 @@ impl Default for AppContext {
 }
 
 impl MyEguiApp {
-    fn new(cc: &eframe::CreationContext<'_>, image_item: Option<ImageItem>) -> Self {
+    fn new(cc: &eframe::CreationContext<'_>, files: Vec<DroppedFile>) -> Self {
         let context = if let Some(storage) = cc.storage {
             eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
         } else {
             Default::default()
         };
 
-        Self {
-            current_image: image_item,
+        let image_items = process_images(&files);
 
-            image_items: vec![],
+        Self {
+            current_image: image_items.first().cloned(),
+
+            image_items,
             selected_image_item_index: None,
             hovered_image_item_index: None,
             dropped_files: Default::default(),
@@ -168,7 +150,7 @@ impl eframe::App for MyEguiApp {
             });
         });
 
-        if !self.image_items.is_empty() {
+        if self.image_items.len() > 1 {
             egui::SidePanel::left("ImagePicker").show(ctx, |ui| {
                 ui.separator();
                 ui.horizontal_wrapped(|ui| {

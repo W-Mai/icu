@@ -1,11 +1,12 @@
 mod arguments;
-mod image_shower;
 mod image_plotter;
+mod image_shower;
 
 use crate::arguments::{
     parse_args, ImageFormatCategory, ImageFormats, OutputFileFormatCategory, SubCommands,
 };
 use crate::image_shower::show_image;
+use eframe::egui::DroppedFile;
 use icu_lib::endecoder::{common, find_endecoder, lvgl, EnDecoder};
 use icu_lib::midata::MiData;
 use icu_lib::{endecoder, EncoderParams};
@@ -47,10 +48,12 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
             println!("{}", yaml);
         }
         SubCommands::Show { file, input_format } => {
-            let data = fs::read(file)?;
-            let mid = decode_with(data, *input_format);
+            let files = vec![DroppedFile {
+                path: Some(file.into()),
+                ..Default::default()
+            }];
 
-            show_image(mid?);
+            show_image(files);
         }
         SubCommands::Convert {
             input_files,
