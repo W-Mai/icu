@@ -1,6 +1,7 @@
 use crate::image_plotter::ImagePlotter;
 use eframe::egui;
 use eframe::egui::{Color32, DroppedFile, Sense};
+use eframe::egui::color_picker::Alpha;
 use icu_lib::midata::MiData;
 use serde::{Deserialize, Serialize};
 
@@ -101,6 +102,7 @@ struct MyEguiApp {
 struct AppContext {
     show_grid: bool,
     anti_alias: bool,
+    background_color: Color32,
 }
 
 impl Default for AppContext {
@@ -108,6 +110,7 @@ impl Default for AppContext {
         Self {
             show_grid: true,
             anti_alias: true,
+            background_color: Default::default(),
         }
     }
 }
@@ -139,10 +142,16 @@ impl eframe::App for MyEguiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                ui.set_height(30.0);
                 egui::widgets::global_dark_light_mode_switch(ui);
                 ui.separator();
                 ui.toggle_value(&mut self.context.show_grid, "Show Grid");
                 ui.toggle_value(&mut self.context.anti_alias, "Anti-Aliasing");
+                ui.separator();
+                if ui.button("Clear").clicked() {
+                    self.context.background_color = self.context.background_color.linear_multiply(0.0);
+                }
+                egui::widgets::color_picker::color_edit_button_srgba(ui, &mut self.context.background_color, Alpha::BlendOrAdditive);
             });
         });
 
@@ -225,7 +234,8 @@ impl eframe::App for MyEguiApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             let mut image_plotter = ImagePlotter::new("viewer")
                 .anti_alias(self.context.anti_alias)
-                .show_grid(self.context.show_grid);
+                .show_grid(self.context.show_grid)
+                .background_color(self.context.background_color);
 
             image_plotter.show(ui, &self.current_image);
         });

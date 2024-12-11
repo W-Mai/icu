@@ -11,6 +11,7 @@ pub struct ImagePlotter {
     anti_alias: bool,
     show_grid: bool,
     show_only: bool,
+    background_color: Color32,
 }
 
 impl ImagePlotter {
@@ -20,6 +21,7 @@ impl ImagePlotter {
             anti_alias: false,
             show_grid: false,
             show_only: false,
+            background_color: Default::default(),
         }
     }
 
@@ -38,6 +40,12 @@ impl ImagePlotter {
     pub fn show_only(self, only: bool) -> Self {
         let mut s = self;
         s.show_only = only;
+        s
+    }
+
+    pub fn background_color(self, color: Color32) -> Self {
+        let mut s = self;
+        s.background_color = color;
         s
     }
 
@@ -123,7 +131,13 @@ impl ImagePlotter {
                     .allow_zoom(!self.show_only)
                     .allow_drag(!self.show_only)
                     .show_x(!self.show_only)
-                    .show_y(!self.show_only);
+                    .show_y(!self.show_only)
+                    .show_background(self.background_color.is_additive());
+
+                if self.background_color.a() > 0 {
+                    let painter = ui.painter();
+                    painter.rect_filled(ui.min_rect(), 0.0, self.background_color);
+                }
 
                 plot.show(ui, |plot_ui| {
                     plot_ui.image(PlotImage::new(
