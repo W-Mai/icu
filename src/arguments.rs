@@ -196,8 +196,8 @@ pub(crate) enum SubCommands {
     /// Show an image file
     Show {
         /// an image file to show
-        #[arg(required = true, value_hint = clap::ValueHint::FilePath)]
-        file: String,
+        #[arg(value_hint = clap::ValueHint::FilePath)]
+        files: Option<Vec<String>>,
 
         /// input image formats
         #[arg(short = 'f', long, value_enum, default_value = "auto")]

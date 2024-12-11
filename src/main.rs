@@ -47,11 +47,22 @@ fn process() -> Result<(), Box<dyn std::error::Error>> {
 
             println!("{}", yaml);
         }
-        SubCommands::Show { file, input_format } => {
-            let files = vec![DroppedFile {
-                path: Some(file.into()),
-                ..Default::default()
-            }];
+        SubCommands::Show {
+            files,
+            input_format: _image_format,
+        } => {
+            let files = match files {
+                None => {
+                    vec![]
+                }
+                Some(files) => files
+                    .iter()
+                    .map(|file| DroppedFile {
+                        path: Some(file.into()),
+                        ..Default::default()
+                    })
+                    .collect::<Vec<DroppedFile>>(),
+            };
 
             show_image(files);
         }
