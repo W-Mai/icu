@@ -1,5 +1,18 @@
 # Changelog
 
+## [v0.1.14] - 2024-12-11
+
+### 🔖 Version Tag
+
+- 🚀 **New Features**: Added background color support to ImagePlotter, added unique ID to ImagePlotter, updated show
+  command to handle multiple files, added image item selection and hover states, added new image plotting functionality,
+  added image plotting functionality to Image Handling.
+- 🔧 **Improvements**: Simplified image data conversion and update type references in ImageShower, refactored image data
+  handling and update show method in Image Handling, simplified image selection logic in ImageShower, added parameter to
+  `show_only` and update plot settings in ImagePlotter.
+- 🐛 **Bug Fixes**: Fixed RLE decoding and handle empty image data in icu_lib.
+- 🔄 **Version Bump**: Version was bumped to 0.1.14 to reflect the updates and improvements.
+
 ## [v0.1.13] - 2024-12-02
 
 ### 🔖 Version Tag
