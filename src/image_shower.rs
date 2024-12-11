@@ -1,9 +1,8 @@
 use crate::image_plotter::ImagePlotter;
 use eframe::egui;
-use eframe::egui::{Color32, Sense};
+use eframe::egui::{Color32, DroppedFile, Sense};
 use icu_lib::midata::MiData;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
 pub fn show_image(image: MiData) {
     let native_options = eframe::NativeOptions::default();
@@ -31,6 +30,70 @@ pub fn show_image(image: MiData) {
         MiData::GRAY(_) => {}
         MiData::PATH => {}
     };
+}
+
+fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
+    files
+        .iter()
+        .map_while(|file| {
+            let info = if let Some(path) = &file.path {
+                path.display().to_string()
+            } else if !file.name.is_empty() {
+                file.name.clone()
+            } else {
+                return None;
+            };
+
+            let mi_data = match &file.bytes {
+                Some(bytes) => {
+                    if let Some(coder) = icu_lib::endecoder::find_endecoder(bytes) {
+                        coder.decode(bytes.to_vec())
+                    } else {
+                        return None;
+                    }
+                }
+                None => {
+                    let data = std::fs::read(&info);
+                    match data {
+                        Ok(data) => {
+                            if let Some(coder) = icu_lib::endecoder::find_endecoder(&data) {
+                                coder.decode(data)
+                            } else {
+                                return None;
+                            }
+                        }
+                        _ => return None,
+                    }
+                }
+            };
+
+            match mi_data {
+                MiData::RGBA(img_buffer) => {
+                    let width = img_buffer.width();
+                    let height = img_buffer.height();
+                    let image_data = Some(
+                        img_buffer
+                            .chunks(4)
+                            .map(|pixel| {
+                                Color32::from_rgba_unmultiplied(
+                                    pixel[0], pixel[1], pixel[2], pixel[3],
+                                )
+                            })
+                            .collect::<Vec<Color32>>(),
+                    );
+
+                    Some(ImageItem {
+                        path: info,
+                        width,
+                        height,
+                        image_data: image_data.unwrap(),
+                    })
+                }
+                MiData::GRAY(_) => None,
+                MiData::PATH => None,
+            }
+        })
+        .collect()
 }
 
 struct ImageItem {
@@ -256,69 +319,12 @@ impl MyEguiApp {
 
         // Show dropped files (if any):
         if !self.dropped_files.is_empty() {
-            for file in &self.dropped_files {
-                let info = if let Some(path) = &file.path {
-                    path.display().to_string()
-                } else if !file.name.is_empty() {
-                    file.name.clone()
-                } else {
-                    continue;
-                };
-
-                let mi_data = match &file.bytes {
-                    Some(bytes) => {
-                        if let Some(coder) = icu_lib::endecoder::find_endecoder(bytes) {
-                            coder.decode(bytes.to_vec())
-                        } else {
-                            continue;
-                        }
-                    }
-                    None => {
-                        let data = std::fs::read(&info);
-                        match data {
-                            Ok(data) => {
-                                if let Some(coder) = icu_lib::endecoder::find_endecoder(&data) {
-                                    coder.decode(data)
-                                } else {
-                                    continue;
-                                }
-                            }
-                            _ => continue,
-                        }
-                    }
-                };
-
-                match mi_data {
-                    MiData::RGBA(img_buffer) => {
-                        let width = img_buffer.width();
-                        let height = img_buffer.height();
-                        let image_data = Some(
-                            img_buffer
-                                .chunks(4)
-                                .map(|pixel| {
-                                    Color32::from_rgba_unmultiplied(
-                                        pixel[0], pixel[1], pixel[2], pixel[3],
-                                    )
-                                })
-                                .collect::<Vec<Color32>>(),
-                        );
-
-                        self.width = width;
-                        self.height = height;
-                        self.image_data = image_data.clone();
-
-                        self.image_items.push(ImageItem {
-                            path: info,
-                            width,
-                            height,
-                            image_data: image_data.unwrap(),
-                        });
-                    }
-                    MiData::GRAY(_) => {}
-                    MiData::PATH => {}
-                };
+            self.image_items = process_images(&self.dropped_files);
+            if let Some(image) = self.image_items.first() {
+                self.width = image.width;
+                self.height = image.height;
+                self.image_data = Some(image.image_data.clone());
             }
-
             self.dropped_files.clear();
         }
     }
