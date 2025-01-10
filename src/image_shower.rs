@@ -1,7 +1,7 @@
 use crate::image_plotter::ImagePlotter;
 use eframe::egui;
-use eframe::egui::{Color32, DroppedFile, Sense};
 use eframe::egui::color_picker::Alpha;
+use eframe::egui::{Color32, DroppedFile, Sense};
 use icu_lib::midata::MiData;
 use serde::{Deserialize, Serialize};
 
@@ -149,9 +149,14 @@ impl eframe::App for MyEguiApp {
                 ui.toggle_value(&mut self.context.anti_alias, "Anti-Aliasing");
                 ui.separator();
                 if ui.button("Clear").clicked() {
-                    self.context.background_color = self.context.background_color.linear_multiply(0.0);
+                    self.context.background_color =
+                        self.context.background_color.linear_multiply(0.0);
                 }
-                egui::widgets::color_picker::color_edit_button_srgba(ui, &mut self.context.background_color, Alpha::BlendOrAdditive);
+                egui::widgets::color_picker::color_edit_button_srgba(
+                    ui,
+                    &mut self.context.background_color,
+                    Alpha::BlendOrAdditive,
+                );
             });
         });
 
