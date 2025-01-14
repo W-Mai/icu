@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.1.15] - 2025-01-14
+
+### 🔖 Version Tag
+
+- 🔧 **Improvements**: Improved error handling for data size mismatches in lvgl. The logging statement was moved for
+  correct execution, enhancing error reporting in image header processing.
+- 🚀 **New Features**: Improved code formatting and organization in image_shower. Refactored the code for better
+  readability, adjusted import statements and formatted button click event for setting background color with consistent
+  indentation and line breaks.
+- 🔄 **Version Bump**: Version was bumped to 0.1.15 to reflect the updates and improvements.
+
 ## [v0.1.14] - 2024-12-11
 
 ### 🔖 Version Tag
