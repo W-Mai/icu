@@ -77,8 +77,9 @@ impl ImagePlotter {
 
                 let img_w = width as f64;
                 let img_h = height as f64;
-                let copy_image_data = image_data.image_data.clone();
+                let copy_image_data = Rc::new(RefCell::new(image_data.image_data.clone()));
 
+                let copy_image_data_1 = copy_image_data.clone();
                 let color_data_1 = color_data.clone();
                 let color_data_2 = color_data.clone();
                 let cursor_pos_2 = cursor_pos.clone();
@@ -111,8 +112,8 @@ impl ImagePlotter {
                             let row = -pos.y as usize;
                             let col = pos.x as usize;
                             let index = row * img_w as usize + col;
-                            let pixel = copy_image_data[index];
-                            color_data_2.borrow_mut().replace(pixel);
+                            let pixel = &copy_image_data_1.borrow()[index];
+                            color_data_2.borrow_mut().replace(*pixel);
                             cursor_pos_2.borrow_mut().replace([pos.x, pos.y]);
 
                             format!("Pos: {:.2} {:.2}", pos.x, pos.y)
@@ -148,22 +149,50 @@ impl ImagePlotter {
 
                     let plot_bounds = plot_ui.plot_bounds();
                     let plot_size = plot_ui.response().rect;
+                    let scale_fact = 1.2f64;
                     let scale = 1.0 / (plot_bounds.width() as f32 / plot_size.width());
 
-                    let color_data = *color_data.clone().borrow();
-                    let cursor_pos = *cursor_pos.clone().borrow();
-
-                    if let Some(pos) = cursor_pos {
-                        if let Some(pixel) = color_data {
-                            let pos = [pos[0].floor() + 0.5, pos[1].floor() + 0.5];
-
-                            plot_ui.points(
-                                egui_plot::Points::new(vec![pos])
-                                    .shape(egui_plot::MarkerShape::Square)
-                                    .radius(scale)
-                                    .color(pixel),
-                            );
+                    if let Some(pos) = plot_ui.pointer_coordinate() {
+                        if !(pos.x > 0.0 && pos.x < img_w && pos.y < 0.0 && pos.y > -img_h) {
+                            return;
                         }
+
+                        let row = -pos.y as usize;
+                        let col = pos.x as usize;
+                        let index = row * img_w as usize + col;
+                        let pixel = copy_image_data.borrow()[index];
+
+                        let pos = [pos.x.floor() + 0.5, pos.y.floor() + 0.5];
+
+                        plot_ui.points(
+                            egui_plot::Points::new(vec![pos])
+                                .shape(egui_plot::MarkerShape::Square)
+                                .radius(scale)
+                                .color(pixel),
+                        );
+
+                        plot_ui.polygon(
+                            egui_plot::Polygon::new(vec![
+                                [
+                                    pos[0] - 0.5 * scale_fact * scale_fact,
+                                    pos[1] - 0.5 * scale_fact * scale_fact,
+                                ],
+                                [
+                                    pos[0] + 0.5 * scale_fact * scale_fact,
+                                    pos[1] - 0.5 * scale_fact * scale_fact,
+                                ],
+                                [
+                                    pos[0] + 0.5 * scale_fact * scale_fact,
+                                    pos[1] + 0.5 * scale_fact * scale_fact,
+                                ],
+                                [
+                                    pos[0] - 0.5 * scale_fact * scale_fact,
+                                    pos[1] + 0.5 * scale_fact * scale_fact,
+                                ],
+                            ])
+                            .fill_color(pixel)
+                            .stroke(egui::Stroke::new(1.0, Color32::BLACK)),
+                        );
                     }
                 });
             }
