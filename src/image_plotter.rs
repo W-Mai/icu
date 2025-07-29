@@ -116,7 +116,7 @@ impl ImagePlotter {
                             color_data_2.borrow_mut().replace(*pixel);
                             cursor_pos_2.borrow_mut().replace([pos.x, pos.y]);
 
-                            format!("Pos: {:.2} {:.2}", pos.x, pos.y)
+                            format!("Pos: {:.0} {:.0}", pos.x.floor(), -pos.y.floor() - 1.0)
                         } else {
                             color_data_2.take();
                             cursor_pos_2.take();
