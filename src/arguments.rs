@@ -259,8 +259,8 @@ pub fn parse_args() -> Args {
 
     if let Some(generator) = &args.init {
         let mut cmd = Args::command();
-        fn print_completions<G: clap_complete::Generator>(gen: G, cmd: &mut Command) {
-            clap_complete::generate(gen, cmd, cmd.get_name().to_string(), &mut io::stdout());
+        fn print_completions<G: clap_complete::Generator>(g: G, cmd: &mut Command) {
+            clap_complete::generate(g, cmd, cmd.get_name().to_string(), &mut io::stdout());
         }
         print_completions(*generator, &mut cmd);
         std::process::exit(0);

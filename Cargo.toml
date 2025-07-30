@@ -1,7 +1,7 @@
 [package]
 name = "icu_tool"
 version = "0.1.15"
-edition = "2021"
+edition = "2024"
 authors = ["Benign X", "W-Mai"]
 homepage = "https://github.com/W-Mai/icu"
 repository = "https://github.com/W-Mai/icu"
