@@ -190,8 +190,8 @@ impl eframe::App for MyEguiApp {
                     for (index, image_item) in self.image_items.iter().enumerate() {
                         let is_selected = self.selected_image_item_index == Some(index);
                         egui::containers::Frame::default()
-                            .inner_margin(10.0)
-                            .outer_margin(10.0)
+                            .inner_margin(6.0)
+                            .outer_margin(6.0)
                             .rounding(10.0)
                             .show(ui, |ui| {
                                 ui.set_height(100.0);
