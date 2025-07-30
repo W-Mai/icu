@@ -171,6 +171,14 @@ impl eframe::App for MyEguiApp {
             });
         });
 
+        if self.context.image_diff
+            && self.image_items.len() == 2
+            && (self.diff_image1_index.is_none() && self.diff_image2_index.is_none())
+        {
+            self.diff_image1_index = Some(0);
+            self.diff_image2_index = Some(1);
+        }
+
         if self.image_items.len() > 1 {
             egui::SidePanel::left("ImagePicker").show(ctx, |ui| {
                 ui.separator();
