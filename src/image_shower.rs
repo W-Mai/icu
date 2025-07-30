@@ -106,6 +106,7 @@ struct MyEguiApp {
 struct AppContext {
     show_grid: bool,
     anti_alias: bool,
+    image_diff: bool,
     background_color: Color32,
 }
 
@@ -114,6 +115,7 @@ impl Default for AppContext {
         Self {
             show_grid: true,
             anti_alias: true,
+            image_diff: false,
             background_color: Default::default(),
         }
     }
@@ -155,6 +157,7 @@ impl eframe::App for MyEguiApp {
                 ui.separator();
                 ui.toggle_value(&mut self.context.show_grid, "Show Grid");
                 ui.toggle_value(&mut self.context.anti_alias, "Anti-Aliasing");
+                ui.toggle_value(&mut self.context.image_diff, "Image Diff");
                 ui.separator();
                 if ui.button("Clear").clicked() {
                     self.context.background_color =
@@ -205,34 +208,36 @@ impl eframe::App for MyEguiApp {
                                     });
                                 });
 
-                                ui.add_space(8.0);
+                                if self.context.image_diff {
+                                    ui.add_space(8.0);
 
-                                // diff buttons
-                                ui.horizontal(|ui| {
-                                    let diff1_selected = self.diff_image1_index == Some(index);
-                                    let diff2_selected = self.diff_image2_index == Some(index);
-                                    if ui.selectable_label(diff1_selected, "Diff1").clicked() {
-                                        if self.diff_image1_index == Some(index) {
-                                            self.diff_image1_index = None;
-                                        } else {
-                                            self.diff_image1_index = Some(index);
-                                            // avoid selecting the same image
-                                            if self.diff_image2_index == Some(index) {
-                                                self.diff_image2_index = None;
-                                            }
-                                        }
-                                    }
-                                    if ui.selectable_label(diff2_selected, "Diff2").clicked() {
-                                        if self.diff_image2_index == Some(index) {
-                                            self.diff_image2_index = None;
-                                        } else {
-                                            self.diff_image2_index = Some(index);
+                                    // diff buttons
+                                    ui.horizontal(|ui| {
+                                        let diff1_selected = self.diff_image1_index == Some(index);
+                                        let diff2_selected = self.diff_image2_index == Some(index);
+                                        if ui.selectable_label(diff1_selected, "Diff1").clicked() {
                                             if self.diff_image1_index == Some(index) {
                                                 self.diff_image1_index = None;
+                                            } else {
+                                                self.diff_image1_index = Some(index);
+                                                // avoid selecting the same image
+                                                if self.diff_image2_index == Some(index) {
+                                                    self.diff_image2_index = None;
+                                                }
                                             }
                                         }
-                                    }
-                                });
+                                        if ui.selectable_label(diff2_selected, "Diff2").clicked() {
+                                            if self.diff_image2_index == Some(index) {
+                                                self.diff_image2_index = None;
+                                            } else {
+                                                self.diff_image2_index = Some(index);
+                                                if self.diff_image1_index == Some(index) {
+                                                    self.diff_image1_index = None;
+                                                }
+                                            }
+                                        }
+                                    });
+                                }
 
                                 let response = one_sample.response;
                                 let visuals =
@@ -311,7 +316,7 @@ impl eframe::App for MyEguiApp {
                 .show_grid(self.context.show_grid)
                 .background_color(self.context.background_color);
 
-            if let Some(diff_img) = &self.diff_result {
+            if let Some(diff_img) = &self.diff_result && self.context.image_diff {
                 image_plotter.show(ui, &Some(diff_img.clone()));
             } else {
                 image_plotter.show(ui, &self.current_image);
