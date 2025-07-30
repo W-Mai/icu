@@ -96,6 +96,10 @@ struct MyEguiApp {
     dropped_files: Vec<DroppedFile>,
 
     context: AppContext,
+
+    diff_image1_index: Option<usize>,
+    diff_image2_index: Option<usize>,
+    diff_result: Option<ImageItem>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -134,6 +138,10 @@ impl MyEguiApp {
             dropped_files: Default::default(),
 
             context,
+
+            diff_image1_index: None,
+            diff_image2_index: None,
+            diff_result: None,
         }
     }
 }
@@ -169,6 +177,9 @@ impl eframe::App for MyEguiApp {
                         .clicked()
                     {
                         self.image_items.clear();
+                        self.diff_image1_index = None;
+                        self.diff_image2_index = None;
+                        self.diff_result = None;
                     }
                 });
                 ui.separator();
@@ -191,14 +202,11 @@ impl eframe::App for MyEguiApp {
 
                                         image_plotter.show(ui, &Some(image_item.clone()));
                                         ui.add(egui::Label::new(&image_item.path).truncate(true));
-                                    })
+                                    });
                                 });
-
                                 let response = one_sample.response;
-
                                 let visuals =
                                     ui.style().interact_selectable(&response, is_selected);
-
                                 let rect = response.rect;
                                 let response = ui.allocate_rect(rect, Sense::click());
                                 if response.clicked() {
@@ -208,6 +216,33 @@ impl eframe::App for MyEguiApp {
                                 if response.hovered() {
                                     self.hovered_image_item_index = Some(index);
                                 }
+
+                                // diff buttons
+                                ui.horizontal(|ui| {
+                                    let diff1_selected = self.diff_image1_index == Some(index);
+                                    let diff2_selected = self.diff_image2_index == Some(index);
+                                    if ui.selectable_label(diff1_selected, "Diff1").clicked() {
+                                        if self.diff_image1_index == Some(index) {
+                                            self.diff_image1_index = None;
+                                        } else {
+                                            self.diff_image1_index = Some(index);
+                                            // avoid selecting the same image
+                                            if self.diff_image2_index == Some(index) {
+                                                self.diff_image2_index = None;
+                                            }
+                                        }
+                                    }
+                                    if ui.selectable_label(diff2_selected, "Diff2").clicked() {
+                                        if self.diff_image2_index == Some(index) {
+                                            self.diff_image2_index = None;
+                                        } else {
+                                            self.diff_image2_index = Some(index);
+                                            if self.diff_image1_index == Some(index) {
+                                                self.diff_image1_index = None;
+                                            }
+                                        }
+                                    }
+                                });
 
                                 if is_selected
                                     || response.hovered()
@@ -236,13 +271,48 @@ impl eframe::App for MyEguiApp {
             });
         }
 
+        // diff algorithm
+        if let (Some(i1), Some(i2)) = (self.diff_image1_index, self.diff_image2_index) {
+            if i1 != i2 {
+                let img1 = &self.image_items[i1];
+                let img2 = &self.image_items[i2];
+                if img1.width == img2.width && img1.height == img2.height {
+                    // only diff same size
+                    let mut diff_data = Vec::with_capacity(img1.image_data.len());
+                    for (p1, p2) in img1.image_data.iter().zip(&img2.image_data) {
+                        if p1 == p2 {
+                            diff_data.push(Color32::from_rgba_unmultiplied(0, 0, 0, 0));
+                        } else {
+                            diff_data.push(Color32::RED); // diff highlight
+                        }
+                    }
+                    self.diff_result = Some(ImageItem {
+                        path: format!("diff: {} <-> {}", img1.path, img2.path),
+                        width: img1.width,
+                        height: img1.height,
+                        image_data: diff_data,
+                    });
+                } else {
+                    self.diff_result = None;
+                }
+            } else {
+                self.diff_result = None;
+            }
+        } else {
+            self.diff_result = None;
+        }
+
         egui::CentralPanel::default().show(ctx, |ui| {
             let mut image_plotter = ImagePlotter::new("viewer")
                 .anti_alias(self.context.anti_alias)
                 .show_grid(self.context.show_grid)
                 .background_color(self.context.background_color);
 
-            image_plotter.show(ui, &self.current_image);
+            if let Some(diff_img) = &self.diff_result {
+                image_plotter.show(ui, &Some(diff_img.clone()));
+            } else {
+                image_plotter.show(ui, &self.current_image);
+            }
         });
 
         self.ui_file_drag_and_drop(ctx);
