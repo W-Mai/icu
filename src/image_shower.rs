@@ -204,18 +204,8 @@ impl eframe::App for MyEguiApp {
                                         ui.add(egui::Label::new(&image_item.path).truncate(true));
                                     });
                                 });
-                                let response = one_sample.response;
-                                let visuals =
-                                    ui.style().interact_selectable(&response, is_selected);
-                                let rect = response.rect;
-                                let response = ui.allocate_rect(rect, Sense::click());
-                                if response.clicked() {
-                                    self.selected_image_item_index = Some(index);
-                                    self.current_image = Some(image_item.clone());
-                                }
-                                if response.hovered() {
-                                    self.hovered_image_item_index = Some(index);
-                                }
+
+                                ui.add_space(8.0);
 
                                 // diff buttons
                                 ui.horizontal(|ui| {
@@ -243,6 +233,19 @@ impl eframe::App for MyEguiApp {
                                         }
                                     }
                                 });
+
+                                let response = one_sample.response;
+                                let visuals =
+                                    ui.style().interact_selectable(&response, is_selected);
+                                let rect = response.rect;
+                                let response = ui.allocate_rect(rect, Sense::click());
+                                if response.clicked() {
+                                    self.selected_image_item_index = Some(index);
+                                    self.current_image = Some(image_item.clone());
+                                }
+                                if response.hovered() {
+                                    self.hovered_image_item_index = Some(index);
+                                }
 
                                 if is_selected
                                     || response.hovered()
