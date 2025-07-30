@@ -108,6 +108,9 @@ struct AppContext {
     anti_alias: bool,
     image_diff: bool,
     background_color: Color32,
+    diff_alpha: f32, // Controls the alpha blending for diff mode
+                     // Future: add more diff mode options here
+                     // diff_mode: DiffMode, // e.g. OnionSkin, Blink, etc.
 }
 
 impl Default for AppContext {
@@ -117,6 +120,7 @@ impl Default for AppContext {
             anti_alias: true,
             image_diff: false,
             background_color: Default::default(),
+            diff_alpha: 0.5, // Default alpha for diff blending
         }
     }
 }
@@ -168,6 +172,13 @@ impl eframe::App for MyEguiApp {
                     &mut self.context.background_color,
                     Alpha::BlendOrAdditive,
                 );
+                if self.context.image_diff {
+                    ui.separator();
+                    ui.add(
+                        egui::Slider::new(&mut self.context.diff_alpha, 0.0..=1.0)
+                            .text("Diff Alpha"),
+                    );
+                }
             });
         });
 
@@ -293,13 +304,22 @@ impl eframe::App for MyEguiApp {
                 let img1 = &self.image_items[i1];
                 let img2 = &self.image_items[i2];
                 if img1.width == img2.width && img1.height == img2.height {
-                    // only diff same size
+                    // Only diff same size
                     let mut diff_data = Vec::with_capacity(img1.image_data.len());
+                    let diff_alpha = (self.context.diff_alpha * 255.0) as u8;
                     for (p1, p2) in img1.image_data.iter().zip(&img2.image_data) {
                         if p1 == p2 {
-                            diff_data.push(Color32::from_rgba_unmultiplied(0, 0, 0, 0));
+                            // Show original pixel with alpha if same
+                            diff_data.push(Color32::from_rgba_unmultiplied(
+                                p1.r(),
+                                p1.g(),
+                                p1.b(),
+                                diff_alpha,
+                            ));
                         } else {
-                            diff_data.push(Color32::RED); // diff highlight
+                            // Show img2 pixel with alpha controlled by diff_alpha
+                            diff_data
+                                .push(Color32::RED.linear_multiply(1.0 - self.context.diff_alpha));
                         }
                     }
                     self.diff_result = Some(ImageItem {
