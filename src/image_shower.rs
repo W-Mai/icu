@@ -316,7 +316,9 @@ impl eframe::App for MyEguiApp {
                 .show_grid(self.context.show_grid)
                 .background_color(self.context.background_color);
 
-            if let Some(diff_img) = &self.diff_result && self.context.image_diff {
+            if let Some(diff_img) = &self.diff_result
+                && self.context.image_diff
+            {
                 image_plotter.show(ui, &Some(diff_img.clone()));
             } else {
                 image_plotter.show(ui, &self.current_image);
@@ -378,6 +380,7 @@ impl MyEguiApp {
             self.image_items = process_images(&self.dropped_files);
             if let Some(image) = self.image_items.first() {
                 self.current_image = Some(image.clone());
+                self.selected_image_item_index = Some(0);
             }
             self.dropped_files.clear();
         }
