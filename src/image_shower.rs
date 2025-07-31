@@ -108,7 +108,7 @@ struct AppContext {
     anti_alias: bool,
     image_diff: bool,
     background_color: Color32,
-    diff_alpha: f32, // Controls the alpha blending for diff mode
+    diff_blend: f32, // Controls the alpha blending for diff mode
                      // Future: add more diff mode options here
                      // diff_mode: DiffMode, // e.g. OnionSkin, Blink, etc.
 }
@@ -120,7 +120,7 @@ impl Default for AppContext {
             anti_alias: true,
             image_diff: false,
             background_color: Default::default(),
-            diff_alpha: 0.5, // Default alpha for diff blending
+            diff_blend: 0.5, // Default alpha for diff blending
         }
     }
 }
@@ -175,8 +175,8 @@ impl eframe::App for MyEguiApp {
                 if self.context.image_diff {
                     ui.separator();
                     ui.add(
-                        egui::Slider::new(&mut self.context.diff_alpha, 0.0..=1.0)
-                            .text("Diff Alpha"),
+                        egui::Slider::new(&mut self.context.diff_blend, 0.0..=1.0)
+                            .text("Diff Blend"),
                     );
                 }
             });
@@ -308,20 +308,32 @@ impl eframe::App for MyEguiApp {
                 if img1.width == img2.width && img1.height == img2.height {
                     // Only diff same size
                     let mut diff_data = Vec::with_capacity(img1.image_data.len());
-                    let diff_alpha = (self.context.diff_alpha * 255.0) as u8;
+                    let diff_alpha = self.context.diff_blend;
                     for (p1, p2) in img1.image_data.iter().zip(&img2.image_data) {
                         if p1 == p2 {
-                            // Show original pixel with alpha if same
-                            diff_data.push(Color32::from_rgba_unmultiplied(
-                                p1.r(),
-                                p1.g(),
-                                p1.b(),
-                                diff_alpha,
-                            ));
+                            // If pixels are the same, show img1 pixel
+                            diff_data.push(*p1);
                         } else {
-                            // Show img2 pixel with alpha controlled by diff_alpha
-                            diff_data
-                                .push(Color32::RED.linear_multiply(1.0 - self.context.diff_alpha));
+                            // If pixels are different, blend between img1, red, and img2 based on diff_alpha
+                            if diff_alpha <= 0.0 {
+                                // Show img1 pixel
+                                diff_data.push(*p1);
+                            } else if diff_alpha >= 1.0 {
+                                // Show img2 pixel
+                                diff_data.push(*p2);
+                            } else {
+                                // In-between: blend img1/red/img2
+                                // For 0 < diff_alpha < 0.5: blend img1 and red, red weight increases to 1 at 0.5
+                                // For 0.5 < diff_alpha < 1: blend red and img2, img2 weight increases to 1 at 1
+                                let blended = if diff_alpha < 0.5 {
+                                    let t = diff_alpha / 0.5;
+                                    blend_color32(*p1, Color32::RED, t)
+                                } else {
+                                    let t = (diff_alpha - 0.5) / 0.5;
+                                    blend_color32(Color32::RED, *p2, t)
+                                };
+                                diff_data.push(blended);
+                            }
                         }
                     }
                     self.diff_result = Some(ImageItem {
@@ -415,4 +427,14 @@ impl MyEguiApp {
             self.dropped_files.clear();
         }
     }
+}
+
+fn blend_color32(c1: Color32, c2: Color32, t: f32) -> Color32 {
+    let t = t.clamp(0.0, 1.0);
+    Color32::from_rgba_unmultiplied(
+        (c1.r() as f32 * (1.0 - t) + c2.r() as f32 * t) as u8,
+        (c1.g() as f32 * (1.0 - t) + c2.g() as f32 * t) as u8,
+        (c1.b() as f32 * (1.0 - t) + c2.b() as f32 * t) as u8,
+        (c1.a() as f32 * (1.0 - t) + c2.a() as f32 * t) as u8,
+    )
 }
