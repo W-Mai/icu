@@ -113,6 +113,7 @@ struct AppContext {
     fast_switch: bool,      // Whether fast switch is enabled
     fast_switch_speed: f32, // Speed of fast switch (Hz)
     fast_switch_phase: f32, // Internal phase for fast switch
+    only_show_diff: bool,   // Only show diff area
 }
 
 impl Default for AppContext {
@@ -126,6 +127,7 @@ impl Default for AppContext {
             fast_switch: false,
             fast_switch_speed: 1.0,
             fast_switch_phase: 0.0,
+            only_show_diff: false,
         }
     }
 }
@@ -179,16 +181,21 @@ impl eframe::App for MyEguiApp {
                 );
                 if self.context.image_diff {
                     ui.separator();
-                    ui.add(
-                        egui::Slider::new(&mut self.context.diff_blend, 0.0..=1.0)
-                            .text("Diff Blend"),
-                    );
-                    ui.checkbox(&mut self.context.fast_switch, "Fast Switch");
-                    if self.context.fast_switch {
+                    ui.checkbox(&mut self.context.only_show_diff, "Only Show Diff Area");
+                    if !self.context.only_show_diff {
                         ui.add(
-                            egui::Slider::new(&mut self.context.fast_switch_speed, 0.5..=10.0)
-                                .text("Switch Speed (Hz)"),
+                            egui::Slider::new(&mut self.context.diff_blend, 0.0..=1.0)
+                                .text("Diff Blend"),
                         );
+                        ui.checkbox(&mut self.context.fast_switch, "Fast Switch");
+                        if self.context.fast_switch {
+                            ui.add(
+                                egui::Slider::new(&mut self.context.fast_switch_speed, 0.5..=10.0)
+                                    .text("Switch Speed (Hz)"),
+                            );
+                        }
+                    } else {
+                        self.context.fast_switch = false;
                     }
                 }
             });
@@ -365,7 +372,7 @@ impl eframe::App for MyEguiApp {
         }
 
         // Fast switch logic: update diff_blend if enabled
-        if self.context.image_diff && self.context.fast_switch {
+        if self.context.image_diff && self.context.fast_switch && !self.context.only_show_diff {
             let dt = ctx.input(|i| i.stable_dt);
             self.context.fast_switch_phase += dt * self.context.fast_switch_speed;
             if self.context.fast_switch_phase > 1.0 {
@@ -381,7 +388,11 @@ impl eframe::App for MyEguiApp {
                 .anti_alias(self.context.anti_alias)
                 .show_grid(self.context.show_grid)
                 .background_color(self.context.background_color);
-            if let Some(diff_img) = &self.diff_result
+            if self.context.only_show_diff {
+                if let Some(diff_img) = &self.diff_result {
+                    image_plotter.show(ui, &Some(diff_img.clone()));
+                }
+            } else if let Some(diff_img) = &self.diff_result
                 && self.context.image_diff
             {
                 image_plotter.show(ui, &Some(diff_img.clone()));
@@ -393,7 +404,7 @@ impl eframe::App for MyEguiApp {
         self.ui_file_drag_and_drop(ctx);
 
         // When fast_switch is enabled, force continues mode for rendering
-        let render_continues = self.context.fast_switch;
+        let render_continues = self.context.fast_switch && !self.context.only_show_diff;
 
         if render_continues {
             ctx.request_repaint();
