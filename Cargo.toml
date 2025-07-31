@@ -31,7 +31,7 @@ serde_yaml = "0.9.33"
 serde = { version = "1.0.197", features = ["derive"] }
 
 # native:
-[target.'cfg(all(not(target_arch = "wasm32"), platform = "macos"))'.dependencies]
+[target.'cfg(all(not(target_arch = "wasm32"), target_os = "macos"))'.dependencies]
 eframe = { version = "0.32.0", features = [
     "default_fonts",
     "glow",
@@ -39,7 +39,7 @@ eframe = { version = "0.32.0", features = [
     "persistence", # Enable restoring app state when restarting the app.
 ] }
 
-[target.'cfg(all(not(target_arch = "wasm32"), not(platform = "macos")))'.dependencies]
+[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "macos")))'.dependencies]
 eframe = { version = "0.32.0", features = [
     "default_fonts",
     "wayland",
