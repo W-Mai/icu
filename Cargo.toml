@@ -1,6 +1,6 @@
 [package]
 name = "icu_tool"
-version = "0.1.17"
+version = "0.1.17-1"
 edition = "2024"
 authors = ["Benign X", "W-Mai"]
 homepage = "https://github.com/W-Mai/icu"
@@ -44,6 +44,7 @@ eframe = { version = "0.32.0", features = [
     "default_fonts",
     "wayland",
     "x11",
+    "glow",
     "persistence", # Enable restoring app state when restarting the app.
 ] }
 
