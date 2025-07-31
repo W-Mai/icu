@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.1.18] - 2025-08-01
+
+### 🔖 Version Tag
+
+- 🚀 **New Features**: Implemented options in `image_shower.rs` like showing only differences in diff mode, adding option
+  to only show diff area and adjusting fast switch behavior, adding fast switch feature for diff mode with adjustable
+  speed, and enhancing image blending logic and renaming diff_alpha to diff_blend.
+- 📚 **Documentation**: Added components section for artifacts configuration in `oranda.json`.
+- 📦 **Dependency Update**: Updated macOS platform configuration for eframe dependencies in `Cargo.toml`.
+- 🔄 **Version Bump**: Bumped version to v0.1.18.
+
 ## [v0.1.17] - 2025-07-31
 
 ### 🔖 Version Tag
