@@ -2,6 +2,12 @@
   "build": {
     "path_prefix": "icu"
   },
+  "components": {
+    "artifacts": {
+      "auto": true,
+      "cargo_dist": true
+    }
+  },
   "styles": {
     "theme": "hacker"
   }
