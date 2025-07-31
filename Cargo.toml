@@ -24,19 +24,37 @@ path = "src/main.rs"
 icu_lib = { version = "0.1.15" }
 clap = { version = "4.5.20", features = ["derive", "suggestions"] }
 clap_complete = "4.5.1"
-eframe = { version = "0.32.0", features = [
-    "glow",
-    "wayland",
-    "x11",
-    "wgpu",
-    "persistence", # Enable restoring app state when restarting the app.
-] }
 egui_plot = "0.33.0"
 log = "0.4.20"
 env_logger = "0.11.2"
 serde_yaml = "0.9.33"
 serde = { version = "1.0.197", features = ["derive"] }
-rand = "0.8.5"
+
+# native:
+[target.'cfg(all(not(target_arch = "wasm32"), platform = "macos"))'.dependencies]
+eframe = { version = "0.32.0", features = [
+    "default_fonts",
+    "glow",
+    "wgpu",
+    "persistence", # Enable restoring app state when restarting the app.
+] }
+
+[target.'cfg(all(not(target_arch = "wasm32"), not(platform = "macos")))'.dependencies]
+eframe = { version = "0.32.0", features = [
+    "default_fonts",
+    "wayland",
+    "x11",
+    "persistence", # Enable restoring app state when restarting the app.
+] }
+
+# web:
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+eframe = { version = "0.32.0", features = [
+    "default_fonts",
+    "glow",
+    "persistence"
+] }
+wasm-bindgen-futures = "0.4"
 
 [patch.crates-io]
 icu_lib = { path = "icu_lib" }
