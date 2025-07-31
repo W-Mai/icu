@@ -109,8 +109,10 @@ struct AppContext {
     image_diff: bool,
     background_color: Color32,
     diff_blend: f32, // Controls the alpha blending for diff mode
-                     // Future: add more diff mode options here
-                     // diff_mode: DiffMode, // e.g. OnionSkin, Blink, etc.
+
+    fast_switch: bool,      // Whether fast switch is enabled
+    fast_switch_speed: f32, // Speed of fast switch (Hz)
+    fast_switch_phase: f32, // Internal phase for fast switch
 }
 
 impl Default for AppContext {
@@ -121,6 +123,9 @@ impl Default for AppContext {
             image_diff: false,
             background_color: Default::default(),
             diff_blend: 0.5, // Default alpha for diff blending
+            fast_switch: false,
+            fast_switch_speed: 1.0,
+            fast_switch_phase: 0.0,
         }
     }
 }
@@ -178,6 +183,13 @@ impl eframe::App for MyEguiApp {
                         egui::Slider::new(&mut self.context.diff_blend, 0.0..=1.0)
                             .text("Diff Blend"),
                     );
+                    ui.checkbox(&mut self.context.fast_switch, "Fast Switch");
+                    if self.context.fast_switch {
+                        ui.add(
+                            egui::Slider::new(&mut self.context.fast_switch_speed, 0.5..=10.0)
+                                .text("Switch Speed (Hz)"),
+                        );
+                    }
                 }
             });
         });
@@ -352,12 +364,23 @@ impl eframe::App for MyEguiApp {
             self.diff_result = None;
         }
 
+        // Fast switch logic: update diff_blend if enabled
+        if self.context.image_diff && self.context.fast_switch {
+            let dt = ctx.input(|i| i.stable_dt);
+            self.context.fast_switch_phase += dt * self.context.fast_switch_speed;
+            if self.context.fast_switch_phase > 1.0 {
+                self.context.fast_switch_phase -= 1.0;
+            }
+            // Use a square wave: only 0 or 1
+            let phase = self.context.fast_switch_phase;
+            self.context.diff_blend = if phase < 0.5 { 0.0 } else { 1.0 };
+        }
+
         egui::CentralPanel::default().show(ctx, |ui| {
             let mut image_plotter = ImagePlotter::new("viewer")
                 .anti_alias(self.context.anti_alias)
                 .show_grid(self.context.show_grid)
                 .background_color(self.context.background_color);
-
             if let Some(diff_img) = &self.diff_result
                 && self.context.image_diff
             {
@@ -368,6 +391,13 @@ impl eframe::App for MyEguiApp {
         });
 
         self.ui_file_drag_and_drop(ctx);
+
+        // When fast_switch is enabled, force continues mode for rendering
+        let render_continues = self.context.fast_switch;
+
+        if render_continues {
+            ctx.request_repaint();
+        }
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
