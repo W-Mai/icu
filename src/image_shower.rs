@@ -330,8 +330,14 @@ impl eframe::App for MyEguiApp {
                     let diff_alpha = self.context.diff_blend;
                     for (p1, p2) in img1.image_data.iter().zip(&img2.image_data) {
                         if p1 == p2 {
-                            // If pixels are the same, show img1 pixel
-                            diff_data.push(*p1);
+                            if self.context.only_show_diff {
+                                diff_data.push(Color32::TRANSPARENT);
+                            } else {
+                                // If pixels are the same, show img1 pixel
+                                diff_data.push(*p1);
+                            }
+                        } else if self.context.only_show_diff {
+                            diff_data.push(Color32::RED);
                         } else {
                             // If pixels are different, blend between img1, red, and img2 based on diff_alpha
                             if diff_alpha <= 0.0 {
