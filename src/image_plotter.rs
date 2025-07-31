@@ -59,10 +59,10 @@ impl ImagePlotter {
                 let width = image_data.width as f32;
                 let height = image_data.height as f32;
 
-                let image = ColorImage {
-                    size: [width as usize, height as usize],
-                    pixels: image_data.image_data.clone(),
-                };
+                let image = ColorImage::new(
+                    [width as usize, height as usize],
+                    image_data.image_data.clone(),
+                );
                 let texture = ui.ctx().load_texture(
                     format!("showing_image_{}", self.id),
                     image,
@@ -84,29 +84,9 @@ impl ImagePlotter {
                 let color_data_2 = color_data.clone();
                 let cursor_pos_2 = cursor_pos.clone();
 
-                let plot = egui_plot::Plot::new(format!("plot{}", self.id))
+                let mut plot = egui_plot::Plot::new(format!("plot{}", self.id))
                     .data_aspect(1.0)
-                    .y_axis_formatter(move |y, _, _| format!("{:.0}", -y.value))
-                    .coordinates_formatter(
-                        Corner::LeftBottom,
-                        CoordinatesFormatter::new(move |p, _b| {
-                            let color_data = *color_data_1.borrow();
-                            match color_data {
-                                None => {
-                                    format!("Nothing {:.0} {:.0}", p.x.floor(), p.y.ceil())
-                                }
-                                Some(pixel) => {
-                                    format!(
-                                        "RGBA: #{:02X}_{:02X}_{:02X}_{:02X}",
-                                        pixel.r(),
-                                        pixel.g(),
-                                        pixel.b(),
-                                        pixel.a(),
-                                    )
-                                }
-                            }
-                        }),
-                    )
+                    .y_axis_formatter(move |y, _| format!("{:.0}", -y.value))
                     .label_formatter(move |_text, pos| {
                         if pos.x > 0.0 && pos.x < img_w && pos.y < 0.0 && pos.y > -img_h {
                             let row = -pos.y as usize;
@@ -126,7 +106,6 @@ impl ImagePlotter {
                     .boxed_zoom_pointer_button(PointerButton::Extra2)
                     .show_grid([self.show_grid, self.show_grid])
                     .clamp_grid(true)
-                    .sharp_grid_lines(false)
                     .show_axes([!self.show_only, !self.show_only])
                     .allow_scroll(!self.show_only)
                     .allow_zoom(!self.show_only)
@@ -135,6 +114,29 @@ impl ImagePlotter {
                     .show_y(!self.show_only)
                     .show_background(self.background_color.is_additive());
 
+                if !self.show_only {
+                    plot = plot.coordinates_formatter(
+                        Corner::LeftBottom,
+                        CoordinatesFormatter::new(|p, _b| {
+                            let color_data = *color_data_1.borrow();
+                            match color_data {
+                                None => {
+                                    format!("Nothing {:.0} {:.0}", p.x.floor(), p.y.ceil())
+                                }
+                                Some(pixel) => {
+                                    format!(
+                                        "RGBA: #{:02X}_{:02X}_{:02X}_{:02X}",
+                                        pixel.r(),
+                                        pixel.g(),
+                                        pixel.b(),
+                                        pixel.a(),
+                                    )
+                                }
+                            }
+                        }),
+                    )
+                }
+
                 if self.background_color.a() > 0 {
                     let painter = ui.painter();
                     painter.rect_filled(ui.min_rect(), 0.0, self.background_color);
@@ -142,6 +144,7 @@ impl ImagePlotter {
 
                 plot.show(ui, |plot_ui| {
                     plot_ui.image(PlotImage::new(
+                        "image",
                         texture.id,
                         PlotPoint::new(img_w / 2.0, -img_h / 2.0),
                         texture.size,
@@ -165,31 +168,34 @@ impl ImagePlotter {
                         let pos = [pos.x.floor() + 0.5, pos.y.floor() + 0.5];
 
                         plot_ui.points(
-                            egui_plot::Points::new(vec![pos])
+                            egui_plot::Points::new("cursor", vec![pos])
                                 .shape(egui_plot::MarkerShape::Square)
                                 .radius(scale)
                                 .color(pixel),
                         );
 
                         plot_ui.polygon(
-                            egui_plot::Polygon::new(vec![
-                                [
-                                    pos[0] - 0.5 * scale_fact * scale_fact,
-                                    pos[1] - 0.5 * scale_fact * scale_fact,
+                            egui_plot::Polygon::new(
+                                "cursor",
+                                vec![
+                                    [
+                                        pos[0] - 0.5 * scale_fact * scale_fact,
+                                        pos[1] - 0.5 * scale_fact * scale_fact,
+                                    ],
+                                    [
+                                        pos[0] + 0.5 * scale_fact * scale_fact,
+                                        pos[1] - 0.5 * scale_fact * scale_fact,
+                                    ],
+                                    [
+                                        pos[0] + 0.5 * scale_fact * scale_fact,
+                                        pos[1] + 0.5 * scale_fact * scale_fact,
+                                    ],
+                                    [
+                                        pos[0] - 0.5 * scale_fact * scale_fact,
+                                        pos[1] + 0.5 * scale_fact * scale_fact,
+                                    ],
                                 ],
-                                [
-                                    pos[0] + 0.5 * scale_fact * scale_fact,
-                                    pos[1] - 0.5 * scale_fact * scale_fact,
-                                ],
-                                [
-                                    pos[0] + 0.5 * scale_fact * scale_fact,
-                                    pos[1] + 0.5 * scale_fact * scale_fact,
-                                ],
-                                [
-                                    pos[0] - 0.5 * scale_fact * scale_fact,
-                                    pos[1] + 0.5 * scale_fact * scale_fact,
-                                ],
-                            ])
+                            )
                             .fill_color(pixel)
                             .stroke(egui::Stroke::new(1.0, Color32::BLACK)),
                         );

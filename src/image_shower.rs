@@ -11,7 +11,7 @@ pub fn show_image(files: Vec<DroppedFile>) {
     eframe::run_native(
         "ICU Preview",
         native_options,
-        Box::new(move |cc| Box::new(MyEguiApp::new(cc, files))),
+        Box::new(move |cc| Ok(Box::new(MyEguiApp::new(cc, files)))),
     )
     .expect("Failed to run eframe");
 }
@@ -157,7 +157,7 @@ impl eframe::App for MyEguiApp {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                 ui.set_height(30.0);
-                egui::widgets::global_dark_light_mode_switch(ui);
+                egui::widgets::global_theme_preference_switch(ui);
                 ui.separator();
                 ui.toggle_value(&mut self.context.show_grid, "Show Grid");
                 ui.toggle_value(&mut self.context.anti_alias, "Anti-Aliasing");
@@ -211,7 +211,7 @@ impl eframe::App for MyEguiApp {
                         egui::containers::Frame::default()
                             .inner_margin(6.0)
                             .outer_margin(6.0)
-                            .rounding(10.0)
+                            .corner_radius(10.0)
                             .show(ui, |ui| {
                                 ui.set_height(100.0);
                                 let one_sample = ui.vertical_centered(|ui| {
@@ -223,7 +223,7 @@ impl eframe::App for MyEguiApp {
                                                 .show_only(true);
 
                                         image_plotter.show(ui, &Some(image_item.clone()));
-                                        ui.add(egui::Label::new(&image_item.path).truncate(true));
+                                        ui.add(egui::Label::new(&image_item.path).truncate());
                                     });
                                 });
 
@@ -284,12 +284,14 @@ impl eframe::App for MyEguiApp {
                                         10.0,
                                         Color32::TRANSPARENT,
                                         egui::Stroke::new(2.0, ui.style().visuals.hyperlink_color),
+                                        egui::StrokeKind::Inside,
                                     );
                                     painter.rect(
                                         rect,
                                         10.0,
                                         visuals.text_color().linear_multiply(0.3),
                                         egui::Stroke::NONE,
+                                        egui::StrokeKind::Inside,
                                     );
                                 }
                             });

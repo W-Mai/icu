@@ -3,13 +3,13 @@ mod image_plotter;
 mod image_shower;
 
 use crate::arguments::{
-    parse_args, ImageFormatCategory, ImageFormats, OutputFileFormatCategory, SubCommands,
+    ImageFormatCategory, ImageFormats, OutputFileFormatCategory, SubCommands, parse_args,
 };
 use crate::image_shower::show_image;
 use eframe::egui::DroppedFile;
-use icu_lib::endecoder::{common, find_endecoder, lvgl, EnDecoder};
+use icu_lib::endecoder::{EnDecoder, common, find_endecoder, lvgl};
 use icu_lib::midata::MiData;
-use icu_lib::{endecoder, EncoderParams};
+use icu_lib::{EncoderParams, endecoder};
 use std::fs;
 use std::path::{Path, PathBuf};
 
