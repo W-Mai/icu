@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.1.16] - 2025-07-31
+
+### 🔖 Version Tag
+
+- 🚀 **New Features**: Added diff support, supported alpha control, initialized diff image indices, adjusted inner and
+  outer margins,
+  enhanced image diff handling and selected image index, added image diff toggle and updated UI, refined position
+  formatting in ImagePlotter, enhanced pixel rendering and added polygon support in ImagePlotter for pixel showing.
+- 🎨 **Improvements**: Reorganized image selection logic in ImageShower for improved clarity and responsiveness.
+- 🔄 **Version Bump**: Version was bumped to 0.1.16 to reflect the updates and improvements.
+
 ## [v0.1.15] - 2025-01-14
 
 ### 🔖 Version Tag
