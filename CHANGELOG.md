@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.1.17] - 2025-07-31
+
+### 🔖 Version Tag
+
+- 🧹 **Chores**: Update crate dependencies.
+- 🔄 **Version Bump**: Version was bumped to 0.1.16 to reflect the updates and improvements.
+
 ## [v0.1.16] - 2025-07-31
 
 ### 🔖 Version Tag
