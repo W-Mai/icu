@@ -156,7 +156,10 @@ struct AppContext {
     anti_alias: bool,
     image_diff: bool,
     background_color: Color32,
-    diff_blend: f32, // Controls the alpha blending for diff mode
+    diff_blend: f32,     // Controls the alpha blending for diff mode
+    diff_tolerance: f32, // Tolerance for diff
+    min_diff: f32,       // Minimum diff to show
+    max_diff: f32,       // Maximum diff to show
 
     fast_switch: bool,      // Whether fast switch is enabled
     fast_switch_speed: f32, // Speed of fast switch (Hz)
@@ -171,7 +174,10 @@ impl Default for AppContext {
             anti_alias: true,
             image_diff: false,
             background_color: Default::default(),
-            diff_blend: 0.5, // Default alpha for diff blending
+            diff_blend: 0.5,     // Default alpha for diff blending
+            diff_tolerance: 0.1, // Default tolerance for diff
+            min_diff: 0.0,       // Default minimum diff to show
+            max_diff: f32::MAX,  // Default maximum diff to show
             fast_switch: false,
             fast_switch_speed: 1.0,
             fast_switch_phase: 0.0,
@@ -245,6 +251,14 @@ impl eframe::App for MyEguiApp {
                     } else {
                         self.context.fast_switch = false;
                     }
+
+                    ui.add(
+                        egui::Slider::new(
+                            &mut self.context.diff_tolerance,
+                            self.context.min_diff..=self.context.max_diff,
+                        )
+                        .text("Diff Tolerance"),
+                    );
                 }
             });
         });
@@ -376,28 +390,36 @@ impl eframe::App for MyEguiApp {
                     // Only diff same size
                     let mut diff_data = Vec::with_capacity(img1.image_data.len());
                     let diff_alpha = self.context.diff_blend;
+                    let tolerance = self.context.diff_tolerance; // Now in pixel diff units (0~1020)
+                    let mut min_diff = f32::MAX;
+                    let mut max_diff = f32::MIN;
+                    // First pass: find min/max diff (in absolute pixel diff)
                     for (p1, p2) in img1.image_data.iter().zip(&img2.image_data) {
-                        if p1 == p2 {
+                        let d = color_diff_f32(*p1, *p2) * 255.0 * 4.0;
+                        if d < min_diff {
+                            min_diff = d;
+                        }
+                        if d > max_diff {
+                            max_diff = d;
+                        }
+                    }
+                    // Second pass: apply tolerance (tolerance is absolute pixel diff)
+                    for (p1, p2) in img1.image_data.iter().zip(&img2.image_data) {
+                        let d = color_diff_f32(*p1, *p2) * 255.0 * 4.0;
+                        if d < tolerance {
                             if self.context.only_show_diff {
                                 diff_data.push(Color32::TRANSPARENT);
                             } else {
-                                // If pixels are the same, show img1 pixel
                                 diff_data.push(*p1);
                             }
                         } else if self.context.only_show_diff {
                             diff_data.push(Color32::RED);
                         } else {
-                            // If pixels are different, blend between img1, red, and img2 based on diff_alpha
                             if diff_alpha <= 0.0 {
-                                // Show img1 pixel
                                 diff_data.push(*p1);
                             } else if diff_alpha >= 1.0 {
-                                // Show img2 pixel
                                 diff_data.push(*p2);
                             } else {
-                                // In-between: blend img1/red/img2
-                                // For 0 < diff_alpha < 0.5: blend img1 and red, red weight increases to 1 at 0.5
-                                // For 0.5 < diff_alpha < 1: blend red and img2, img2 weight increases to 1 at 1
                                 let blended = if diff_alpha < 0.5 {
                                     let t = diff_alpha / 0.5;
                                     blend_color32(*p1, Color32::RED, t)
@@ -415,6 +437,9 @@ impl eframe::App for MyEguiApp {
                         height: img1.height,
                         image_data: diff_data,
                     });
+
+                    self.context.min_diff = min_diff + 1.0;
+                    self.context.max_diff = max_diff + 1.0;
                 } else {
                     self.diff_result = None;
                 }
@@ -532,4 +557,14 @@ fn blend_color32(c1: Color32, c2: Color32, t: f32) -> Color32 {
         (c1.b() as f32 * (1.0 - t) + c2.b() as f32 * t) as u8,
         (c1.a() as f32 * (1.0 - t) + c2.a() as f32 * t) as u8,
     )
+}
+
+fn color_diff_f32(c1: Color32, c2: Color32) -> f32 {
+    // Simple Euclidean distance in RGBA space, normalized to [0,1]
+    let dr = c1.r() as f32 - c2.r() as f32;
+    let dg = c1.g() as f32 - c2.g() as f32;
+    let db = c1.b() as f32 - c2.b() as f32;
+    let da = c1.a() as f32 - c2.a() as f32;
+
+    (dr * dr + dg * dg + db * db + da * da).sqrt() / (4.0 * 255.0)
 }
