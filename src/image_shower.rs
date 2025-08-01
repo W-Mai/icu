@@ -414,21 +414,19 @@ impl eframe::App for MyEguiApp {
                             }
                         } else if self.context.only_show_diff {
                             diff_data.push(Color32::RED);
+                        } else if diff_alpha <= 0.0 {
+                            diff_data.push(*p1);
+                        } else if diff_alpha >= 1.0 {
+                            diff_data.push(*p2);
                         } else {
-                            if diff_alpha <= 0.0 {
-                                diff_data.push(*p1);
-                            } else if diff_alpha >= 1.0 {
-                                diff_data.push(*p2);
+                            let blended = if diff_alpha < 0.5 {
+                                let t = diff_alpha / 0.5;
+                                blend_color32(*p1, Color32::RED, t)
                             } else {
-                                let blended = if diff_alpha < 0.5 {
-                                    let t = diff_alpha / 0.5;
-                                    blend_color32(*p1, Color32::RED, t)
-                                } else {
-                                    let t = (diff_alpha - 0.5) / 0.5;
-                                    blend_color32(Color32::RED, *p2, t)
-                                };
-                                diff_data.push(blended);
-                            }
+                                let t = (diff_alpha - 0.5) / 0.5;
+                                blend_color32(Color32::RED, *p2, t)
+                            };
+                            diff_data.push(blended);
                         }
                     }
                     self.diff_result = Some(ImageItem {
@@ -559,12 +557,22 @@ fn blend_color32(c1: Color32, c2: Color32, t: f32) -> Color32 {
     )
 }
 
+// fn color_diff_f32(c1: Color32, c2: Color32) -> f32 {
+//     // Simple Euclidean distance in RGBA space, normalized to [0,1]
+//     let dr = c1.r() as f32 - c2.r() as f32;
+//     let dg = c1.g() as f32 - c2.g() as f32;
+//     let db = c1.b() as f32 - c2.b() as f32;
+//     let da = c1.a() as f32 - c2.a() as f32;
+//
+//     (dr * dr + dg * dg + db * db + da * da).sqrt() / (4.0 * 255.0)
+// }
+
 fn color_diff_f32(c1: Color32, c2: Color32) -> f32 {
     // Simple Euclidean distance in RGBA space, normalized to [0,1]
-    let dr = c1.r() as f32 - c2.r() as f32;
-    let dg = c1.g() as f32 - c2.g() as f32;
-    let db = c1.b() as f32 - c2.b() as f32;
-    let da = c1.a() as f32 - c2.a() as f32;
+    let dr = c1.r().abs_diff(c2.r());
+    let dg = c1.g().abs_diff(c2.g());
+    let db = c1.b().abs_diff(c2.b());
+    let da = c1.a().abs_diff(c2.a());
 
-    (dr * dr + dg * dg + db * db + da * da).sqrt() / (4.0 * 255.0)
+    dr.max(dg).min(db).max(da) as f32 / (4.0 * 255.0)
 }
