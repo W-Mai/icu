@@ -55,7 +55,8 @@ eframe = { version = "0.32.0", features = [
     "glow",
     "persistence"
 ] }
-wasm-bindgen-futures = "0.4"
+wasm-bindgen-futures = "0.4.50"
+web-sys = "0.3.70"              # to access the DOM (to hide the loading text)
 
 [patch.crates-io]
 icu_lib = { path = "icu_lib" }
