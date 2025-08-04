@@ -40,62 +40,58 @@ pub fn diff_image(
 ) -> Option<(ImageItem, f32, f32)> {
     if img1.image_data != img2.image_data && img1.width == img2.width && img1.height == img2.height
     {
-        if img1.width == img2.width && img1.height == img2.height {
-            // Only diff same size
-            let mut diff_data = Vec::with_capacity(img1.image_data.len());
-            let diff_blend = diff_blend;
-            let tolerance = diff_tolerance; // Now in pixel diff units (0~1020)
-            let mut min_diff = f32::MAX;
-            let mut max_diff = f32::MIN;
-            // First pass: find min/max diff (in absolute pixel diff)
-            for (p1, p2) in img1.image_data.iter().zip(&img2.image_data) {
-                let d = color_diff_f32(*p1, *p2) * 255.0 * 4.0;
-                if d < min_diff {
-                    min_diff = d;
-                }
-                if d > max_diff {
-                    max_diff = d;
-                }
+        // Only diff same size
+        let mut diff_data = Vec::with_capacity(img1.image_data.len());
+        let blend = diff_blend;
+        let tolerance = diff_tolerance; // Now in pixel diff units (0~1020)
+        let mut min_diff = f32::MAX;
+        let mut max_diff = f32::MIN;
+        // First pass: find min/max diff (in absolute pixel diff)
+        for (p1, p2) in img1.image_data.iter().zip(&img2.image_data) {
+            let d = color_diff_f32(*p1, *p2) * 255.0 * 4.0;
+            if d < min_diff {
+                min_diff = d;
             }
-            // Second pass: apply tolerance (tolerance is absolute pixel diff)
-            for (p1, p2) in img1.image_data.iter().zip(&img2.image_data) {
-                let d = color_diff_f32(*p1, *p2) * 255.0 * 4.0;
-                if d < tolerance {
-                    if only_show_diff {
-                        diff_data.push(Color32::TRANSPARENT);
-                    } else {
-                        diff_data.push(*p1);
-                    }
-                } else if only_show_diff {
-                    diff_data.push(Color32::RED);
-                } else if diff_blend <= 0.0 {
-                    diff_data.push(*p1);
-                } else if diff_blend >= 1.0 {
-                    diff_data.push(*p2);
-                } else {
-                    let blended = if diff_blend < 0.5 {
-                        let t = diff_blend / 0.5;
-                        blend_color32(*p1, Color32::RED, t)
-                    } else {
-                        let t = (diff_blend - 0.5) / 0.5;
-                        blend_color32(Color32::RED, *p2, t)
-                    };
-                    diff_data.push(blended);
-                }
+            if d > max_diff {
+                max_diff = d;
             }
-            Some((
-                ImageItem {
-                    path: format!("diff: {} <-> {}", img1.path, img2.path),
-                    width: img1.width,
-                    height: img1.height,
-                    image_data: diff_data,
-                },
-                min_diff,
-                max_diff,
-            ))
-        } else {
-            None
         }
+        // Second pass: apply tolerance (tolerance is absolute pixel diff)
+        for (p1, p2) in img1.image_data.iter().zip(&img2.image_data) {
+            let d = color_diff_f32(*p1, *p2) * 255.0 * 4.0;
+            if d < tolerance {
+                if only_show_diff {
+                    diff_data.push(Color32::TRANSPARENT);
+                } else {
+                    diff_data.push(*p1);
+                }
+            } else if only_show_diff {
+                diff_data.push(Color32::RED);
+            } else if blend <= 0.0 {
+                diff_data.push(*p1);
+            } else if blend >= 1.0 {
+                diff_data.push(*p2);
+            } else {
+                let blended = if blend < 0.5 {
+                    let t = blend / 0.5;
+                    blend_color32(*p1, Color32::RED, t)
+                } else {
+                    let t = (blend - 0.5) / 0.5;
+                    blend_color32(Color32::RED, *p2, t)
+                };
+                diff_data.push(blended);
+            }
+        }
+        Some((
+            ImageItem {
+                path: format!("diff: {} <-> {}", img1.path, img2.path),
+                width: img1.width,
+                height: img1.height,
+                image_data: diff_data,
+            },
+            min_diff,
+            max_diff,
+        ))
     } else {
         None
     }
