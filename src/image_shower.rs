@@ -1,4 +1,5 @@
 use crate::image_plotter::ImagePlotter;
+use crate::utils;
 use eframe::egui;
 use eframe::egui::color_picker::Alpha;
 use eframe::egui::{Color32, DroppedFile, Sense};
@@ -124,7 +125,7 @@ fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
         .collect()
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct ImageItem {
     pub path: String,
 
@@ -382,68 +383,23 @@ impl eframe::App for MyEguiApp {
         }
 
         // diff algorithm
-        if let (Some(i1), Some(i2)) = (self.diff_image1_index, self.diff_image2_index) {
-            if i1 != i2 {
-                let img1 = &self.image_items[i1];
-                let img2 = &self.image_items[i2];
-                if img1.width == img2.width && img1.height == img2.height {
-                    // Only diff same size
-                    let mut diff_data = Vec::with_capacity(img1.image_data.len());
-                    let diff_alpha = self.context.diff_blend;
-                    let tolerance = self.context.diff_tolerance; // Now in pixel diff units (0~1020)
-                    let mut min_diff = f32::MAX;
-                    let mut max_diff = f32::MIN;
-                    // First pass: find min/max diff (in absolute pixel diff)
-                    for (p1, p2) in img1.image_data.iter().zip(&img2.image_data) {
-                        let d = color_diff_f32(*p1, *p2) * 255.0 * 4.0;
-                        if d < min_diff {
-                            min_diff = d;
-                        }
-                        if d > max_diff {
-                            max_diff = d;
-                        }
-                    }
-                    // Second pass: apply tolerance (tolerance is absolute pixel diff)
-                    for (p1, p2) in img1.image_data.iter().zip(&img2.image_data) {
-                        let d = color_diff_f32(*p1, *p2) * 255.0 * 4.0;
-                        if d < tolerance {
-                            if self.context.only_show_diff {
-                                diff_data.push(Color32::TRANSPARENT);
-                            } else {
-                                diff_data.push(*p1);
-                            }
-                        } else if self.context.only_show_diff {
-                            diff_data.push(Color32::RED);
-                        } else if diff_alpha <= 0.0 {
-                            diff_data.push(*p1);
-                        } else if diff_alpha >= 1.0 {
-                            diff_data.push(*p2);
-                        } else {
-                            let blended = if diff_alpha < 0.5 {
-                                let t = diff_alpha / 0.5;
-                                blend_color32(*p1, Color32::RED, t)
-                            } else {
-                                let t = (diff_alpha - 0.5) / 0.5;
-                                blend_color32(Color32::RED, *p2, t)
-                            };
-                            diff_data.push(blended);
-                        }
-                    }
-                    self.diff_result = Some(ImageItem {
-                        path: format!("diff: {} <-> {}", img1.path, img2.path),
-                        width: img1.width,
-                        height: img1.height,
-                        image_data: diff_data,
-                    });
-
-                    self.context.min_diff = min_diff + 1.0;
-                    self.context.max_diff = max_diff + 1.0;
-                } else {
-                    self.diff_result = None;
-                }
-            } else {
-                self.diff_result = None;
-            }
+        if let (Some(i1), Some(i2)) = (self.diff_image1_index, self.diff_image2_index)
+            && i1 != i2
+        {
+            let img1 = &self.image_items[i1];
+            let img2 = &self.image_items[i2];
+            let diff_result = utils::diff_image(
+                img1,
+                img2,
+                self.context.diff_blend,
+                self.context.diff_tolerance,
+                self.context.only_show_diff,
+            );
+            self.diff_result = diff_result.map(|(img, min_diff, max_diff)| {
+                self.context.min_diff = min_diff + 1.0;
+                self.context.max_diff = max_diff + 1.0;
+                img
+            });
         } else {
             self.diff_result = None;
         }
@@ -545,34 +501,4 @@ impl MyEguiApp {
             self.dropped_files.clear();
         }
     }
-}
-
-fn blend_color32(c1: Color32, c2: Color32, t: f32) -> Color32 {
-    let t = t.clamp(0.0, 1.0);
-    Color32::from_rgba_unmultiplied(
-        (c1.r() as f32 * (1.0 - t) + c2.r() as f32 * t) as u8,
-        (c1.g() as f32 * (1.0 - t) + c2.g() as f32 * t) as u8,
-        (c1.b() as f32 * (1.0 - t) + c2.b() as f32 * t) as u8,
-        (c1.a() as f32 * (1.0 - t) + c2.a() as f32 * t) as u8,
-    )
-}
-
-// fn color_diff_f32(c1: Color32, c2: Color32) -> f32 {
-//     // Simple Euclidean distance in RGBA space, normalized to [0,1]
-//     let dr = c1.r() as f32 - c2.r() as f32;
-//     let dg = c1.g() as f32 - c2.g() as f32;
-//     let db = c1.b() as f32 - c2.b() as f32;
-//     let da = c1.a() as f32 - c2.a() as f32;
-//
-//     (dr * dr + dg * dg + db * db + da * da).sqrt() / (4.0 * 255.0)
-// }
-
-fn color_diff_f32(c1: Color32, c2: Color32) -> f32 {
-    // Simple Euclidean distance in RGBA space, normalized to [0,1]
-    let dr = c1.r().abs_diff(c2.r());
-    let dg = c1.g().abs_diff(c2.g());
-    let db = c1.b().abs_diff(c2.b());
-    let da = c1.a().abs_diff(c2.a());
-
-    dr.max(dg).min(db).max(da) as f32 / (4.0 * 255.0)
 }

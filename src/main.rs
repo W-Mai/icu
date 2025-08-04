@@ -4,6 +4,7 @@ mod arguments;
 mod cli;
 mod image_plotter;
 mod image_shower;
+mod utils;
 
 // When compiling to web using trunk:
 #[cfg(target_arch = "wasm32")]
