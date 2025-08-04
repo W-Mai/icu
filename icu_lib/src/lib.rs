@@ -2,6 +2,7 @@ use crate::endecoder::lvgl;
 
 pub mod endecoder;
 pub mod midata;
+type RawImageHeader = lvgl::ImageHeader;
 
 pub struct EncoderParams {
     pub color_format: lvgl::ColorFormat,
@@ -9,6 +10,7 @@ pub struct EncoderParams {
     pub dither: Option<u32>,
     pub compress: lvgl::Compress,
     pub lvgl_version: lvgl::LVGLVersion,
+    pub raw_image_header: Option<RawImageHeader>,
 }
 
 impl Default for EncoderParams {
@@ -19,6 +21,7 @@ impl Default for EncoderParams {
             dither: None,
             compress: Default::default(),
             lvgl_version: lvgl::LVGLVersion::Unknown,
+            raw_image_header: Default::default(),
         }
     }
 }
@@ -50,6 +53,11 @@ impl EncoderParams {
 
     pub fn with_lvgl_version(mut self, lvgl_version: lvgl::LVGLVersion) -> Self {
         self.lvgl_version = lvgl_version;
+        self
+    }
+
+    pub fn with_raw_image_header(mut self, raw_image_header: RawImageHeader) -> Self {
+        self.raw_image_header = Some(raw_image_header);
         self
     }
 }
