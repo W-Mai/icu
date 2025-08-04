@@ -21,7 +21,7 @@ name = "icu"
 path = "src/main.rs"
 
 [dependencies]
-icu_lib = { version = "0.1.15" }
+icu_lib = { version = "0.1.16" }
 clap = { version = "4.5.20", features = ["derive", "suggestions"] }
 clap_complete = "4.5.1"
 egui_plot = "0.33.0"
