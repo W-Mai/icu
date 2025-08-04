@@ -17,3 +17,9 @@ impl MiData {
         ed.encode(self, encoder_params)
     }
 }
+
+impl MiData {
+    pub fn from_rgba(w: u32, h: u32, data: Vec<u8>) -> Option<Self> {
+        Some(MiData::RGBA(RgbaImage::from_vec(w, h, data)?))
+    }
+}
