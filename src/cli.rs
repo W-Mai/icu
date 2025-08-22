@@ -182,6 +182,12 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
                 );
 
                 converted_files += 1;
+                if !*stdout {
+                    std::ops::ControlFlow::Continue(())
+                } else {
+                    log::error!("stdout is set, only one file <{}> can be converted", file_path.to_string_lossy());
+                    std::ops::ControlFlow::Break(())
+                }
             });
 
             let end_time = std::time::Instant::now();
@@ -204,7 +210,7 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn deal_input_file_paths<F: FnMut(&String)>(
+fn deal_input_file_paths<F: FnMut(&String) -> std::ops::ControlFlow<()>>(
     input_files: &[String],
     input_folder: &Option<PathBuf>,
     mut deal_func: F,
@@ -219,7 +225,9 @@ fn deal_input_file_paths<F: FnMut(&String)>(
                     let path = entry.path();
                     if path.is_file() {
                         let path_string = path.to_string_lossy().into();
-                        deal_func(&path_string);
+                        if let std::ops::ControlFlow::Break(_) = deal_func(&path_string) {
+                            return;
+                        }
                     } else if path.is_dir() {
                         folder_list.push(path);
                     }
@@ -246,7 +254,7 @@ fn deal_input_file_paths<F: FnMut(&String)>(
                     }
                 }
             })
-            .for_each(|file_name| deal_func(&file_name));
+            .try_for_each(|file_name| deal_func(&file_name)).break_value();
     }
 }
 
