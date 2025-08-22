@@ -1,5 +1,22 @@
 # Changelog
 
+## [v0.1.19] - 2025-08-22
+
+### 🔖 Version Tag
+
+- 🔧 **Improvements**: Updated deal_input_file_paths to handle stdout option and control flow.
+- 🔧 **Improvements**: Bumped icu_lib version to 0.1.16 for compatibility and updates.
+- 🔧 **Refactoring**: Refactored image diff logic to use icu_lib for improved performance and clarity.
+- 🔧 **Refactoring**: Bumped version to 0.1.16 and updated RawImage methods to use parameters.
+- 🔧 **Refactoring**: Restructured file tree, moved functions to cli mod.
+- ✨ **New Features**: Added stdout option for outputting converted results directly to console.
+- ✨ **New Features**: Added raw image header support and implemented RawImage struct for encoding/decoding.
+- 💖 **Improvements**: Simplified image diff logic and improved variable naming.
+- 💖 **Improvements**: Refactored image diff logic into utils module.
+- 🎨 **Improvements**: Optimized color difference calculation and simplified blending logic.
+- 🎨 **Improvements**: Added diff tolerance and min/max diff controls for improved image comparison.
+- 🎉 **New Features**: Added initial project files for ICU Web UI with Nix flake and service worker.
+
 ## [v0.1.18] - 2025-08-01
 
 ### 🔖 Version Tag

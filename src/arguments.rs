@@ -1,6 +1,6 @@
 use clap::error::ErrorKind;
 use clap::{Command, CommandFactory, Parser, Subcommand, ValueEnum};
-use icu_lib::endecoder::{lvgl, EnDecoder};
+use icu_lib::endecoder::{EnDecoder, lvgl};
 use std::io;
 
 #[allow(non_camel_case_types)]

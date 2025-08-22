@@ -1,11 +1,11 @@
 use crate::arguments::{
-    parse_args, ImageFormatCategory, ImageFormats, OutputFileFormatCategory, SubCommands,
+    ImageFormatCategory, ImageFormats, OutputFileFormatCategory, SubCommands, parse_args,
 };
 use crate::image_shower::show_image;
 use eframe::egui::DroppedFile;
-use icu_lib::endecoder::{common, find_endecoder, lvgl, EnDecoder};
+use icu_lib::endecoder::{EnDecoder, common, find_endecoder, lvgl};
 use icu_lib::midata::MiData;
-use icu_lib::{endecoder, EncoderParams};
+use icu_lib::{EncoderParams, endecoder};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -185,7 +185,10 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
                 if !*stdout {
                     std::ops::ControlFlow::Continue(())
                 } else {
-                    log::error!("stdout is set, only one file <{}> can be converted", file_path.to_string_lossy());
+                    log::error!(
+                        "stdout is set, only one file <{}> can be converted",
+                        file_path.to_string_lossy()
+                    );
                     std::ops::ControlFlow::Break(())
                 }
             });
@@ -254,7 +257,8 @@ fn deal_input_file_paths<F: FnMut(&String) -> std::ops::ControlFlow<()>>(
                     }
                 }
             })
-            .try_for_each(|file_name| deal_func(&file_name)).break_value();
+            .try_for_each(|file_name| deal_func(&file_name))
+            .break_value();
     }
 }
 

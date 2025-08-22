@@ -1,7 +1,7 @@
 pub mod common;
 pub mod lvgl;
-pub mod utils;
 pub mod raw;
+pub mod utils;
 
 use crate::midata::MiData;
 use crate::EncoderParams;
