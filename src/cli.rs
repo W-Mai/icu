@@ -1,11 +1,14 @@
-use std::fs;
-use std::path::{Path, PathBuf};
+use crate::arguments::{
+    parse_args, ImageFormatCategory, ImageFormats, OutputFileFormatCategory, SubCommands,
+};
+use crate::image_shower::show_image;
 use eframe::egui::DroppedFile;
-use icu_lib::{endecoder, EncoderParams};
 use icu_lib::endecoder::{common, find_endecoder, lvgl, EnDecoder};
 use icu_lib::midata::MiData;
-use crate::arguments::{parse_args, ImageFormatCategory, ImageFormats, OutputFileFormatCategory, SubCommands};
-use crate::image_shower::show_image;
+use icu_lib::{endecoder, EncoderParams};
+use std::fs;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 pub fn process() -> Result<(), Box<dyn std::error::Error>> {
     let args = parse_args();
@@ -19,7 +22,7 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
             _ => "trace",
         },
     ))
-        .init();
+    .init();
 
     let commands = args.commands.ok_or("No subcommand provided")?;
 
@@ -61,6 +64,7 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
             output_stride_align,
             output_color_format,
             output_compressed_method,
+            stdout,
             dither,
             lvgl_version,
         } => {
@@ -96,10 +100,10 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
                         .with_extension(output_format.get_file_extension());
 
                 let output_file_exists = output_file_path.exists();
-                let should_convert = !output_file_exists || *override_output;
+                let should_convert = !output_file_exists || *override_output || *stdout;
 
                 if should_convert {
-                    if output_file_exists {
+                    if output_file_exists && !*stdout {
                         log::warn!(
                             "Override output file <{}> for converting <{}>",
                             output_file_path.to_string_lossy(),
@@ -136,7 +140,11 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
 
                         match output_category {
                             OutputFileFormatCategory::Common | OutputFileFormatCategory::Bin => {
-                                fs::write(&output_file_path, data)?;
+                                if *stdout {
+                                    std::io::stdout().write_all(&data)?;
+                                } else {
+                                    fs::write(&output_file_path, data)?;
+                                }
                             }
                             OutputFileFormatCategory::C_Array => {
                                 return Err("C_Array output format is not supported yet".into());
@@ -256,8 +264,8 @@ fn deal_path_without_extension(
         None => Path::new(&file_path),
         Some(folder) => full_path.strip_prefix(folder.canonicalize()?)?,
     }
-        .parent()
-        .ok_or("Unable to get parent folder of input file")?;
+    .parent()
+    .ok_or("Unable to get parent folder of input file")?;
 
     let file_name = file_path.file_name().unwrap_or_default();
     let output_file_name = Path::new(file_name).with_extension("PLACEHOLDER");

@@ -1,6 +1,6 @@
 use clap::error::ErrorKind;
 use clap::{Command, CommandFactory, Parser, Subcommand, ValueEnum};
-use icu_lib::endecoder::{EnDecoder, lvgl};
+use icu_lib::endecoder::{lvgl, EnDecoder};
 use std::io;
 
 #[allow(non_camel_case_types)]
@@ -240,6 +240,10 @@ pub(crate) enum SubCommands {
 
         #[arg(long, value_enum)]
         output_compressed_method: Option<OutputCompressedMethod>,
+
+        /// Output converted result to stdout
+        #[arg(long)]
+        stdout: bool,
 
         /// dither the output image so that it will look better on screens with low color depth
         /// 1 to 30, 1 is the best quality and 30 is the worst quality.
