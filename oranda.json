@@ -1,7 +1,4 @@
 {
-  "build": {
-    "path_prefix": "icu"
-  },
   "components": {
     "artifacts": {
       "auto": true,
