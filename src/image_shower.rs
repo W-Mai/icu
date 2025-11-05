@@ -234,33 +234,6 @@ impl eframe::App for MyEguiApp {
                     &mut self.context.background_color,
                     Alpha::BlendOrAdditive,
                 );
-                if self.context.image_diff {
-                    ui.separator();
-                    ui.checkbox(&mut self.context.only_show_diff, "Only Show Diff Area");
-                    if !self.context.only_show_diff {
-                        ui.add(
-                            egui::Slider::new(&mut self.context.diff_blend, 0.0..=1.0)
-                                .text("Diff Blend"),
-                        );
-                        ui.checkbox(&mut self.context.fast_switch, "Fast Switch");
-                        if self.context.fast_switch {
-                            ui.add(
-                                egui::Slider::new(&mut self.context.fast_switch_speed, 0.5..=10.0)
-                                    .text("Switch Speed (Hz)"),
-                            );
-                        }
-                    } else {
-                        self.context.fast_switch = false;
-                    }
-
-                    ui.add(
-                        egui::Slider::new(
-                            &mut self.context.diff_tolerance,
-                            self.context.min_diff..=self.context.max_diff,
-                        )
-                        .text("Diff Tolerance"),
-                    );
-                }
             });
         });
 
@@ -378,6 +351,38 @@ impl eframe::App for MyEguiApp {
                                 }
                             });
                     }
+                })
+            });
+        }
+
+        if self.context.image_diff {
+            egui::SidePanel::right("DiffPanel").show(ctx, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.checkbox(&mut self.context.only_show_diff, "Only Show Diff Area");
+                    ui.add(
+                        egui::Slider::new(
+                            &mut self.context.diff_tolerance,
+                            self.context.min_diff..=self.context.max_diff,
+                        )
+                        .text("Diff Tolerance"),
+                    );
+                    if !self.context.only_show_diff {
+                        ui.add(
+                            egui::Slider::new(&mut self.context.diff_blend, 0.0..=1.0)
+                                .text("Diff Blend"),
+                        );
+                        ui.checkbox(&mut self.context.fast_switch, "Fast Switch");
+                        if self.context.fast_switch {
+                            ui.add(
+                                egui::Slider::new(&mut self.context.fast_switch_speed, 0.5..=10.0)
+                                    .text("Switch Speed (Hz)"),
+                            );
+                        }
+                    } else {
+                        self.context.fast_switch = false;
+                    }
+
+                    ui.separator();
                 })
             });
         }
