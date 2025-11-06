@@ -2,6 +2,18 @@ use super::image_shower::ImageItem;
 use eframe::egui::Color32;
 use icu_lib::midata::MiData;
 
+pub fn color_diff_f32(c1: &Color32, c2: &Color32) -> f32 {
+    let a32 = c1.to_array();
+    let b32 = c2.to_array();
+
+    let dr = a32[0].abs_diff(b32[0]);
+    let dg = a32[1].abs_diff(b32[1]);
+    let db = a32[2].abs_diff(b32[2]);
+    let da = a32[3].abs_diff(b32[3]);
+
+    dr.max(dg).min(db).max(da) as f32
+}
+
 pub fn diff_image(
     img1: &ImageItem,
     img2: &ImageItem,

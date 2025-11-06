@@ -383,6 +383,38 @@ impl eframe::App for MyEguiApp {
                     }
 
                     ui.separator();
+
+                    if let Some(diff_img) = &self.diff_result {
+                        if let (Some(i1), Some(i2)) =
+                            (self.diff_image1_index, self.diff_image2_index)
+                            && i1 != i2
+                        {
+                            let img1 = &self.image_items[i1];
+                            let img2 = &self.image_items[i2];
+
+                            for (i, c) in diff_img.image_data.iter().enumerate() {
+                                if !(c.r() == 0 && c.g() == 0 && c.b() == 0) {
+                                    let color1 = img1.image_data[i];
+                                    let color2 = img2.image_data[i];
+                                    ui.horizontal(|ui| {
+                                        ui.label(format!(
+                                            "({}, {})",
+                                            i as u32 % img1.width,
+                                            i as u32 / img1.width
+                                        ));
+                                        ui.color_edit_button_srgba_unmultiplied(
+                                            &mut color1.to_array(),
+                                        );
+                                        ui.color_edit_button_srgba_unmultiplied(
+                                            &mut color2.to_array(),
+                                        );
+                                        let diff = utils::color_diff_f32(&color1, &color2);
+                                        ui.label(format!("{diff:.3}"));
+                                    });
+                                }
+                            }
+                        }
+                    }
                 })
             });
         }
