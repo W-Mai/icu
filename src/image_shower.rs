@@ -432,9 +432,9 @@ impl eframe::App for MyEguiApp {
                 self.context.diff_tolerance,
                 self.context.only_show_diff,
             );
-            self.diff_result = diff_result.map(|(img, min_diff, max_diff)| {
-                self.context.min_diff = min_diff + 1.0;
-                self.context.max_diff = max_diff + 1.0;
+            self.diff_result = diff_result.map(|(img, diff_result)| {
+                self.context.min_diff = diff_result.min_diff() + 1.0;
+                self.context.max_diff = diff_result.max_diff() + 1.0;
                 img
             });
         } else {

@@ -1,5 +1,6 @@
 use super::image_shower::ImageItem;
 use eframe::egui::Color32;
+use icu_lib::endecoder::utils::diff::ImageDiffResult;
 use icu_lib::midata::MiData;
 
 pub fn color_diff_f32(c1: &Color32, c2: &Color32) -> f32 {
@@ -20,8 +21,8 @@ pub fn diff_image(
     diff_blend: f32,
     diff_tolerance: f32,
     only_show_diff: bool,
-) -> Option<(ImageItem, f32, f32)> {
-    let (diff, diff_min, diff_max) = icu_lib::endecoder::utils::diff::diff_image(
+) -> Option<(ImageItem, ImageDiffResult)> {
+    let (diff, diff_result) = icu_lib::endecoder::utils::diff::blend_diff_image(
         &MiData::from_rgba(
             img1.width,
             img1.height,
@@ -59,8 +60,7 @@ pub fn diff_image(
                         })
                         .collect::<Vec<Color32>>(),
                 },
-                diff_min,
-                diff_max,
+                diff_result,
             ))
         }
         _ => None,
