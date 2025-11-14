@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.1.20] - 2025-11-14
+
+### 🔖 Version Tag
+
+- 🚀 **New Features**: Added color difference visualization in `image_shower`.
+- 🚀 **New Features**: Enhanced image diff display in `image_shower`.
+- 🔧 **Improvements**: Refactored image diffing logic in `diff`.
+- 🔧 **Improvements**: Moved diff panel to a side panel in `image_shower` for better UI.
+- 🛠 **Refactoring**: Removed unused variables in `endecoder/utils`.
+- 🔄 **Version Bump**: Version was bumped to 0.1.20 to reflect the updates.
+
 ## [v0.1.19] - 2025-08-22
 
 ### 🔖 Version Tag
