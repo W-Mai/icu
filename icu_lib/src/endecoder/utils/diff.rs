@@ -180,8 +180,6 @@ pub fn blend_diff_image(
     only_show_diff: bool,
 ) -> Option<(MiData, ImageDiffResult)> {
     let diff_result = diff_image(img1, img2)?;
-    let min_diff = diff_result.min_diff() as f32;
-    let max_diff = diff_result.max_diff() as f32;
     let mut diff_mask = diff_result.render_diff_mask(diff_tolerance, RED);
 
     if only_show_diff {
