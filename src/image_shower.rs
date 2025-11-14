@@ -3,6 +3,7 @@ use crate::utils;
 use eframe::egui;
 use eframe::egui::color_picker::Alpha;
 use eframe::egui::{Color32, DroppedFile, Sense};
+use icu_lib::endecoder::utils::diff::ImageDiffResult;
 use icu_lib::midata::MiData;
 use serde::{Deserialize, Serialize};
 
@@ -148,7 +149,7 @@ struct MyEguiApp {
 
     diff_image1_index: Option<usize>,
     diff_image2_index: Option<usize>,
-    diff_result: Option<ImageItem>,
+    diff_result: Option<(ImageItem, ImageDiffResult)>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -384,34 +385,28 @@ impl eframe::App for MyEguiApp {
 
                     ui.separator();
 
-                    if let Some(diff_img) = &self.diff_result {
+                    if let Some((_, diff_result)) = &self.diff_result {
                         if let (Some(i1), Some(i2)) =
                             (self.diff_image1_index, self.diff_image2_index)
                             && i1 != i2
                         {
-                            let img1 = &self.image_items[i1];
-                            let img2 = &self.image_items[i2];
-
-                            for (i, c) in diff_img.image_data.iter().enumerate() {
-                                if !(c.r() == 0 && c.g() == 0 && c.b() == 0) {
-                                    let color1 = img1.image_data[i];
-                                    let color2 = img2.image_data[i];
-                                    ui.horizontal(|ui| {
-                                        ui.label(format!(
-                                            "({}, {})",
-                                            i as u32 % img1.width,
-                                            i as u32 / img1.width
-                                        ));
-                                        ui.color_edit_button_srgba_unmultiplied(
-                                            &mut color1.to_array(),
-                                        );
-                                        ui.color_edit_button_srgba_unmultiplied(
-                                            &mut color2.to_array(),
-                                        );
-                                        let diff = utils::color_diff_f32(&color1, &color2);
-                                        ui.label(format!("{diff:.3}"));
-                                    });
-                                }
+                            for diff_pixel in diff_result
+                                .diff_filter(self.context.diff_tolerance)
+                                .take(100)
+                            {
+                                let mut color1 = diff_pixel.color_rhs.0;
+                                let mut color2 = diff_pixel.color_lhs.0;
+                                ui.horizontal(|ui| {
+                                    ui.label(format!(
+                                        "({}, {})",
+                                        diff_pixel.pos.0, diff_pixel.pos.1
+                                    ));
+                                    ui.color_edit_button_srgba_unmultiplied(&mut color1);
+                                    ui.color_edit_button_srgba_unmultiplied(&mut color2);
+                                    let diff =
+                                        diff_pixel.diff.into_iter().reduce(f32::max).unwrap_or(0.0);
+                                    ui.label(format!("{diff:.3}"));
+                                });
                             }
                         }
                     }
@@ -435,7 +430,7 @@ impl eframe::App for MyEguiApp {
             self.diff_result = diff_result.map(|(img, diff_result)| {
                 self.context.min_diff = diff_result.min_diff() + 1.0;
                 self.context.max_diff = diff_result.max_diff() + 1.0;
-                img
+                (img, diff_result)
             });
         } else {
             self.diff_result = None;
@@ -459,10 +454,10 @@ impl eframe::App for MyEguiApp {
                 .show_grid(self.context.show_grid)
                 .background_color(self.context.background_color);
             if self.context.only_show_diff {
-                if let Some(diff_img) = &self.diff_result {
+                if let Some((diff_img, _)) = &self.diff_result {
                     image_plotter.show(ui, &Some(diff_img.clone()));
                 }
-            } else if let Some(diff_img) = &self.diff_result
+            } else if let Some((diff_img, _)) = &self.diff_result
                 && self.context.image_diff
             {
                 image_plotter.show(ui, &Some(diff_img.clone()));
