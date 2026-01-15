@@ -495,10 +495,7 @@ impl eframe::App for MyEguiApp {
                 ui.separator();
                 ui.label("Other Info:");
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.label(
-                        serde_json::to_string_pretty(&current_image.info.other_info)
-                            .unwrap_or_default(),
-                    );
+                    ui_tree_view(ui, &current_image.info.other_info);
                 });
             });
         }
@@ -568,6 +565,68 @@ impl MyEguiApp {
                 self.selected_image_item_index = Some(0);
             }
             self.dropped_files.clear();
+        }
+    }
+}
+
+fn ui_tree_view(ui: &mut egui::Ui, value: &impl Serialize) {
+    if let Ok(yaml_value) = serde_yaml::to_value(value) {
+        ui_yaml_tree(ui, &yaml_value);
+    } else {
+        ui.label("Error displaying data");
+    }
+}
+
+fn ui_yaml_tree(ui: &mut egui::Ui, value: &serde_yaml::Value) {
+    match value {
+        serde_yaml::Value::Null => {
+            ui.label("~");
+        }
+        serde_yaml::Value::Bool(b) => {
+            ui.label(b.to_string());
+        }
+        serde_yaml::Value::Number(n) => {
+            ui.label(n.to_string());
+        }
+        serde_yaml::Value::String(s) => {
+            ui.label(format!("{:?}", s));
+        }
+        serde_yaml::Value::Sequence(seq) => {
+            ui.collapsing(format!("Sequence [{}]", seq.len()), |ui| {
+                for (i, v) in seq.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("- [{}]", i));
+                        ui_yaml_tree(ui, v);
+                    });
+                }
+            });
+        }
+        serde_yaml::Value::Mapping(map) => {
+            for (k, v) in map {
+                let key_str = match k {
+                    serde_yaml::Value::String(s) => s.clone(),
+                    serde_yaml::Value::Number(n) => n.to_string(),
+                    serde_yaml::Value::Bool(b) => b.to_string(),
+                    _ => format!("{:?}", k),
+                };
+
+                if v.is_mapping() || v.is_sequence() {
+                    ui.collapsing(key_str, |ui| {
+                        ui_yaml_tree(ui, v);
+                    });
+                } else {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{}: ", key_str));
+                        ui_yaml_tree(ui, v);
+                    });
+                }
+            }
+        }
+        serde_yaml::Value::Tagged(tagged) => {
+            ui.horizontal(|ui| {
+                ui.label(format!("!{}", tagged.tag));
+                ui_yaml_tree(ui, &tagged.value);
+            });
         }
     }
 }
