@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.1.21] - 2026-01-15
+
+### 🔖 Version Tag
+
+- 🚀 **New Features**: Added an Info Window to display image details (Width, Height, Format, Size, etc.).
+- 🚀 **New Features**: Added "Tree View" for visualizing complex metadata (EXIF, PNG info) in YAML format.
+- 🚀 **New Features**: Supported appending dropped images instead of replacing the current list.
+- 🚀 **New Features**: Implemented metadata extraction for PNG (Color Type, Bit Depth, Interlace) and generic EXIF data.
+- 🔧 **Improvements**: Refactored image processing and `ImageInfo` structure in `icu_lib`.
+
 ## [v0.1.20] - 2025-11-14
 
 ### 🔖 Version Tag
