@@ -12,6 +12,7 @@ pub struct ImagePlotter {
     show_grid: bool,
     show_only: bool,
     background_color: Color32,
+    highlight_pixel: Option<[u32; 2]>,
 }
 
 impl ImagePlotter {
@@ -22,7 +23,14 @@ impl ImagePlotter {
             show_grid: false,
             show_only: false,
             background_color: Default::default(),
+            highlight_pixel: None,
         }
+    }
+
+    pub fn highlight(self, pixel: Option<[u32; 2]>) -> Self {
+        let mut s = self;
+        s.highlight_pixel = pixel;
+        s
     }
 
     pub fn anti_alias(self, sure: bool) -> Self {
@@ -114,6 +122,10 @@ impl ImagePlotter {
                     .show_y(!self.show_only)
                     .show_background(self.background_color.is_additive());
 
+                if let Some([x, y]) = self.highlight_pixel {
+                    plot = plot.include_x(x as f64 + 0.5).include_y(-(y as f64 + 0.5));
+                }
+
                 if !self.show_only {
                     plot = plot.coordinates_formatter(
                         Corner::LeftBottom,
@@ -142,6 +154,8 @@ impl ImagePlotter {
                     painter.rect_filled(ui.min_rect(), 0.0, self.background_color);
                 }
 
+                let time = ui.input(|i| i.time);
+
                 plot.show(ui, |plot_ui| {
                     plot_ui.image(PlotImage::new(
                         "image",
@@ -154,6 +168,39 @@ impl ImagePlotter {
                     let plot_size = plot_ui.response().rect;
                     let scale_fact = 1.2f64;
                     let scale = 1.0 / (plot_bounds.width() as f32 / plot_size.width());
+
+                    if let Some([x, y]) = self.highlight_pixel {
+                        let center = [x as f64 + 0.5, -(y as f64 + 0.5)];
+                        let alpha = (time * 5.0).sin().abs() as f32;
+                        let color = Color32::RED.linear_multiply(alpha);
+                        let stroke_width = if scale < 1.0 { 2.0 } else { 2.0 / scale };
+
+                        plot_ui.polygon(
+                            egui_plot::Polygon::new(
+                                "highlight",
+                                vec![
+                                    [
+                                        center[0] - 0.5 * scale_fact * scale_fact,
+                                        center[1] - 0.5 * scale_fact * scale_fact,
+                                    ],
+                                    [
+                                        center[0] + 0.5 * scale_fact * scale_fact,
+                                        center[1] - 0.5 * scale_fact * scale_fact,
+                                    ],
+                                    [
+                                        center[0] + 0.5 * scale_fact * scale_fact,
+                                        center[1] + 0.5 * scale_fact * scale_fact,
+                                    ],
+                                    [
+                                        center[0] - 0.5 * scale_fact * scale_fact,
+                                        center[1] + 0.5 * scale_fact * scale_fact,
+                                    ],
+                                ],
+                            )
+                            .fill_color(Color32::TRANSPARENT)
+                            .stroke(egui::Stroke::new(stroke_width, color)),
+                        );
+                    }
 
                     if let Some(pos) = plot_ui.pointer_coordinate() {
                         if !(pos.x > 0.0 && pos.x < img_w && pos.y < 0.0 && pos.y > -img_h) {

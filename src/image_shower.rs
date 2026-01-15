@@ -152,6 +152,8 @@ struct MyEguiApp {
     diff_image1_index: Option<usize>,
     diff_image2_index: Option<usize>,
     diff_result: Option<(ImageItem, ImageDiffResult)>,
+
+    selected_diff_pixel: Option<[u32; 2]>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -213,6 +215,8 @@ impl MyEguiApp {
             diff_image1_index: None,
             diff_image2_index: None,
             diff_result: None,
+
+            selected_diff_pixel: None,
         }
     }
 }
@@ -396,17 +400,30 @@ impl eframe::App for MyEguiApp {
                             {
                                 let mut color1 = diff_pixel.color_rhs.0;
                                 let mut color2 = diff_pixel.color_lhs.0;
-                                ui.horizontal(|ui| {
-                                    ui.label(format!(
-                                        "({}, {})",
-                                        diff_pixel.pos.0, diff_pixel.pos.1
-                                    ));
-                                    ui.color_edit_button_srgba_unmultiplied(&mut color1);
-                                    ui.color_edit_button_srgba_unmultiplied(&mut color2);
-                                    let diff =
-                                        diff_pixel.diff.into_iter().reduce(f32::max).unwrap_or(0.0);
-                                    ui.label(format!("{diff:.3}"));
-                                });
+                                let response = ui
+                                    .horizontal(|ui| {
+                                        ui.label(format!(
+                                            "({}, {})",
+                                            diff_pixel.pos.0, diff_pixel.pos.1
+                                        ));
+                                        ui.color_edit_button_srgba_unmultiplied(&mut color1);
+                                        ui.color_edit_button_srgba_unmultiplied(&mut color2);
+                                        let diff = diff_pixel
+                                            .diff
+                                            .into_iter()
+                                            .reduce(f32::max)
+                                            .unwrap_or(0.0);
+                                        ui.label(format!("{diff:.3}"));
+                                    })
+                                    .response;
+
+                                let response =
+                                    ui.interact(response.rect, response.id, Sense::click());
+                                if response.hovered() {
+                                    self.selected_diff_pixel =
+                                        Some([diff_pixel.pos.0, diff_pixel.pos.1]);
+                                    ctx.request_repaint();
+                                }
                             }
                         }
                     }
@@ -452,7 +469,8 @@ impl eframe::App for MyEguiApp {
             let mut image_plotter = ImagePlotter::new("viewer")
                 .anti_alias(self.context.anti_alias)
                 .show_grid(self.context.show_grid)
-                .background_color(self.context.background_color);
+                .background_color(self.context.background_color)
+                .highlight(self.selected_diff_pixel);
             if self.context.only_show_diff {
                 if let Some((diff_img, _)) = &self.diff_result {
                     image_plotter.show(ui, &Some(diff_img.clone()));
@@ -521,6 +539,7 @@ impl MyEguiApp {
         self.diff_image1_index = None;
         self.diff_image2_index = None;
         self.diff_result = None;
+        self.selected_diff_pixel = None;
     }
 
     fn ui_file_drag_and_drop(&mut self, ctx: &egui::Context) {
