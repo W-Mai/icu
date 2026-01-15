@@ -4,6 +4,7 @@ use std::io::Cursor;
 
 use crate::endecoder::{lvgl, EnDecoder, ImageInfo};
 use crate::midata::MiData;
+use serde_json::json;
 
 pub struct AutoDetect {}
 
@@ -53,12 +54,30 @@ impl EnDecoder for AutoDetect {
         let img_format = image::guess_format(data).unwrap();
         log::trace!("AutoDectect::decoded");
 
+        let mut other_info = serde_json::Map::new();
+
+        other_info.insert("Color Type".to_string(), json!(format!("{:?}", img.color())));
+
+        // Try to parse EXIF data
+        if let Ok(reader) = exif::Reader::new().read_from_container(&mut std::io::Cursor::new(data)) {
+            let mut exif_map = serde_json::Map::new();
+            for field in reader.fields() {
+                exif_map.insert(
+                    field.tag.to_string(),
+                    json!(field.display_value().with_unit(&reader).to_string()),
+                );
+            }
+            if !exif_map.is_empty() {
+                other_info.insert("Exif".to_string(), serde_json::Value::Object(exif_map));
+            }
+        }
+
         ImageInfo {
             width: img.width(),
             height: img.height(),
             data_size: img.as_bytes().len() as u32,
             format: img_format.to_mime_type().to_owned(),
-            other_info: Default::default(),
+            other_info: serde_json::Value::Object(other_info),
         }
     }
 }
@@ -183,14 +202,22 @@ impl EnDecoder for PNG {
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        let img = image::load_from_memory_with_format(data, image::ImageFormat::Png).unwrap();
-        ImageInfo {
-            width: img.width(),
-            height: img.height(),
-            data_size: img.as_bytes().len() as u32,
-            format: "image/png".to_owned(),
-            other_info: Default::default(),
+        let mut info = AutoDetect {}.info(data);
+        
+        // Add PNG specific info
+        if let Ok(decoder) = png::Decoder::new(Cursor::new(data)).read_info() {
+            let png_info = decoder.info();
+            if let serde_json::Value::Object(ref mut map) = info.other_info {
+                 map.insert("PNG Color Type".to_string(), json!(format!("{:?}", png_info.color_type)));
+                 map.insert("Bit Depth".to_string(), json!(format!("{:?}", png_info.bit_depth)));
+                 if png_info.trns.is_some() {
+                     map.insert("Transparent".to_string(), json!("Yes"));
+                 }
+                 map.insert("Interlaced".to_string(), json!(png_info.interlaced));
+            }
         }
+        
+        info
     }
 }
 
@@ -224,14 +251,7 @@ impl EnDecoder for JPEG {
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        let img = image::load_from_memory_with_format(data, image::ImageFormat::Jpeg).unwrap();
-        ImageInfo {
-            width: img.width(),
-            height: img.height(),
-            data_size: img.as_bytes().len() as u32,
-            format: "image/jpeg".to_owned(),
-            other_info: Default::default(),
-        }
+        AutoDetect {}.info(data)
     }
 }
 
@@ -265,14 +285,7 @@ impl EnDecoder for BMP {
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        let img = image::load_from_memory_with_format(data, image::ImageFormat::Bmp).unwrap();
-        ImageInfo {
-            width: img.width(),
-            height: img.height(),
-            data_size: img.as_bytes().len() as u32,
-            format: "image/bmp".to_owned(),
-            other_info: Default::default(),
-        }
+        AutoDetect {}.info(data)
     }
 }
 
@@ -306,14 +319,7 @@ impl EnDecoder for GIF {
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        let img = image::load_from_memory_with_format(data, image::ImageFormat::Gif).unwrap();
-        ImageInfo {
-            width: img.width(),
-            height: img.height(),
-            data_size: img.as_bytes().len() as u32,
-            format: "image/gif".to_owned(),
-            other_info: Default::default(),
-        }
+        AutoDetect {}.info(data)
     }
 }
 
@@ -347,14 +353,7 @@ impl EnDecoder for TIFF {
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        let img = image::load_from_memory_with_format(data, image::ImageFormat::Tiff).unwrap();
-        ImageInfo {
-            width: img.width(),
-            height: img.height(),
-            data_size: img.as_bytes().len() as u32,
-            format: "image/tiff".to_owned(),
-            other_info: Default::default(),
-        }
+        AutoDetect {}.info(data)
     }
 }
 
@@ -388,14 +387,7 @@ impl EnDecoder for WEBP {
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        let img = image::load_from_memory_with_format(data, image::ImageFormat::WebP).unwrap();
-        ImageInfo {
-            width: img.width(),
-            height: img.height(),
-            data_size: img.as_bytes().len() as u32,
-            format: "image/webp".to_owned(),
-            other_info: Default::default(),
-        }
+        AutoDetect {}.info(data)
     }
 }
 
@@ -429,14 +421,7 @@ impl EnDecoder for ICO {
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        let img = image::load_from_memory_with_format(data, image::ImageFormat::Ico).unwrap();
-        ImageInfo {
-            width: img.width(),
-            height: img.height(),
-            data_size: img.as_bytes().len() as u32,
-            format: "image/x-icon".to_owned(),
-            other_info: Default::default(),
-        }
+        AutoDetect {}.info(data)
     }
 }
 
@@ -470,14 +455,7 @@ impl EnDecoder for PBM {
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        let img = image::load_from_memory_with_format(data, image::ImageFormat::Pnm).unwrap();
-        ImageInfo {
-            width: img.width(),
-            height: img.height(),
-            data_size: img.as_bytes().len() as u32,
-            format: "image/x-portable-bitmap".to_owned(),
-            other_info: Default::default(),
-        }
+        AutoDetect {}.info(data)
     }
 }
 
@@ -511,14 +489,7 @@ impl EnDecoder for PGM {
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        let img = image::load_from_memory_with_format(data, image::ImageFormat::Pnm).unwrap();
-        ImageInfo {
-            width: img.width(),
-            height: img.height(),
-            data_size: img.as_bytes().len() as u32,
-            format: "image/x-portable-graymap".to_owned(),
-            other_info: Default::default(),
-        }
+        AutoDetect {}.info(data)
     }
 }
 
@@ -552,14 +523,7 @@ impl EnDecoder for PPM {
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        let img = image::load_from_memory_with_format(data, image::ImageFormat::Pnm).unwrap();
-        ImageInfo {
-            width: img.width(),
-            height: img.height(),
-            data_size: img.as_bytes().len() as u32,
-            format: "image/x-portable-pixmap".to_owned(),
-            other_info: Default::default(),
-        }
+        AutoDetect {}.info(data)
     }
 }
 
@@ -593,14 +557,7 @@ impl EnDecoder for PAM {
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        let img = image::load_from_memory_with_format(data, image::ImageFormat::Pnm).unwrap();
-        ImageInfo {
-            width: img.width(),
-            height: img.height(),
-            data_size: img.as_bytes().len() as u32,
-            format: "image/x-portable-arbitrarymap".to_owned(),
-            other_info: Default::default(),
-        }
+        AutoDetect {}.info(data)
     }
 }
 
@@ -630,13 +587,6 @@ impl EnDecoder for TGA {
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        let img = image::load_from_memory_with_format(data, image::ImageFormat::Tga).unwrap();
-        ImageInfo {
-            width: img.width(),
-            height: img.height(),
-            data_size: img.as_bytes().len() as u32,
-            format: "image/x-targa".to_owned(),
-            other_info: Default::default(),
-        }
+        AutoDetect {}.info(data)
     }
 }
