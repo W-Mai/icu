@@ -1,7 +1,7 @@
 use super::image_shower::ImageItem;
 use eframe::egui::Color32;
-use icu_lib::endecoder::utils::diff::ImageDiffResult;
 use icu_lib::endecoder::ImageInfo;
+use icu_lib::endecoder::utils::diff::ImageDiffResult;
 use icu_lib::midata::MiData;
 
 pub fn diff_image(

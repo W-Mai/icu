@@ -3,8 +3,8 @@ use crate::utils;
 use eframe::egui;
 use eframe::egui::color_picker::Alpha;
 use eframe::egui::{Color32, DroppedFile, Sense};
-use icu_lib::endecoder::utils::diff::ImageDiffResult;
 use icu_lib::endecoder::ImageInfo;
+use icu_lib::endecoder::utils::diff::ImageDiffResult;
 use icu_lib::midata::MiData;
 use serde::{Deserialize, Serialize};
 
@@ -257,9 +257,7 @@ impl eframe::App for MyEguiApp {
                         .clicked()
                     {
                         self.image_items.clear();
-                        self.diff_image1_index = None;
-                        self.diff_image2_index = None;
-                        self.diff_result = None;
+                        self.reset();
                     }
                 });
                 ui.separator();
@@ -516,6 +514,15 @@ impl eframe::App for MyEguiApp {
 }
 
 impl MyEguiApp {
+    fn reset(&mut self) {
+        self.current_image = None;
+        self.selected_image_item_index = None;
+        self.hovered_image_item_index = None;
+        self.diff_image1_index = None;
+        self.diff_image2_index = None;
+        self.diff_result = None;
+    }
+
     fn ui_file_drag_and_drop(&mut self, ctx: &egui::Context) {
         use std::fmt::Write as _;
 
@@ -559,7 +566,8 @@ impl MyEguiApp {
 
         // Show dropped files (if any):
         if !self.dropped_files.is_empty() {
-            self.image_items = process_images(&self.dropped_files);
+            self.image_items
+                .append(&mut process_images(&self.dropped_files));
             if let Some(image) = self.image_items.first() {
                 self.current_image = Some(image.clone());
                 self.selected_image_item_index = Some(0);
