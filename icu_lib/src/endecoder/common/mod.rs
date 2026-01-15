@@ -56,10 +56,14 @@ impl EnDecoder for AutoDetect {
 
         let mut other_info = serde_json::Map::new();
 
-        other_info.insert("Color Type".to_string(), json!(format!("{:?}", img.color())));
+        other_info.insert(
+            "Color Type".to_string(),
+            json!(format!("{:?}", img.color())),
+        );
 
         // Try to parse EXIF data
-        if let Ok(reader) = exif::Reader::new().read_from_container(&mut std::io::Cursor::new(data)) {
+        if let Ok(reader) = exif::Reader::new().read_from_container(&mut std::io::Cursor::new(data))
+        {
             let mut exif_map = serde_json::Map::new();
             for field in reader.fields() {
                 exif_map.insert(
@@ -203,20 +207,26 @@ impl EnDecoder for PNG {
 
     fn info(&self, data: &[u8]) -> ImageInfo {
         let mut info = AutoDetect {}.info(data);
-        
+
         // Add PNG specific info
         if let Ok(decoder) = png::Decoder::new(Cursor::new(data)).read_info() {
             let png_info = decoder.info();
             if let serde_json::Value::Object(ref mut map) = info.other_info {
-                 map.insert("PNG Color Type".to_string(), json!(format!("{:?}", png_info.color_type)));
-                 map.insert("Bit Depth".to_string(), json!(format!("{:?}", png_info.bit_depth)));
-                 if png_info.trns.is_some() {
-                     map.insert("Transparent".to_string(), json!("Yes"));
-                 }
-                 map.insert("Interlaced".to_string(), json!(png_info.interlaced));
+                map.insert(
+                    "PNG Color Type".to_string(),
+                    json!(format!("{:?}", png_info.color_type)),
+                );
+                map.insert(
+                    "Bit Depth".to_string(),
+                    json!(format!("{:?}", png_info.bit_depth)),
+                );
+                if png_info.trns.is_some() {
+                    map.insert("Transparent".to_string(), json!("Yes"));
+                }
+                map.insert("Interlaced".to_string(), json!(png_info.interlaced));
             }
         }
-        
+
         info
     }
 }
