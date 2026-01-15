@@ -85,9 +85,8 @@ impl EnDecoder for PNG {
                 let mut buf = Cursor::new(Vec::new());
 
                 let mut encoder = png::Encoder::new(&mut buf, img.width(), img.height());
-                encoder.set_compression(png::Compression::Default);
-                encoder.set_filter(png::FilterType::NoFilter);
-                encoder.set_adaptive_filter(png::AdaptiveFilterType::NonAdaptive);
+                encoder.set_compression(png::Compression::Balanced);
+                encoder.set_filter(png::Filter::NoFilter);
 
                 match color_format {
                     lvgl::ColorFormat::I1

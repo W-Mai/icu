@@ -4,7 +4,7 @@ use std::io::{Cursor, Write};
 mod color_converter;
 mod lvgl;
 
-#[derive(BitfieldSpecifier)]
+#[derive(Specifier)]
 #[bits = 8]
 #[derive(Debug, Copy, Clone, PartialEq, Default)]
 #[repr(u8)]
@@ -16,7 +16,7 @@ pub enum LVGLVersion {
     V9,
 }
 
-#[derive(BitfieldSpecifier)]
+#[derive(Specifier)]
 #[bits = 8]
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
 #[repr(u8)]
@@ -54,7 +54,7 @@ pub enum ColorFormat {
 
 pub struct LVGL {}
 
-#[derive(BitfieldSpecifier)]
+#[derive(Specifier)]
 #[bits = 16]
 #[derive(Copy, Clone, Debug)]
 #[repr(u16)]
@@ -77,7 +77,7 @@ pub enum HeaderFlag {
 
 type Flags = u16;
 
-#[derive(BitfieldSpecifier)]
+#[derive(Specifier)]
 #[bits = 4]
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
 #[repr(u8)]

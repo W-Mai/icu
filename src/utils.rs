@@ -1,6 +1,7 @@
 use super::image_shower::ImageItem;
 use eframe::egui::Color32;
 use icu_lib::endecoder::utils::diff::ImageDiffResult;
+use icu_lib::endecoder::ImageInfo;
 use icu_lib::midata::MiData;
 
 pub fn diff_image(
@@ -38,6 +39,13 @@ pub fn diff_image(
             Some((
                 ImageItem {
                     path: "".to_string(),
+                    info: ImageInfo {
+                        width: img1.width,
+                        height: img2.height,
+                        data_size: 0,
+                        format: "diff".to_string(),
+                        other_info: serde_json::Value::Null,
+                    },
                     width: img1.width,
                     height: img2.height,
                     image_data: rgba

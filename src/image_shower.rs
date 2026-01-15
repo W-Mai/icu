@@ -4,6 +4,7 @@ use eframe::egui;
 use eframe::egui::color_picker::Alpha;
 use eframe::egui::{Color32, DroppedFile, Sense};
 use icu_lib::endecoder::utils::diff::ImageDiffResult;
+use icu_lib::endecoder::ImageInfo;
 use icu_lib::midata::MiData;
 use serde::{Deserialize, Serialize};
 
@@ -70,7 +71,7 @@ fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
     files
         .iter()
         .map_while(|file| {
-            let info = if let Some(path) = &file.path {
+            let file_path_info = if let Some(path) = &file.path {
                 path.display().to_string()
             } else if !file.name.is_empty() {
                 file.name.clone()
@@ -78,20 +79,20 @@ fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
                 return None;
             };
 
-            let mi_data = match &file.bytes {
+            let (mi_data, image_info) = match &file.bytes {
                 Some(bytes) => {
                     if let Some(coder) = icu_lib::endecoder::find_endecoder(bytes) {
-                        coder.decode(bytes.to_vec())
+                        (coder.decode(bytes.to_vec()), coder.info(bytes))
                     } else {
                         return None;
                     }
                 }
                 None => {
-                    let data = std::fs::read(&info);
+                    let data = std::fs::read(&file_path_info);
                     match data {
                         Ok(data) => {
                             if let Some(coder) = icu_lib::endecoder::find_endecoder(&data) {
-                                coder.decode(data)
+                                (coder.decode(data.clone()), coder.info(&data))
                             } else {
                                 return None;
                             }
@@ -113,7 +114,8 @@ fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
                         .collect::<Vec<Color32>>();
 
                     Some(ImageItem {
-                        path: info,
+                        path: file_path_info,
+                        info: image_info,
                         width,
                         height,
                         image_data,
@@ -129,7 +131,7 @@ fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
 #[derive(Clone, PartialEq)]
 pub struct ImageItem {
     pub path: String,
-
+    pub info: ImageInfo,
     pub width: u32,
     pub height: u32,
     pub image_data: Vec<Color32>,
@@ -466,6 +468,41 @@ impl eframe::App for MyEguiApp {
             }
         });
 
+        if let Some(current_image) = &self.current_image {
+            egui::Window::new("Image Info").show(ctx, |ui| {
+                egui::Grid::new("info_grid")
+                    .num_columns(2)
+                    .spacing([40.0, 4.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        ui.label("Width");
+                        ui.label(format!("{}", current_image.info.width));
+                        ui.end_row();
+
+                        ui.label("Height");
+                        ui.label(format!("{}", current_image.info.height));
+                        ui.end_row();
+
+                        ui.label("Format");
+                        ui.label(&current_image.info.format);
+                        ui.end_row();
+
+                        ui.label("Size");
+                        ui.label(format!("{} bytes", current_image.info.data_size));
+                        ui.end_row();
+                    });
+
+                ui.separator();
+                ui.label("Other Info:");
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.label(
+                        serde_json::to_string_pretty(&current_image.info.other_info)
+                            .unwrap_or_default(),
+                    );
+                });
+            });
+        }
+
         self.ui_file_drag_and_drop(ctx);
 
         // When fast_switch is enabled, force continues mode for rendering
@@ -505,7 +542,7 @@ impl MyEguiApp {
                 egui::Id::new("file_drop_target"),
             ));
 
-            let screen_rect = ctx.screen_rect();
+            let screen_rect = ctx.viewport_rect();
             painter.rect_filled(screen_rect, 0.0, Color32::from_black_alpha(192));
             painter.text(
                 screen_rect.center(),

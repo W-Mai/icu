@@ -7,7 +7,7 @@ use crate::midata::MiData;
 use crate::EncoderParams;
 use serde::Serialize;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ImageInfo {
     pub width: u32,
     pub height: u32,
