@@ -400,10 +400,61 @@ impl eframe::App for MyEguiApp {
                     .text("Diff Tolerance"),
                 );
                 if !self.context.only_show_diff {
-                    ui.add(
+                    let diff_blend_slider = ui.add(
                         egui::Slider::new(&mut self.context.diff_blend, 0.0..=1.0)
                             .text("Diff Blend"),
                     );
+
+                    if diff_blend_slider.double_clicked() {
+                        self.context.diff_blend = 0.5;
+                    }
+
+                    ui.horizontal(|ui| {
+                        let avail = diff_blend_slider.interact_rect.width();
+                        let btn_w = 50.0;
+                        let btn_h = 20.0;
+                        let total_btn = btn_w * 3.0;
+                        let spacing = ((avail - total_btn) / 2.0).max(0.0);
+
+                        let diff1_selected = (self.context.diff_blend - 0.0).abs() < f32::EPSILON;
+                        let blended_selected = (self.context.diff_blend - 0.5).abs() < f32::EPSILON;
+                        let diff2_selected = (self.context.diff_blend - 1.0).abs() < f32::EPSILON;
+
+                        if ui
+                            .add_sized(
+                                [btn_w, btn_h],
+                                egui::Button::selectable(diff1_selected, "diff1"),
+                            )
+                            .clicked()
+                        {
+                            self.context.diff_blend = 0.0;
+                        }
+
+                        ui.add_space(spacing);
+
+                        if ui
+                            .add_sized(
+                                [btn_w, btn_h],
+                                egui::Button::selectable(blended_selected, "blended"),
+                            )
+                            .clicked()
+                        {
+                            self.context.diff_blend = 0.5;
+                        }
+
+                        ui.add_space(spacing);
+
+                        if ui
+                            .add_sized(
+                                [btn_w, btn_h],
+                                egui::Button::selectable(diff2_selected, "diff2"),
+                            )
+                            .clicked()
+                        {
+                            self.context.diff_blend = 1.0;
+                        }
+                    });
+
                     ui.checkbox(&mut self.context.fast_switch, "Fast Switch");
                     if self.context.fast_switch {
                         ui.add(
