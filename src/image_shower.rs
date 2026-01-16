@@ -398,32 +398,74 @@ impl eframe::App for MyEguiApp {
                                 .diff_filter(self.context.diff_tolerance)
                                 .take(100)
                             {
-                                let mut color1 = diff_pixel.color_rhs.0;
-                                let mut color2 = diff_pixel.color_lhs.0;
-                                let response = ui
-                                    .horizontal(|ui| {
-                                        ui.label(format!(
-                                            "({}, {})",
-                                            diff_pixel.pos.0, diff_pixel.pos.1
-                                        ));
-                                        ui.color_edit_button_srgba_unmultiplied(&mut color1);
-                                        ui.color_edit_button_srgba_unmultiplied(&mut color2);
-                                        let diff = diff_pixel
-                                            .diff
-                                            .into_iter()
-                                            .reduce(f32::max)
-                                            .unwrap_or(0.0);
-                                        ui.label(format!("{diff:.3}"));
-                                    })
-                                    .response;
+                                let is_selected = self.selected_diff_pixel
+                                    == Some([diff_pixel.pos.0, diff_pixel.pos.1]);
 
-                                let response =
-                                    ui.interact(response.rect, response.id, Sense::click());
-                                if response.hovered() {
-                                    self.selected_diff_pixel =
-                                        Some([diff_pixel.pos.0, diff_pixel.pos.1]);
-                                    ctx.request_repaint();
-                                }
+                                egui::containers::Frame::default()
+                                    .inner_margin(4.0)
+                                    .outer_margin(2.0)
+                                    .corner_radius(4.0)
+                                    .show(ui, |ui| {
+                                        let mut color1 = diff_pixel.color_rhs.0;
+                                        let mut color2 = diff_pixel.color_lhs.0;
+                                        let response = ui
+                                            .horizontal(|ui| {
+                                                ui.label(format!(
+                                                    "({}, {})",
+                                                    diff_pixel.pos.0, diff_pixel.pos.1
+                                                ));
+                                                ui.color_edit_button_srgba_unmultiplied(
+                                                    &mut color1,
+                                                );
+                                                ui.color_edit_button_srgba_unmultiplied(
+                                                    &mut color2,
+                                                );
+                                                let diff = diff_pixel
+                                                    .diff
+                                                    .into_iter()
+                                                    .reduce(f32::max)
+                                                    .unwrap_or(0.0);
+                                                ui.label(format!("{diff:.3}"));
+                                            })
+                                            .response;
+
+                                        let rect = response.rect;
+                                        let response =
+                                            ui.allocate_rect(rect, Sense::click());
+
+                                        if response.clicked() || response.hovered() {
+                                            self.selected_diff_pixel =
+                                                Some([diff_pixel.pos.0, diff_pixel.pos.1]);
+                                            ctx.request_repaint();
+                                        }
+
+                                        if is_selected
+                                            || response.hovered()
+                                            || response.highlighted()
+                                            || response.has_focus()
+                                        {
+                                            let rect = rect.expand(4.0);
+                                            let painter = ui.painter_at(rect);
+                                            let rect = rect.expand(-2.0);
+                                            painter.rect(
+                                                rect,
+                                                4.0,
+                                                Color32::TRANSPARENT,
+                                                egui::Stroke::new(
+                                                    2.0,
+                                                    ui.style().visuals.hyperlink_color,
+                                                ),
+                                                egui::StrokeKind::Inside,
+                                            );
+                                            painter.rect(
+                                                rect,
+                                                4.0,
+                                                ui.style().visuals.hyperlink_color.linear_multiply(0.1),
+                                                egui::Stroke::NONE,
+                                                egui::StrokeKind::Inside,
+                                            );
+                                        }
+                                    });
                             }
                         }
                     }
