@@ -400,68 +400,84 @@ impl eframe::App for MyEguiApp {
                     .text("Diff Tolerance"),
                 );
                 if !self.context.only_show_diff {
-                    let diff_blend_slider = ui.add(
-                        egui::Slider::new(&mut self.context.diff_blend, 0.0..=1.0)
-                            .text("Diff Blend"),
-                    );
+                    egui::containers::Frame::new()
+                        .inner_margin(6.0)
+                        .outer_margin(4.0)
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            ui.style().visuals.widgets.noninteractive.fg_stroke.color,
+                        ))
+                        .corner_radius(6.0)
+                        .show(ui, |ui| {
+                            let diff_blend_slider = ui.add(
+                                egui::Slider::new(&mut self.context.diff_blend, 0.0..=1.0)
+                                    .text("Diff Blend"),
+                            );
 
-                    if diff_blend_slider.double_clicked() {
-                        self.context.diff_blend = 0.5;
-                    }
+                            if diff_blend_slider.double_clicked() {
+                                self.context.diff_blend = 0.5;
+                            }
 
-                    ui.horizontal(|ui| {
-                        let avail = diff_blend_slider.interact_rect.width();
-                        let btn_w = 50.0;
-                        let btn_h = 20.0;
-                        let total_btn = btn_w * 3.0;
-                        let spacing = ((avail - total_btn) / 2.0).max(0.0);
+                            ui.horizontal(|ui| {
+                                let avail = diff_blend_slider.interact_rect.width();
+                                let btn_w = 50.0;
+                                let btn_h = 20.0;
+                                let total_btn = btn_w * 3.0;
+                                let spacing = ((avail - total_btn) / 2.0).max(0.0);
 
-                        let diff1_selected = (self.context.diff_blend - 0.0).abs() < f32::EPSILON;
-                        let blended_selected = (self.context.diff_blend - 0.5).abs() < f32::EPSILON;
-                        let diff2_selected = (self.context.diff_blend - 1.0).abs() < f32::EPSILON;
+                                let diff1_selected =
+                                    (self.context.diff_blend - 0.0).abs() < f32::EPSILON;
+                                let blended_selected =
+                                    (self.context.diff_blend - 0.5).abs() < f32::EPSILON;
+                                let diff2_selected =
+                                    (self.context.diff_blend - 1.0).abs() < f32::EPSILON;
 
-                        if ui
-                            .add_sized(
-                                [btn_w, btn_h],
-                                egui::Button::selectable(diff1_selected, "diff1"),
-                            )
-                            .clicked()
-                        {
-                            self.context.diff_blend = 0.0;
-                        }
+                                if ui
+                                    .add_sized(
+                                        [btn_w, btn_h],
+                                        egui::Button::selectable(diff1_selected, "diff1"),
+                                    )
+                                    .clicked()
+                                {
+                                    self.context.diff_blend = 0.0;
+                                }
 
-                        ui.add_space(spacing);
+                                ui.add_space(spacing);
 
-                        if ui
-                            .add_sized(
-                                [btn_w, btn_h],
-                                egui::Button::selectable(blended_selected, "blended"),
-                            )
-                            .clicked()
-                        {
-                            self.context.diff_blend = 0.5;
-                        }
+                                if ui
+                                    .add_sized(
+                                        [btn_w, btn_h],
+                                        egui::Button::selectable(blended_selected, "blended"),
+                                    )
+                                    .clicked()
+                                {
+                                    self.context.diff_blend = 0.5;
+                                }
 
-                        ui.add_space(spacing);
+                                ui.add_space(spacing);
 
-                        if ui
-                            .add_sized(
-                                [btn_w, btn_h],
-                                egui::Button::selectable(diff2_selected, "diff2"),
-                            )
-                            .clicked()
-                        {
-                            self.context.diff_blend = 1.0;
-                        }
-                    });
+                                if ui
+                                    .add_sized(
+                                        [btn_w, btn_h],
+                                        egui::Button::selectable(diff2_selected, "diff2"),
+                                    )
+                                    .clicked()
+                                {
+                                    self.context.diff_blend = 1.0;
+                                }
+                            });
 
-                    ui.checkbox(&mut self.context.fast_switch, "Fast Switch");
-                    if self.context.fast_switch {
-                        ui.add(
-                            egui::Slider::new(&mut self.context.fast_switch_speed, 0.5..=10.0)
-                                .text("Switch Speed (Hz)"),
-                        );
-                    }
+                            ui.checkbox(&mut self.context.fast_switch, "Fast Switch");
+                            if self.context.fast_switch {
+                                ui.add(
+                                    egui::Slider::new(
+                                        &mut self.context.fast_switch_speed,
+                                        0.5..=10.0,
+                                    )
+                                    .text("Switch Speed (Hz)"),
+                                );
+                            }
+                        });
                 } else {
                     self.context.fast_switch = false;
                 }
