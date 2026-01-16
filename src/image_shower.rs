@@ -1,3 +1,4 @@
+use crate::cus_component::toggle;
 use crate::image_plotter::ImagePlotter;
 use crate::utils;
 use eframe::egui;
@@ -391,7 +392,12 @@ impl eframe::App for MyEguiApp {
 
         if self.context.image_diff {
             egui::SidePanel::right("DiffPanel").show(ctx, |ui| {
-                ui.checkbox(&mut self.context.only_show_diff, "Only Show Diff Area");
+                ui.add_space(8.0);
+                ui.spacing_mut().item_spacing.y = 6.0;
+                ui.add(toggle(
+                    "Only Show Diff Area",
+                    &mut self.context.only_show_diff,
+                ));
                 ui.add(
                     egui::Slider::new(
                         &mut self.context.diff_tolerance,
@@ -467,7 +473,7 @@ impl eframe::App for MyEguiApp {
                                 }
                             });
 
-                            ui.checkbox(&mut self.context.fast_switch, "Fast Switch");
+                            ui.add(toggle("Fast Switch", &mut self.context.fast_switch));
                             if self.context.fast_switch {
                                 ui.add(
                                     egui::Slider::new(
@@ -612,6 +618,7 @@ impl eframe::App for MyEguiApp {
                         let start = self.context.diff_page_index * self.context.diff_page_size;
 
                         egui::ScrollArea::vertical().show(ui, |ui| {
+                            ui.spacing_mut().item_spacing.y = 0.0;
                             let mut target_rect = None;
                             for diff_pixel in diff_pixels
                                 .into_iter()
@@ -624,8 +631,7 @@ impl eframe::App for MyEguiApp {
                                     == Some([diff_pixel.pos.0, diff_pixel.pos.1]);
 
                                 egui::containers::Frame::default()
-                                    .inner_margin(4.0)
-                                    .outer_margin(2.0)
+                                    .inner_margin(2.0)
                                     .corner_radius(4.0)
                                     .show(ui, |ui| {
                                         let mut color1 = diff_pixel.color_rhs.0;
