@@ -172,6 +172,20 @@ struct AppContext {
     fast_switch_speed: f32, // Speed of fast switch (Hz)
     fast_switch_phase: f32, // Internal phase for fast switch
     only_show_diff: bool,   // Only show diff area
+
+    diff_sorting: DiffSorting,
+    diff_page_index: usize,
+    diff_page_size: usize,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Copy, Clone, Debug)]
+enum DiffSorting {
+    Z,        // Z-order (default, row by row)
+    N,        // N-order (column by column)
+    ReverseZ, // Reverse Z-order
+    ReverseN, // Reverse N-order
+    DiffAsc,  // Diff value ascending
+    DiffDesc, // Diff value descending
 }
 
 impl Default for AppContext {
@@ -189,6 +203,9 @@ impl Default for AppContext {
             fast_switch_speed: 1.0,
             fast_switch_phase: 0.0,
             only_show_diff: false,
+            diff_sorting: DiffSorting::Z,
+            diff_page_index: 0,
+            diff_page_size: 100,
         }
     }
 }
@@ -397,9 +414,122 @@ impl eframe::App for MyEguiApp {
                             (self.diff_image1_index, self.diff_image2_index)
                             && i1 != i2
                         {
-                            for diff_pixel in diff_result
+                            let mut diff_pixels: Vec<_> = diff_result
                                 .diff_filter(self.context.diff_tolerance)
-                                .take(100)
+                                .collect();
+
+                            // Sort
+                            match self.context.diff_sorting {
+                                DiffSorting::Z => {
+                                    // Default is already Z-like (row major) usually, but ensure it:
+                                    diff_pixels.sort_by_key(|p| (p.pos.1, p.pos.0));
+                                }
+                                DiffSorting::N => {
+                                    diff_pixels.sort_by_key(|p| (p.pos.0, p.pos.1));
+                                }
+                                DiffSorting::ReverseZ => {
+                                    diff_pixels.sort_by_key(|p| {
+                                        (std::cmp::Reverse(p.pos.1), std::cmp::Reverse(p.pos.0))
+                                    });
+                                }
+                                DiffSorting::ReverseN => {
+                                    diff_pixels.sort_by_key(|p| {
+                                        (std::cmp::Reverse(p.pos.0), std::cmp::Reverse(p.pos.1))
+                                    });
+                                }
+                                DiffSorting::DiffAsc => {
+                                    diff_pixels.sort_by(|a, b| {
+                                        let diff_a =
+                                            a.diff.iter().cloned().reduce(f32::max).unwrap_or(0.0);
+                                        let diff_b =
+                                            b.diff.iter().cloned().reduce(f32::max).unwrap_or(0.0);
+                                        diff_a
+                                            .partial_cmp(&diff_b)
+                                            .unwrap_or(std::cmp::Ordering::Equal)
+                                    });
+                                }
+                                DiffSorting::DiffDesc => {
+                                    diff_pixels.sort_by(|a, b| {
+                                        let diff_a =
+                                            a.diff.iter().cloned().reduce(f32::max).unwrap_or(0.0);
+                                        let diff_b =
+                                            b.diff.iter().cloned().reduce(f32::max).unwrap_or(0.0);
+                                        diff_b
+                                            .partial_cmp(&diff_a)
+                                            .unwrap_or(std::cmp::Ordering::Equal)
+                                    });
+                                }
+                            }
+
+                            // Controls
+                            ui.horizontal(|ui| {
+                                egui::ComboBox::from_label("Sort")
+                                    .selected_text(format!("{:?}", self.context.diff_sorting))
+                                    .show_ui(ui, |ui| {
+                                        ui.selectable_value(
+                                            &mut self.context.diff_sorting,
+                                            DiffSorting::Z,
+                                            "Z",
+                                        );
+                                        ui.selectable_value(
+                                            &mut self.context.diff_sorting,
+                                            DiffSorting::N,
+                                            "N",
+                                        );
+                                        ui.selectable_value(
+                                            &mut self.context.diff_sorting,
+                                            DiffSorting::ReverseZ,
+                                            "Rev Z",
+                                        );
+                                        ui.selectable_value(
+                                            &mut self.context.diff_sorting,
+                                            DiffSorting::ReverseN,
+                                            "Rev N",
+                                        );
+                                        ui.selectable_value(
+                                            &mut self.context.diff_sorting,
+                                            DiffSorting::DiffAsc,
+                                            "Diff Asc",
+                                        );
+                                        ui.selectable_value(
+                                            &mut self.context.diff_sorting,
+                                            DiffSorting::DiffDesc,
+                                            "Diff Desc",
+                                        );
+                                    });
+                            });
+
+                            let total_pixels = diff_pixels.len();
+                            let total_pages = (total_pixels + self.context.diff_page_size - 1)
+                                / self.context.diff_page_size.max(1);
+
+                            if self.context.diff_page_index >= total_pages {
+                                self.context.diff_page_index = total_pages.saturating_sub(1);
+                            }
+
+                            ui.horizontal(|ui| {
+                                if ui.button("<").clicked() && self.context.diff_page_index > 0 {
+                                    self.context.diff_page_index -= 1;
+                                }
+                                ui.label(format!(
+                                    "{}/{}",
+                                    self.context.diff_page_index + 1,
+                                    total_pages
+                                ));
+                                if ui.button(">").clicked()
+                                    && self.context.diff_page_index + 1 < total_pages
+                                {
+                                    self.context.diff_page_index += 1;
+                                }
+                                ui.label(format!("Total: {}", total_pixels));
+                            });
+
+                            let start = self.context.diff_page_index * self.context.diff_page_size;
+
+                            for diff_pixel in diff_pixels
+                                .into_iter()
+                                .skip(start)
+                                .take(self.context.diff_page_size)
                             {
                                 let is_selected = self.selected_diff_pixel
                                     == Some([diff_pixel.pos.0, diff_pixel.pos.1]);
@@ -436,7 +566,9 @@ impl eframe::App for MyEguiApp {
                                         let response = ui.allocate_rect(rect, Sense::click());
 
                                         if response.clicked() {
-                                            if self.selected_diff_pixel == Some([diff_pixel.pos.0, diff_pixel.pos.1]) {
+                                            if self.selected_diff_pixel
+                                                == Some([diff_pixel.pos.0, diff_pixel.pos.1])
+                                            {
                                                 self.selected_diff_pixel = None;
                                             } else {
                                                 self.selected_diff_pixel =
@@ -524,7 +656,11 @@ impl eframe::App for MyEguiApp {
                 .anti_alias(self.context.anti_alias)
                 .show_grid(self.context.show_grid)
                 .background_color(self.context.background_color)
-                .highlight(if self.hovered_diff_pixel.is_none() { self.selected_diff_pixel } else { self.hovered_diff_pixel });
+                .highlight(if self.hovered_diff_pixel.is_none() {
+                    self.selected_diff_pixel
+                } else {
+                    self.hovered_diff_pixel
+                });
             if self.context.only_show_diff {
                 if let Some((diff_img, _)) = &self.diff_result {
                     image_plotter.show(ui, &Some(diff_img.clone()));
