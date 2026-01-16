@@ -155,6 +155,7 @@ struct MyEguiApp {
 
     selected_diff_pixel: Option<[u32; 2]>,
     hovered_diff_pixel: Option<[u32; 2]>,
+    hovered_diff_pixel_from_plot: Option<[u32; 2]>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -236,6 +237,7 @@ impl MyEguiApp {
 
             selected_diff_pixel: None,
             hovered_diff_pixel: None,
+            hovered_diff_pixel_from_plot: None,
         }
     }
 }
@@ -499,6 +501,17 @@ impl eframe::App for MyEguiApp {
                                     });
                             });
 
+                            // Auto jump to page
+                            if let Some(hovered) = self.hovered_diff_pixel_from_plot {
+                                if let Some(index) = diff_pixels
+                                    .iter()
+                                    .position(|p| p.pos.0 == hovered[0] && p.pos.1 == hovered[1])
+                                {
+                                    self.context.diff_page_index =
+                                        index / self.context.diff_page_size;
+                                }
+                            }
+
                             let total_pixels = diff_pixels.len();
                             let total_pages = (total_pixels + self.context.diff_page_size - 1)
                                 / self.context.diff_page_size.max(1);
@@ -532,6 +545,8 @@ impl eframe::App for MyEguiApp {
                                 .take(self.context.diff_page_size)
                             {
                                 let is_selected = self.selected_diff_pixel
+                                    == Some([diff_pixel.pos.0, diff_pixel.pos.1]);
+                                let is_hovered = self.hovered_diff_pixel_from_plot
                                     == Some([diff_pixel.pos.0, diff_pixel.pos.1]);
 
                                 egui::containers::Frame::default()
@@ -584,6 +599,7 @@ impl eframe::App for MyEguiApp {
                                             || response.hovered()
                                             || response.highlighted()
                                             || response.has_focus()
+                                            || is_hovered
                                         {
                                             let rect = rect.expand(4.0);
                                             let painter = ui.painter_at(rect);
@@ -660,7 +676,9 @@ impl eframe::App for MyEguiApp {
                     self.selected_diff_pixel
                 } else {
                     self.hovered_diff_pixel
-                });
+                })
+                .on_hover(&mut self.hovered_diff_pixel_from_plot);
+
             if self.context.only_show_diff {
                 if let Some((diff_img, _)) = &self.diff_result {
                     image_plotter.show(ui, &Some(diff_img.clone()));
@@ -671,7 +689,7 @@ impl eframe::App for MyEguiApp {
                 image_plotter.show(ui, &Some(diff_img.clone()));
             } else {
                 image_plotter.show(ui, &self.current_image);
-            }
+            };
         });
 
         if let Some(current_image) = &self.current_image {

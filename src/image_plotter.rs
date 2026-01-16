@@ -6,17 +6,18 @@ use egui_plot::{CoordinatesFormatter, Corner, PlotImage, PlotPoint};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub struct ImagePlotter {
+pub struct ImagePlotter<'a> {
     id: String,
     anti_alias: bool,
     show_grid: bool,
     show_only: bool,
     background_color: Color32,
     highlight_pixel: Option<[u32; 2]>,
+    on_hover: Option<&'a mut Option<[u32; 2]>>,
 }
 
-impl ImagePlotter {
-    pub fn new(id: impl ToString) -> ImagePlotter {
+impl<'a> ImagePlotter<'a> {
+    pub fn new(id: impl ToString) -> ImagePlotter<'a> {
         Self {
             id: id.to_string(),
             anti_alias: false,
@@ -24,7 +25,13 @@ impl ImagePlotter {
             show_only: false,
             background_color: Default::default(),
             highlight_pixel: None,
+            on_hover: None,
         }
+    }
+
+    pub fn on_hover(mut self, on_hover: &'a mut Option<[u32; 2]>) -> Self {
+        self.on_hover = Some(on_hover);
+        self
     }
 
     pub fn highlight(self, pixel: Option<[u32; 2]>) -> Self {
@@ -251,6 +258,14 @@ impl ImagePlotter {
                         );
                     }
                 });
+
+                if let Some(on_hover) = &mut self.on_hover {
+                    if let Some(pos) = *cursor_pos.borrow() {
+                        **on_hover = Some([pos[0].floor() as u32, (-pos[1].floor() - 1.0) as u32]);
+                    } else {
+                        **on_hover = None;
+                    }
+                }
             }
         }
     }
