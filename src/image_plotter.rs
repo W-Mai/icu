@@ -2,7 +2,7 @@ use crate::image_shower::ImageItem;
 use eframe::egui;
 use eframe::egui::load::SizedTexture;
 use eframe::egui::{Color32, ColorImage, PointerButton};
-use egui_plot::{CoordinatesFormatter, Corner, PlotBounds, PlotImage, PlotPoint};
+use egui_plot::{CoordinatesFormatter, Corner, PlotImage, PlotPoint};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -176,7 +176,7 @@ impl ImagePlotter {
                         let alpha = (time * 5.0).sin().abs() as f32;
                         let color = Color32::RED.linear_multiply(alpha);
                         let stroke_width = 2.0;
-                        let radius = if scale < 1.0 { 2.0 } else { 2.0 / scale } as f64 * 1.5;
+                        let radius = 1.5 / scale as f64;
 
                         plot_ui.polygon(
                             egui_plot::Polygon::new(

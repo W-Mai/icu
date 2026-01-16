@@ -154,6 +154,7 @@ struct MyEguiApp {
     diff_result: Option<(ImageItem, ImageDiffResult)>,
 
     selected_diff_pixel: Option<[u32; 2]>,
+    hovered_diff_pixel: Option<[u32; 2]>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -217,6 +218,7 @@ impl MyEguiApp {
             diff_result: None,
 
             selected_diff_pixel: None,
+            hovered_diff_pixel: None,
         }
     }
 }
@@ -389,6 +391,7 @@ impl eframe::App for MyEguiApp {
 
                     ui.separator();
 
+                    self.hovered_diff_pixel = None;
                     if let Some((_, diff_result)) = &self.diff_result {
                         if let (Some(i1), Some(i2)) =
                             (self.diff_image1_index, self.diff_image2_index)
@@ -430,13 +433,19 @@ impl eframe::App for MyEguiApp {
                                             .response;
 
                                         let rect = response.rect;
-                                        let response =
-                                            ui.allocate_rect(rect, Sense::click());
+                                        let response = ui.allocate_rect(rect, Sense::click());
 
-                                        if response.clicked() || response.hovered() {
-                                            self.selected_diff_pixel =
+                                        if response.clicked() {
+                                            if self.selected_diff_pixel == Some([diff_pixel.pos.0, diff_pixel.pos.1]) {
+                                                self.selected_diff_pixel = None;
+                                            } else {
+                                                self.selected_diff_pixel =
+                                                    Some([diff_pixel.pos.0, diff_pixel.pos.1]);
+                                            }
+                                        }
+                                        if response.hovered() {
+                                            self.hovered_diff_pixel =
                                                 Some([diff_pixel.pos.0, diff_pixel.pos.1]);
-                                            ctx.request_repaint();
                                         }
 
                                         if is_selected
@@ -460,7 +469,10 @@ impl eframe::App for MyEguiApp {
                                             painter.rect(
                                                 rect,
                                                 4.0,
-                                                ui.style().visuals.hyperlink_color.linear_multiply(0.1),
+                                                ui.style()
+                                                    .visuals
+                                                    .hyperlink_color
+                                                    .linear_multiply(0.1),
                                                 egui::Stroke::NONE,
                                                 egui::StrokeKind::Inside,
                                             );
@@ -512,7 +524,7 @@ impl eframe::App for MyEguiApp {
                 .anti_alias(self.context.anti_alias)
                 .show_grid(self.context.show_grid)
                 .background_color(self.context.background_color)
-                .highlight(self.selected_diff_pixel);
+                .highlight(if self.hovered_diff_pixel.is_none() { self.selected_diff_pixel } else { self.hovered_diff_pixel });
             if self.context.only_show_diff {
                 if let Some((diff_img, _)) = &self.diff_result {
                     image_plotter.show(ui, &Some(diff_img.clone()));
@@ -582,6 +594,7 @@ impl MyEguiApp {
         self.diff_image2_index = None;
         self.diff_result = None;
         self.selected_diff_pixel = None;
+        self.hovered_diff_pixel = None;
     }
 
     fn ui_file_drag_and_drop(&mut self, ctx: &egui::Context) {
