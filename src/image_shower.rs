@@ -391,7 +391,7 @@ impl eframe::App for MyEguiApp {
         }
 
         if self.context.image_diff {
-            egui::SidePanel::right("DiffPanel").show(ctx, |ui| {
+            egui::SidePanel::right("DiffPanel").exact_width(280.0).show(ctx, |ui| {
                 ui.add_space(8.0);
                 ui.spacing_mut().item_spacing.y = 6.0;
                 ui.add(toggle(
@@ -616,7 +616,17 @@ impl eframe::App for MyEguiApp {
                         });
 
                         let start = self.context.diff_page_index * self.context.diff_page_size;
-
+                        egui::Grid::new("diff_header")
+                            .num_columns(4)
+                            .spacing([8.0, 4.0])
+                            .min_col_width(60.0)
+                            .show(ui, |ui| {
+                                ui.label("(X, Y)");
+                                ui.label("color1");
+                                ui.label("color2");
+                                ui.label("diff");
+                            });
+                        ui.separator();
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             ui.spacing_mut().item_spacing.y = 0.0;
                             let mut target_rect = None;
@@ -636,12 +646,23 @@ impl eframe::App for MyEguiApp {
                                     .show(ui, |ui| {
                                         let mut color1 = diff_pixel.color_rhs.0;
                                         let mut color2 = diff_pixel.color_lhs.0;
-                                        let response = ui
-                                            .horizontal(|ui| {
-                                                ui.label(format!(
-                                                    "({}, {})",
-                                                    diff_pixel.pos.0, diff_pixel.pos.1
-                                                ));
+
+                                        let grid_id = format!(
+                                            "diff_row_{}_{}",
+                                            diff_pixel.pos.0, diff_pixel.pos.1
+                                        );
+                                        let inner = egui::Grid::new(grid_id)
+                                            .num_columns(4)
+                                            .spacing([8.0, 4.0])
+                                            .min_col_width(60.0)
+                                            .show(ui, |ui| {
+                                                ui.add(
+                                                    egui::Label::new(format!(
+                                                        "({}, {})",
+                                                        diff_pixel.pos.0, diff_pixel.pos.1
+                                                    ))
+                                                    .wrap(),
+                                                );
                                                 ui.color_edit_button_srgba_unmultiplied(
                                                     &mut color1,
                                                 );
@@ -653,10 +674,13 @@ impl eframe::App for MyEguiApp {
                                                     .into_iter()
                                                     .reduce(f32::max)
                                                     .unwrap_or(0.0);
-                                                ui.label(format!("{diff:.3}"));
-                                            })
-                                            .response;
+                                                ui.add(
+                                                    egui::Label::new(format!("{diff:.3}")).wrap(),
+                                                );
+                                                ui.end_row();
+                                            });
 
+                                        let response = inner.response;
                                         let rect = response.rect;
                                         let response = ui.allocate_rect(rect, Sense::click());
 
