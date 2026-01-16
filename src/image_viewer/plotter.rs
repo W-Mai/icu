@@ -1,4 +1,4 @@
-use crate::image_shower::ImageItem;
+use crate::image_viewer::model::ImageItem;
 use eframe::egui;
 use eframe::egui::load::SizedTexture;
 use eframe::egui::{Color32, ColorImage, PointerButton};
@@ -138,7 +138,7 @@ impl<'a> ImagePlotter<'a> {
                 if !self.show_only {
                     plot = plot.coordinates_formatter(
                         Corner::LeftBottom,
-                        CoordinatesFormatter::new(|p, _b| {
+                        CoordinatesFormatter::new(move |p, _b| {
                             let color_data = *color_data_1.borrow();
                             match color_data {
                                 None => {

@@ -1,7 +1,7 @@
 use crate::arguments::{
     ImageFormatCategory, ImageFormats, OutputFileFormatCategory, SubCommands, parse_args,
 };
-use crate::image_shower::show_image;
+use crate::image_viewer::show_image;
 use eframe::egui::DroppedFile;
 use icu_lib::endecoder::{EnDecoder, common, find_endecoder, lvgl};
 use icu_lib::midata::MiData;

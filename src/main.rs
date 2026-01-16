@@ -2,15 +2,14 @@
 mod arguments;
 #[cfg(not(target_arch = "wasm32"))]
 mod cli;
-mod image_plotter;
-mod image_shower;
+mod image_viewer;
 mod utils;
 mod cus_component;
 
 // When compiling to web using trunk:
 #[cfg(target_arch = "wasm32")]
 fn main() {
-    image_shower::show_image(vec![]);
+    image_viewer::show_image(vec![]);
 }
 
 // When compiling natively:

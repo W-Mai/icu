@@ -1,4 +1,4 @@
-use super::image_shower::ImageItem;
+use crate::image_viewer::model::ImageItem;
 use eframe::egui::Color32;
 use icu_lib::endecoder::ImageInfo;
 use icu_lib::endecoder::utils::diff::ImageDiffResult;
