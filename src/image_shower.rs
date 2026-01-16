@@ -383,162 +383,160 @@ impl eframe::App for MyEguiApp {
 
         if self.context.image_diff {
             egui::SidePanel::right("DiffPanel").show(ctx, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.checkbox(&mut self.context.only_show_diff, "Only Show Diff Area");
+                ui.checkbox(&mut self.context.only_show_diff, "Only Show Diff Area");
+                ui.add(
+                    egui::Slider::new(
+                        &mut self.context.diff_tolerance,
+                        self.context.min_diff..=self.context.max_diff,
+                    )
+                    .text("Diff Tolerance"),
+                );
+                if !self.context.only_show_diff {
                     ui.add(
-                        egui::Slider::new(
-                            &mut self.context.diff_tolerance,
-                            self.context.min_diff..=self.context.max_diff,
-                        )
-                        .text("Diff Tolerance"),
+                        egui::Slider::new(&mut self.context.diff_blend, 0.0..=1.0)
+                            .text("Diff Blend"),
                     );
-                    if !self.context.only_show_diff {
+                    ui.checkbox(&mut self.context.fast_switch, "Fast Switch");
+                    if self.context.fast_switch {
                         ui.add(
-                            egui::Slider::new(&mut self.context.diff_blend, 0.0..=1.0)
-                                .text("Diff Blend"),
+                            egui::Slider::new(&mut self.context.fast_switch_speed, 0.5..=10.0)
+                                .text("Switch Speed (Hz)"),
                         );
-                        ui.checkbox(&mut self.context.fast_switch, "Fast Switch");
-                        if self.context.fast_switch {
-                            ui.add(
-                                egui::Slider::new(&mut self.context.fast_switch_speed, 0.5..=10.0)
-                                    .text("Switch Speed (Hz)"),
-                            );
-                        }
-                    } else {
-                        self.context.fast_switch = false;
                     }
+                } else {
+                    self.context.fast_switch = false;
+                }
 
-                    ui.separator();
+                ui.separator();
 
-                    self.hovered_diff_pixel = None;
-                    if let Some((_, diff_result)) = &self.diff_result {
-                        if let (Some(i1), Some(i2)) =
-                            (self.diff_image1_index, self.diff_image2_index)
-                            && i1 != i2
-                        {
-                            let mut diff_pixels: Vec<_> = diff_result
-                                .diff_filter(self.context.diff_tolerance)
-                                .collect();
+                self.hovered_diff_pixel = None;
+                if let Some((_, diff_result)) = &self.diff_result {
+                    if let (Some(i1), Some(i2)) = (self.diff_image1_index, self.diff_image2_index)
+                        && i1 != i2
+                    {
+                        let mut diff_pixels: Vec<_> = diff_result
+                            .diff_filter(self.context.diff_tolerance)
+                            .collect();
 
-                            // Sort
-                            match self.context.diff_sorting {
-                                DiffSorting::Z => {
-                                    // Default is already Z-like (row major) usually, but ensure it:
-                                    diff_pixels.sort_by_key(|p| (p.pos.1, p.pos.0));
-                                }
-                                DiffSorting::N => {
-                                    diff_pixels.sort_by_key(|p| (p.pos.0, p.pos.1));
-                                }
-                                DiffSorting::ReverseZ => {
-                                    diff_pixels.sort_by_key(|p| {
-                                        (std::cmp::Reverse(p.pos.1), std::cmp::Reverse(p.pos.0))
-                                    });
-                                }
-                                DiffSorting::ReverseN => {
-                                    diff_pixels.sort_by_key(|p| {
-                                        (std::cmp::Reverse(p.pos.0), std::cmp::Reverse(p.pos.1))
-                                    });
-                                }
-                                DiffSorting::DiffAsc => {
-                                    diff_pixels.sort_by(|a, b| {
-                                        let diff_a =
-                                            a.diff.iter().cloned().reduce(f32::max).unwrap_or(0.0);
-                                        let diff_b =
-                                            b.diff.iter().cloned().reduce(f32::max).unwrap_or(0.0);
-                                        diff_a
-                                            .partial_cmp(&diff_b)
-                                            .unwrap_or(std::cmp::Ordering::Equal)
-                                    });
-                                }
-                                DiffSorting::DiffDesc => {
-                                    diff_pixels.sort_by(|a, b| {
-                                        let diff_a =
-                                            a.diff.iter().cloned().reduce(f32::max).unwrap_or(0.0);
-                                        let diff_b =
-                                            b.diff.iter().cloned().reduce(f32::max).unwrap_or(0.0);
-                                        diff_b
-                                            .partial_cmp(&diff_a)
-                                            .unwrap_or(std::cmp::Ordering::Equal)
-                                    });
-                                }
+                        // Sort
+                        match self.context.diff_sorting {
+                            DiffSorting::Z => {
+                                // Default is already Z-like (row major) usually, but ensure it:
+                                diff_pixels.sort_by_key(|p| (p.pos.1, p.pos.0));
                             }
-
-                            // Controls
-                            ui.horizontal(|ui| {
-                                egui::ComboBox::from_label("Sort")
-                                    .selected_text(format!("{:?}", self.context.diff_sorting))
-                                    .show_ui(ui, |ui| {
-                                        ui.selectable_value(
-                                            &mut self.context.diff_sorting,
-                                            DiffSorting::Z,
-                                            "Z",
-                                        );
-                                        ui.selectable_value(
-                                            &mut self.context.diff_sorting,
-                                            DiffSorting::N,
-                                            "N",
-                                        );
-                                        ui.selectable_value(
-                                            &mut self.context.diff_sorting,
-                                            DiffSorting::ReverseZ,
-                                            "Rev Z",
-                                        );
-                                        ui.selectable_value(
-                                            &mut self.context.diff_sorting,
-                                            DiffSorting::ReverseN,
-                                            "Rev N",
-                                        );
-                                        ui.selectable_value(
-                                            &mut self.context.diff_sorting,
-                                            DiffSorting::DiffAsc,
-                                            "Diff Asc",
-                                        );
-                                        ui.selectable_value(
-                                            &mut self.context.diff_sorting,
-                                            DiffSorting::DiffDesc,
-                                            "Diff Desc",
-                                        );
-                                    });
-                            });
-
-                            // Auto jump to page
-                            if let Some(hovered) = self.hovered_diff_pixel_from_plot {
-                                if let Some(index) = diff_pixels
-                                    .iter()
-                                    .position(|p| p.pos.0 == hovered[0] && p.pos.1 == hovered[1])
-                                {
-                                    self.context.diff_page_index =
-                                        index / self.context.diff_page_size;
-                                }
+                            DiffSorting::N => {
+                                diff_pixels.sort_by_key(|p| (p.pos.0, p.pos.1));
                             }
-
-                            let total_pixels = diff_pixels.len();
-                            let total_pages = (total_pixels + self.context.diff_page_size - 1)
-                                / self.context.diff_page_size.max(1);
-
-                            if self.context.diff_page_index >= total_pages {
-                                self.context.diff_page_index = total_pages.saturating_sub(1);
+                            DiffSorting::ReverseZ => {
+                                diff_pixels.sort_by_key(|p| {
+                                    (std::cmp::Reverse(p.pos.1), std::cmp::Reverse(p.pos.0))
+                                });
                             }
+                            DiffSorting::ReverseN => {
+                                diff_pixels.sort_by_key(|p| {
+                                    (std::cmp::Reverse(p.pos.0), std::cmp::Reverse(p.pos.1))
+                                });
+                            }
+                            DiffSorting::DiffAsc => {
+                                diff_pixels.sort_by(|a, b| {
+                                    let diff_a =
+                                        a.diff.iter().cloned().reduce(f32::max).unwrap_or(0.0);
+                                    let diff_b =
+                                        b.diff.iter().cloned().reduce(f32::max).unwrap_or(0.0);
+                                    diff_a
+                                        .partial_cmp(&diff_b)
+                                        .unwrap_or(std::cmp::Ordering::Equal)
+                                });
+                            }
+                            DiffSorting::DiffDesc => {
+                                diff_pixels.sort_by(|a, b| {
+                                    let diff_a =
+                                        a.diff.iter().cloned().reduce(f32::max).unwrap_or(0.0);
+                                    let diff_b =
+                                        b.diff.iter().cloned().reduce(f32::max).unwrap_or(0.0);
+                                    diff_b
+                                        .partial_cmp(&diff_a)
+                                        .unwrap_or(std::cmp::Ordering::Equal)
+                                });
+                            }
+                        }
 
-                            ui.horizontal(|ui| {
-                                if ui.button("<").clicked() && self.context.diff_page_index > 0 {
-                                    self.context.diff_page_index -= 1;
-                                }
-                                ui.label(format!(
-                                    "{}/{}",
-                                    self.context.diff_page_index + 1,
-                                    total_pages
-                                ));
-                                if ui.button(">").clicked()
-                                    && self.context.diff_page_index + 1 < total_pages
-                                {
-                                    self.context.diff_page_index += 1;
-                                }
-                                ui.label(format!("Total: {}", total_pixels));
-                            });
+                        // Controls
+                        ui.horizontal(|ui| {
+                            egui::ComboBox::from_label("Sort")
+                                .selected_text(format!("{:?}", self.context.diff_sorting))
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut self.context.diff_sorting,
+                                        DiffSorting::Z,
+                                        "Z",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.context.diff_sorting,
+                                        DiffSorting::N,
+                                        "N",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.context.diff_sorting,
+                                        DiffSorting::ReverseZ,
+                                        "Rev Z",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.context.diff_sorting,
+                                        DiffSorting::ReverseN,
+                                        "Rev N",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.context.diff_sorting,
+                                        DiffSorting::DiffAsc,
+                                        "Diff Asc",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.context.diff_sorting,
+                                        DiffSorting::DiffDesc,
+                                        "Diff Desc",
+                                    );
+                                });
+                        });
 
-                            let start = self.context.diff_page_index * self.context.diff_page_size;
+                        // Auto jump to page
+                        if let Some(hovered) = self.hovered_diff_pixel_from_plot {
+                            if let Some(index) = diff_pixels
+                                .iter()
+                                .position(|p| p.pos.0 == hovered[0] && p.pos.1 == hovered[1])
+                            {
+                                self.context.diff_page_index = index / self.context.diff_page_size;
+                            }
+                        }
 
+                        let total_pixels = diff_pixels.len();
+                        let total_pages = (total_pixels + self.context.diff_page_size - 1)
+                            / self.context.diff_page_size.max(1);
+
+                        if self.context.diff_page_index >= total_pages {
+                            self.context.diff_page_index = total_pages.saturating_sub(1);
+                        }
+
+                        ui.horizontal(|ui| {
+                            if ui.button("<").clicked() && self.context.diff_page_index > 0 {
+                                self.context.diff_page_index -= 1;
+                            }
+                            ui.label(format!(
+                                "{}/{}",
+                                self.context.diff_page_index + 1,
+                                total_pages
+                            ));
+                            if ui.button(">").clicked()
+                                && self.context.diff_page_index + 1 < total_pages
+                            {
+                                self.context.diff_page_index += 1;
+                            }
+                            ui.label(format!("Total: {}", total_pixels));
+                        });
+
+                        let start = self.context.diff_page_index * self.context.diff_page_size;
+
+                        egui::ScrollArea::vertical().show(ui, |ui| {
                             for diff_pixel in diff_pixels
                                 .into_iter()
                                 .skip(start)
@@ -627,9 +625,9 @@ impl eframe::App for MyEguiApp {
                                         }
                                     });
                             }
-                        }
+                        });
                     }
-                })
+                }
             });
         }
 
