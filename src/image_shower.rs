@@ -251,7 +251,7 @@ impl eframe::App for MyEguiApp {
                 ui.separator();
                 ui.toggle_value(&mut self.context.show_grid, "Show Grid");
                 ui.toggle_value(&mut self.context.anti_alias, "Anti-Aliasing");
-                ui.toggle_value(&mut self.context.image_diff, "Image Diff");
+
                 ui.separator();
                 if ui.button("Clear").clicked() {
                     self.context.background_color =
@@ -261,6 +261,14 @@ impl eframe::App for MyEguiApp {
                     ui,
                     &mut self.context.background_color,
                     Alpha::BlendOrAdditive,
+                );
+
+                ui.allocate_ui_with_layout(
+                    ui.available_size(),
+                    egui::Layout::right_to_left(egui::Align::Center),
+                    |ui| {
+                        ui.toggle_value(&mut self.context.image_diff, "Image Diff");
+                    },
                 );
             });
         });
