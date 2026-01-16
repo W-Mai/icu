@@ -537,6 +537,7 @@ impl eframe::App for MyEguiApp {
                         let start = self.context.diff_page_index * self.context.diff_page_size;
 
                         egui::ScrollArea::vertical().show(ui, |ui| {
+                            let mut target_rect = None;
                             for diff_pixel in diff_pixels
                                 .into_iter()
                                 .skip(start)
@@ -622,8 +623,20 @@ impl eframe::App for MyEguiApp {
                                                 egui::Stroke::NONE,
                                                 egui::StrokeKind::Inside,
                                             );
+
+                                            if is_hovered {
+                                                target_rect = Some(rect);
+                                            }
                                         }
                                     });
+                            }
+
+                            if let Some(target_rect) = target_rect {
+                                ui.scroll_to_rect_animation(
+                                    target_rect,
+                                    None,
+                                    egui::style::ScrollAnimation::default(),
+                                );
                             }
                         });
                     }
