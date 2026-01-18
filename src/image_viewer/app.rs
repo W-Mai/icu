@@ -99,6 +99,7 @@ impl MyEguiApp {
 impl eframe::App for MyEguiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ui::draw_top_panel(ctx, &mut self.state);
+        ui::draw_bottom_panel(ctx);
 
         if self.state.context.image_diff
             && self.state.image_items.len() == 2
@@ -157,8 +158,7 @@ impl eframe::App for MyEguiApp {
         self.ui_file_drag_and_drop(ctx);
 
         // When fast_switch is enabled, force continues mode for rendering
-        let render_continues =
-            self.state.context.fast_switch && !self.state.context.only_show_diff;
+        let render_continues = self.state.context.fast_switch && !self.state.context.only_show_diff;
 
         if render_continues {
             ctx.request_repaint();

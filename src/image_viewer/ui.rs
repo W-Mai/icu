@@ -37,7 +37,46 @@ pub fn draw_top_panel(ctx: &egui::Context, state: &mut ViewerState) {
     });
 }
 
-pub fn draw_left_panel(ctx: &egui::Context, state: &mut ViewerState, reset_callback: impl FnOnce(&mut ViewerState)) {
+pub fn draw_bottom_panel(ctx: &egui::Context) {
+    egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+        const VERSION: &str = env!("CARGO_PKG_VERSION");
+        use egui::special_emojis::GITHUB;
+        ui.horizontal_wrapped(|ui| {
+            egui::widgets::global_theme_preference_switch(ui);
+            ui.separator();
+            if ui.ctx().viewport_rect().width() > 300.0 {
+                ui.heading("Image Converter Ultra");
+            } else {
+                ui.heading("ICU");
+            }
+
+            ui.separator();
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.hyperlink_to(
+                        format!("v{VERSION}"),
+                        format!("{}/releases", env!("CARGO_PKG_REPOSITORY")),
+                    );
+                    ui.separator();
+                    ui.hyperlink_to("🌐 Web Version", format!("{}i", env!("CARGO_PKG_HOMEPAGE")));
+                    ui.separator();
+                    ui.hyperlink_to(">_ CLI Version", env!("CARGO_PKG_HOMEPAGE"));
+                    ui.separator();
+                    ui.hyperlink_to(
+                        format!("{GITHUB} Source Code"),
+                        env!("CARGO_PKG_REPOSITORY"),
+                    );
+                });
+            });
+        });
+    });
+}
+
+pub fn draw_left_panel(
+    ctx: &egui::Context,
+    state: &mut ViewerState,
+    reset_callback: impl FnOnce(&mut ViewerState),
+) {
     if state.image_items.len() > 1 {
         egui::SidePanel::left("ImagePicker").show(ctx, |ui| {
             ui.separator();
@@ -62,11 +101,10 @@ pub fn draw_left_panel(ctx: &egui::Context, state: &mut ViewerState, reset_callb
                             ui.set_height(100.0);
                             let one_sample = ui.vertical_centered(|ui| {
                                 ui.vertical_centered(|ui| {
-                                    let mut image_plotter =
-                                        ImagePlotter::new(index.to_string())
-                                            .anti_alias(state.context.anti_alias)
-                                            .show_grid(false)
-                                            .show_only(true);
+                                    let mut image_plotter = ImagePlotter::new(index.to_string())
+                                        .anti_alias(state.context.anti_alias)
+                                        .show_grid(false)
+                                        .show_only(true);
 
                                     image_plotter.show(ui, &Some(image_item.clone()));
                                     ui.add(egui::Label::new(&image_item.path).truncate());
@@ -105,8 +143,7 @@ pub fn draw_left_panel(ctx: &egui::Context, state: &mut ViewerState, reset_callb
                             }
 
                             let response = one_sample.response;
-                            let visuals =
-                                ui.style().interact_selectable(&response, is_selected);
+                            let visuals = ui.style().interact_selectable(&response, is_selected);
                             let rect = response.rect;
                             let response = ui.allocate_rect(rect, Sense::click());
                             if response.clicked() {
@@ -252,8 +289,7 @@ pub fn draw_right_panel(ctx: &egui::Context, state: &mut ViewerState) {
 
                 state.hovered_diff_pixel = None;
                 if let Some((_, diff_result)) = &state.diff_result {
-                    if let (Some(i1), Some(i2)) =
-                        (state.diff_image1_index, state.diff_image2_index)
+                    if let (Some(i1), Some(i2)) = (state.diff_image1_index, state.diff_image2_index)
                         && i1 != i2
                     {
                         let mut diff_pixels: Vec<_> = diff_result
@@ -437,8 +473,7 @@ pub fn draw_right_panel(ctx: &egui::Context, state: &mut ViewerState) {
                                                     .reduce(f32::max)
                                                     .unwrap_or(0.0);
                                                 ui.add(
-                                                    egui::Label::new(format!("{diff:.3}"))
-                                                        .wrap(),
+                                                    egui::Label::new(format!("{diff:.3}")).wrap(),
                                                 );
                                                 ui.end_row();
                                             });
