@@ -1,5 +1,22 @@
 # Changelog
 
+## [v0.1.22] - 2026-01-19
+
+### 🔖 Version Tag
+
+- 🔧 **Refactor**: Renamed `image_shower` to `image_viewer` and restructured the module for better maintainability.
+- 🚀 **New Features**:
+    - Enhanced diff panel layout with grid presentation.
+    - Added custom toggle component for improved UI interactions.
+    - Added diff blend slider with quick selection buttons.
+    - Implemented smooth scrolling to hovered diff pixel.
+    - Added diff sorting and pagination controls.
+    - Added support for hovered diff pixel highlighting.
+- 💖 **UI Improvements**:
+    - Improved "Image Diff" toggle placement.
+    - Refactored diff panel UI for readability.
+    - Improved plot highlighting and boundaries.
+
 ## [v0.1.21] - 2026-01-15
 
 ### 🔖 Version Tag
