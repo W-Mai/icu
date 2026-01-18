@@ -40,14 +40,16 @@ pub fn draw_top_panel(ctx: &egui::Context, state: &mut ViewerState) {
 pub fn draw_bottom_panel(ctx: &egui::Context) {
     egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
         const VERSION: &str = env!("CARGO_PKG_VERSION");
+        let show_lesser = ui.ctx().viewport_rect().width() <= 450.0;
         use egui::special_emojis::GITHUB;
+
         ui.horizontal_wrapped(|ui| {
             egui::widgets::global_theme_preference_switch(ui);
             ui.separator();
-            if ui.ctx().viewport_rect().width() > 300.0 {
-                ui.heading("Image Converter Ultra");
-            } else {
+            if show_lesser {
                 ui.heading("ICU");
+            } else {
+                ui.heading("Image Converter Ultra");
             }
 
             ui.separator();
@@ -57,15 +59,41 @@ pub fn draw_bottom_panel(ctx: &egui::Context) {
                         format!("v{VERSION}"),
                         format!("{}/releases", env!("CARGO_PKG_REPOSITORY")),
                     );
+
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let str_web_version;
+
+                    let str_cli_version;
+                    let str_source_code;
+
+                    if show_lesser {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            str_web_version = "🌐";
+                        }
+                        str_cli_version = ">_";
+                        str_source_code = format!("{GITHUB}");
+                    } else {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            str_web_version = "🌐 Web Version";
+                        }
+                        str_cli_version = ">_ CLI Version";
+                        str_source_code = format!("{GITHUB} Source Code");
+                    }
+
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        ui.separator();
+                        ui.hyperlink_to(
+                            str_web_version,
+                            format!("{}i", env!("CARGO_PKG_HOMEPAGE")),
+                        );
+                    }
                     ui.separator();
-                    ui.hyperlink_to("🌐 Web Version", format!("{}i", env!("CARGO_PKG_HOMEPAGE")));
+                    ui.hyperlink_to(str_cli_version, env!("CARGO_PKG_HOMEPAGE"));
                     ui.separator();
-                    ui.hyperlink_to(">_ CLI Version", env!("CARGO_PKG_HOMEPAGE"));
-                    ui.separator();
-                    ui.hyperlink_to(
-                        format!("{GITHUB} Source Code"),
-                        env!("CARGO_PKG_REPOSITORY"),
-                    );
+                    ui.hyperlink_to(str_source_code, env!("CARGO_PKG_REPOSITORY"));
                 });
             });
         });
