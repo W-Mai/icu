@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>icu_tool Changelog</title><link>http://127.0.0.1:7979/changelog</link><description>Changelog information for icu_tool</description><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><atom:link href="http://127.0.0.1:7979/changelog.rss" rel="self"/><item><title>v0.2.0 - 2026-01-19</title><link>http://127.0.0.1:7979/changelog/v0.2.0</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.2.0</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>:
+<ul>
+<li>✨ Added a conversion panel in the GUI for image format conversion (supports LVGL, PNG, JPEG, etc.).</li>
+<li>✨ Shared conversion logic between CLI and GUI for consistent behavior.</li>
+<li>✨ Implemented automatic panel opening when a single image is loaded.</li>
+<li>✨ Added WASM support for image conversion and saving.</li>
+</ul>
+</li>
+<li>🔧 <strong>Improvements</strong>:
+<ul>
+<li>🧹 Refactored <code>converter</code> module for better code reuse.</li>
+<li>🧹 Updated dependencies and fixed WASM compilation issues.</li>
+</ul>
+</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.23 - 2026-01-19</title><link>http://127.0.0.1:7979/changelog/v0.1.23</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.23</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>:
+<ul>
+<li>✨ Introduced i18n support with runtime language switching and auto-detection.</li>
+<li>✨ Added custom font support (Ark Pixel) for consistent UI rendering.</li>
+<li>✨ Added "Drag files here!" placeholder text for empty state.</li>
+<li>✨ Added bottom panel with version info and links.</li>
+</ul>
+</li>
+<li>🔧 <strong>Improvements</strong>:
+<ul>
+<li>🧹 Moved language selector to bottom panel for better layout.</li>
+<li>🧹 Improved bottom panel responsiveness.</li>
+<li>🧹 Code formatting and clippy fixes in <code>icu_lib</code>.</li>
+</ul>
+</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.22 - 2026-01-19</title><link>http://127.0.0.1:7979/changelog/v0.1.22</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.22</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🔧 <strong>Refactor</strong>: Renamed <code>image_shower</code> to <code>image_viewer</code> and restructured the module for better maintainability.</li>
+<li>🚀 <strong>New Features</strong>:
+<ul>
+<li>Enhanced diff panel layout with grid presentation.</li>
+<li>Added custom toggle component for improved UI interactions.</li>
+<li>Added diff blend slider with quick selection buttons.</li>
+<li>Implemented smooth scrolling to hovered diff pixel.</li>
+<li>Added diff sorting and pagination controls.</li>
+<li>Added support for hovered diff pixel highlighting.</li>
+</ul>
+</li>
+<li>💖 <strong>UI Improvements</strong>:
+<ul>
+<li>Improved "Image Diff" toggle placement.</li>
+<li>Refactored diff panel UI for readability.</li>
+<li>Improved plot highlighting and boundaries.</li>
+</ul>
+</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.21 - 2026-01-15</title><link>http://127.0.0.1:7979/changelog/v0.1.21</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.21</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added an Info Window to display image details (Width, Height, Format, Size, etc.).</li>
+<li>🚀 <strong>New Features</strong>: Added "Tree View" for visualizing complex metadata (EXIF, PNG info) in YAML format.</li>
+<li>🚀 <strong>New Features</strong>: Supported appending dropped images instead of replacing the current list.</li>
+<li>🚀 <strong>New Features</strong>: Implemented metadata extraction for PNG (Color Type, Bit Depth, Interlace) and generic EXIF data.</li>
+<li>🔧 <strong>Improvements</strong>: Refactored image processing and <code>ImageInfo</code> structure in <code>icu_lib</code>.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.20 - 2025-11-14</title><link>http://127.0.0.1:7979/changelog/v0.1.20</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.20</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added color difference visualization in <code>image_shower</code>.</li>
+<li>🚀 <strong>New Features</strong>: Enhanced image diff display in <code>image_shower</code>.</li>
+<li>🔧 <strong>Improvements</strong>: Refactored image diffing logic in <code>diff</code>.</li>
+<li>🔧 <strong>Improvements</strong>: Moved diff panel to a side panel in <code>image_shower</code> for better UI.</li>
+<li>🛠 <strong>Refactoring</strong>: Removed unused variables in <code>endecoder/utils</code>.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.20 to reflect the updates.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.19 - 2025-08-22</title><link>http://127.0.0.1:7979/changelog/v0.1.19</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.19</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🔧 <strong>Improvements</strong>: Updated deal_input_file_paths to handle stdout option and control flow.</li>
+<li>🔧 <strong>Improvements</strong>: Bumped icu_lib version to 0.1.16 for compatibility and updates.</li>
+<li>🔧 <strong>Refactoring</strong>: Refactored image diff logic to use icu_lib for improved performance and clarity.</li>
+<li>🔧 <strong>Refactoring</strong>: Bumped version to 0.1.16 and updated RawImage methods to use parameters.</li>
+<li>🔧 <strong>Refactoring</strong>: Restructured file tree, moved functions to cli mod.</li>
+<li>✨ <strong>New Features</strong>: Added stdout option for outputting converted results directly to console.</li>
+<li>✨ <strong>New Features</strong>: Added raw image header support and implemented RawImage struct for encoding/decoding.</li>
+<li>💖 <strong>Improvements</strong>: Simplified image diff logic and improved variable naming.</li>
+<li>💖 <strong>Improvements</strong>: Refactored image diff logic into utils module.</li>
+<li>🎨 <strong>Improvements</strong>: Optimized color difference calculation and simplified blending logic.</li>
+<li>🎨 <strong>Improvements</strong>: Added diff tolerance and min/max diff controls for improved image comparison.</li>
+<li>🎉 <strong>New Features</strong>: Added initial project files for ICU Web UI with Nix flake and service worker.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.18 - 2025-08-01</title><link>http://127.0.0.1:7979/changelog/v0.1.18</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.18</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: Implemented options in <code>image_shower.rs</code> like showing only differences in diff mode, adding option
+to only show diff area and adjusting fast switch behavior, adding fast switch feature for diff mode with adjustable
+speed, and enhancing image blending logic and renaming diff_alpha to diff_blend.</li>
+<li>📚 <strong>Documentation</strong>: Added components section for artifacts configuration in <code>oranda.json</code>.</li>
+<li>📦 <strong>Dependency Update</strong>: Updated macOS platform configuration for eframe dependencies in <code>Cargo.toml</code>.</li>
+<li>🔄 <strong>Version Bump</strong>: Bumped version to v0.1.18.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.17 - 2025-07-31</title><link>http://127.0.0.1:7979/changelog/v0.1.17</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.17</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🧹 <strong>Chores</strong>: Update crate dependencies.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.16 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.17-1 - 2025-07-31</title><link>http://127.0.0.1:7979/changelog/v0.1.17-1</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.17-1</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🧹 <strong>Chores</strong>: Update crate dependencies.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.16 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.16 - 2025-07-31</title><link>http://127.0.0.1:7979/changelog/v0.1.16</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.16</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added diff support, supported alpha control, initialized diff image indices, adjusted inner and
+outer margins,
+enhanced image diff handling and selected image index, added image diff toggle and updated UI, refined position
+formatting in ImagePlotter, enhanced pixel rendering and added polygon support in ImagePlotter for pixel showing.</li>
+<li>🎨 <strong>Improvements</strong>: Reorganized image selection logic in ImageShower for improved clarity and responsiveness.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.16 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.15 - 2025-01-14</title><link>http://127.0.0.1:7979/changelog/v0.1.15</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.15</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🔧 <strong>Improvements</strong>: Improved error handling for data size mismatches in lvgl. The logging statement was moved for
+correct execution, enhancing error reporting in image header processing.</li>
+<li>🚀 <strong>New Features</strong>: Improved code formatting and organization in image_shower. Refactored the code for better
+readability, adjusted import statements and formatted button click event for setting background color with consistent
+indentation and line breaks.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.15 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.14 - 2024-12-11</title><link>http://127.0.0.1:7979/changelog/v0.1.14</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.14</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added background color support to ImagePlotter, added unique ID to ImagePlotter, updated show
+command to handle multiple files, added image item selection and hover states, added new image plotting functionality,
+added image plotting functionality to Image Handling.</li>
+<li>🔧 <strong>Improvements</strong>: Simplified image data conversion and update type references in ImageShower, refactored image data
+handling and update show method in Image Handling, simplified image selection logic in ImageShower, added parameter to
+<code>show_only</code> and update plot settings in ImagePlotter.</li>
+<li>🐛 <strong>Bug Fixes</strong>: Fixed RLE decoding and handle empty image data in icu_lib.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.14 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.13 - 2024-12-02</title><link>http://127.0.0.1:7979/changelog/v0.1.13</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.13</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added file drag and drop functionality to ImageShower, allowing users to easily drop files into
+the application for processing. (commit 89d234a4d57167e6e29138c1db39f8a7ede41ac4)</li>
+<li>🚀 <strong>New Features</strong>: Enabled persistence of app state with <code>serde</code> serialization for <code>AppContext</code> struct, including
+settings like <code>show_grid</code> and <code>anti_alias</code>. (commit 7350fcec93f9c0c61ab49602be74dc951b2fca09)</li>
+<li>🚀 <strong>New Features</strong>: Added anti-aliasing option to ImageShower, enhancing image quality with linear filtering when
+enabled. (commit c7571d70a7c6d865b2958aa6cbe400292042d5d2)</li>
+<li>🚀 <strong>New Features</strong>: Implemented show grid option in ImageShower, allowing users to toggle the grid display for better
+visualization. (commit d697686281119190aac9395da7d3259858d4d0c1)</li>
+<li>🔧 <strong>Improvements</strong>: Improved dropped files handling in ImageShower, accurately representing file information and
+preparing image data for display. (commit 589aa16ac7b916fc7c8e8a0d902553893b8de25c)</li>
+<li>🔧 <strong>Improvements</strong>: Corrected typo in anti-aliasing toggle label and updated grid display settings for a cleaner
+look. (commit 783c82559e1928164995297d9450d52b7e628e2e)</li>
+<li>🔧 <strong>Improvements</strong>: Simplified position checks in label formatter and improved image display with cursor interaction
+enhancements. (commit 693ccf55c3e6b6d208c8c8b6f90d43cf9e79dcfa)</li>
+<li>🔧 <strong>Improvements</strong>: Updated grid display and coordinate formatting for precision, and removed unused imports to
+maintain code cleanliness. (commit 2aee817e8d5a29986ccee2802210d1471c67942b)</li>
+<li>🛠 <strong>Refactoring</strong>: Refactored RLE encoding logic and LVGL handling, including updates to <code>RleCoder</code> and compression
+methods. (commits 2969fa94521a684868fc77adbc8cf325f1b8a381, 0b58b339c94806148e258aa8e1dff043c44df901)</li>
+<li>🛠 <strong>Refactoring</strong>: Cleaned up icu_lib/src by removing unnecessary references and updating function calls for
+efficiency. (commit 59979684b79ad312af0cbff1185758c42d1775b8)</li>
+<li>🐛 <strong>Bug Fixes</strong>: Fixed errors in image header stride handling and data size mismatches in icu_lib. (commit
+f63632b67e38a1d3e4f67827eba1c26a7b87380b)</li>
+<li>📚 <strong>Documentation</strong>: Updated README files and added serialization details for better project understanding. (commits
+1996dfa999b0f68c295bce3b49a8a440c0317b1e, fde03acbf86b39e19a2537b401585da4a0b9ad40)</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.13 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.12-1 - 2024-11-08</title><link>http://127.0.0.1:7979/changelog/v0.1.12-1</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.12-1</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: support custom dither params, support 1 to 30 levels. 1 is the best level.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.12 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.12 - 2024-11-08</title><link>http://127.0.0.1:7979/changelog/v0.1.12</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.12</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: support custom dither params, support 1 to 30 levels. 1 is the best level.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.12 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.11-1 - 2024-05-01</title><link>http://127.0.0.1:7979/changelog/v0.1.11-1</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.11-1</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<p>劳动节快乐🎉
+Happy Labor Day🎉</p>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added support for PNG indexes 1/2/4/8.
+<ul>
+<li>Now you can easily convert by using the <code>-C</code> option with <code>i1/2/4/8</code> color format.</li>
+</ul>
+</li>
+<li>🚀 <strong>New Features</strong>: Added support for Dither feature! By using <code>--dither</code> option you can make your pictures better and
+more natural.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.11 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.11 - 2024-05-01</title><link>http://127.0.0.1:7979/changelog/v0.1.11</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.11</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<p>劳动节快乐🎉
+Happy Labor Day🎉</p>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added support for PNG indexes 1/2/4/8.
+<ul>
+<li>Now you can easily convert by using the <code>-C</code> option with <code>i1/2/4/8</code> color format.</li>
+</ul>
+</li>
+<li>🚀 <strong>New Features</strong>: Added support for Dither feature! By using <code>--dither</code> option you can make your pictures better and
+more natural.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.11 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.10 - 2024-03-12</title><link>http://127.0.0.1:7979/changelog/v0.1.10</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.10</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚧 <strong>Refactoring</strong>: Refactored code to improve maintainability and readability.</li>
+<li>🚧 <strong>Refactoring</strong>: Refactored error handling to improve user experience and reduce code complexity.</li>
+<li>🚀 <strong>New Features</strong>: The way to display the path is more reasonable.</li>
+<li>🚀 <strong>New Features</strong>: Added support for Auto-Complete feature for the command line interface. See <code>README.md</code> for more
+information.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.10 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.9 - 2024-03-06</title><link>http://127.0.0.1:7979/changelog/v0.1.9</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.9</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added support for LVGL version 8 encode and decode.</li>
+<li>🚀 <strong>New Features</strong>: Added support for image show for LVGL version 8.</li>
+<li>🚀 <strong>New Features</strong>: Added support for more image information logging for LVGL version 8 and 9.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.9 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.8</title><link>http://127.0.0.1:7979/changelog/v0.1.8</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.8</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🌍 <strong>Oranda Updates</strong>: Configurations were updated to improve the oranda module's functionality.</li>
+<li>🐛 <strong>Bug Fixes</strong>: Web page bugs were addressed to enhance user experience.</li>
+<li>🌐 <strong>Webpage Additions</strong>: GitHub Pages were added for better project documentation and visibility.</li>
+<li>📦 <strong>Dependency Updates</strong>: Homebrew configurations were updated to ensure compatibility with the latest dependencies.</li>
+<li>🚀 <strong>New Features</strong>: A new info command was added to the main module, and an API for image info retrieval was
+implemented in the icu_lib.</li>
+<li>🛠 <strong>CI/CD</strong>: Automated build CI was added to streamline the development process.</li>
+<li>📚 <strong>Documentation</strong>: README files were updated with more examples and detailed instructions.</li>
+</ul>
+]]></content:encoded></item><item><title></title><link>http://127.0.0.1:7979/changelog/v0.1.7</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.7</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>📚 <strong>Documentation</strong>: README files were updated to provide more examples and clearer instructions.</li>
+<li>🔄 <strong>Dependencies</strong>: Cargo dependencies were updated to the latest versions.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.7 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.5</title><link>http://127.0.0.1:7979/changelog/v0.1.5</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.5</guid><content:encoded><![CDATA[]]></content:encoded></item><item><title>v0.1.4</title><link>http://127.0.0.1:7979/changelog/v0.1.4</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.4</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>📚 <strong>README Updates</strong>: README files were updated with new flags and detailed information about the icu tool.</li>
+<li>🔄 <strong>Version Bump</strong>: The version was incremented to 0.1.4 after adding new features and making improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.3</title><link>http://127.0.0.1:7979/changelog/v0.1.3</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.3</guid><content:encoded><![CDATA[]]></content:encoded></item><item><title>v0.1.1</title><link>http://127.0.0.1:7979/changelog/v0.1.1</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.1</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>Initial Release</strong>: The first release of the project with basic functionality and initial documentation.</li>
+<li>🖼️ <strong>Image Support</strong>: Added support for image_shower and various image formats.</li>
+<li>🔧 <strong>Argument Parsing</strong>: Implemented basic argument parsing and added sub-commands for better user interaction.</li>
+<li>🔄 <strong>Dependencies</strong>: Updated Cargo dependencies and prepared the project for publishing.</li>
+</ul>
+]]></content:encoded></item><item><title>First Release</title><link>http://127.0.0.1:7979/changelog/v0.1.0</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.0</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>📄 <strong>README Updates</strong>: Initial README file was created with basic project information.</li>
+<li>🔧 <strong>Project Setup</strong>: Set up the initial project structure and added basic functionality.</li>
+<li>🔄 <strong>Version Tag</strong>: Tagged the initial release as version 0.1.0.</li>
+</ul>
+]]></content:encoded></item></channel></rss>
