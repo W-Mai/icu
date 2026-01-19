@@ -62,3 +62,8 @@ pub fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
         })
         .collect()
 }
+
+pub fn get_system_locale() -> String {
+    let locale = sys_locale::get_locale().unwrap_or_else(|| "en-US".to_string());
+    locale.replace('_', "-")
+}

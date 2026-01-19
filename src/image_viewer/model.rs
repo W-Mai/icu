@@ -59,7 +59,7 @@ impl Default for AppContext {
             fast_switch_speed: 1.0,
             fast_switch_phase: 0.0,
             only_show_diff: false,
-            language: "en-US".to_string(),
+            language: crate::image_viewer::utils::get_system_locale(),
             diff_sorting: DiffSorting::Z,
             diff_page_index: 0,
             diff_page_size: 100,

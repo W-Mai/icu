@@ -11,6 +11,10 @@ pub struct MyEguiApp {
 
 impl MyEguiApp {
     pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<DroppedFile>) -> Self {
+        log::info!(
+            "Starting Egui App with system language: {}",
+            crate::image_viewer::utils::get_system_locale()
+        );
         let mut state = ViewerState {
             image_items: process_images(&files),
             context: cc
