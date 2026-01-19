@@ -33,7 +33,7 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
 
             let yaml = serde_yaml::to_string(&info)?;
 
-            println!("{}", yaml);
+            println!("{yaml}");
         }
         SubCommands::Show {
             files,
@@ -84,8 +84,8 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 "file"
             };
-            log::trace!("{} to be converted: {:#?}", file_or_folder, input_files);
-            log::info!("Start converting {}", file_or_folder);
+            log::trace!("{file_or_folder} to be converted: {input_files:#?}");
+            log::info!("Start converting {file_or_folder}");
             log::info!("");
 
             deal_input_file_paths(input_files, &input_folder, |file_path| {
@@ -171,7 +171,7 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
                         (*output_color_format).unwrap() // safe to unwrap because it's required
                     )
                 } else {
-                    format!("{:?}", output_format)
+                    format!("{output_format:?}")
                 };
                 log::info!(
                     "took {:.6}s for converting <{}> to <{}> with format <{}>",
@@ -202,7 +202,7 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
                 duration.as_secs_f64(),
                 converted_files
             );
-            log::info!("\tUser   time: {:.6}s", user_duration);
+            log::info!("\tUser   time: {user_duration:.6}s");
             log::info!(
                 "\tSystem time: {:.6}s",
                 duration.as_secs_f64() - user_duration
@@ -228,9 +228,7 @@ fn deal_input_file_paths<F: FnMut(&String) -> std::ops::ControlFlow<()>>(
                     let path = entry.path();
                     if path.is_file() {
                         let path_string = path.to_string_lossy().into();
-                        if let std::ops::ControlFlow::Break(_) = deal_func(&path_string) {
-                            return;
-                        }
+                        if let std::ops::ControlFlow::Break(_) = deal_func(&path_string) {}
                     } else if path.is_dir() {
                         folder_list.push(path);
                     }
@@ -246,13 +244,13 @@ fn deal_input_file_paths<F: FnMut(&String) -> std::ops::ControlFlow<()>>(
                 match metadata {
                     Ok(metadata) => {
                         if metadata.is_dir() {
-                            log::trace!("{} is a directory, skip it", file_name);
+                            log::trace!("{file_name} is a directory, skip it");
                             return None;
                         }
                         Some(file_name.clone())
                     }
                     Err(_) => {
-                        log::error!("File not found: {}", file_name);
+                        log::error!("File not found: {file_name}");
                         None
                     }
                 }

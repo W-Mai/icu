@@ -163,7 +163,7 @@ impl ImageHeader {
         match version {
             LVGLVersion::V8 => {
                 let header = ImageHeaderV8::from_bytes([data[0], data[1], data[2], data[3]]);
-                log::trace!("Decoded image header: {:#?}", header);
+                log::trace!("Decoded image header: {header:#?}");
                 if header.cf_or_err().is_err() || header.reserved() != 0 {
                     ImageHeader::Unknown
                 } else {
@@ -285,7 +285,7 @@ impl ImageHeader {
 
         let header = ImageHeader::from_bytes(data.as_slice());
 
-        log::trace!("Decoded image header: {:#?}", header);
+        log::trace!("Decoded image header: {header:#?}");
         header
     }
 }
@@ -373,12 +373,12 @@ impl ImageDescriptor {
                                     };
                                 }
                                 Err(err) => {
-                                    log::error!("Failed to decode RLE data: {:?}", err);
+                                    log::error!("Failed to decode RLE data: {err:?}");
                                 }
                             };
                         }
                         _ => {
-                            log::error!("Unsupported compression method {:?}", method)
+                            log::error!("Unsupported compression method {method:?}")
                         }
                     }
                     return Self {
@@ -387,7 +387,7 @@ impl ImageDescriptor {
                         data: vec![],
                     };
                 } else if idea_data_size != data_size {
-                    log::error!("Data size mismatch ideal_data_size: {idea_data_size}, data_size: {data_size}, {:#?}", header);
+                    log::error!("Data size mismatch ideal_data_size: {idea_data_size}, data_size: {data_size}, {header:#?}");
                 }
             }
             ImageHeader::V8(_) => {}
@@ -402,10 +402,7 @@ impl ImageDescriptor {
             }
         }
 
-        log::trace!(
-            "Decoded image descriptor and returned data size: {}",
-            data_size
-        );
+        log::trace!("Decoded image descriptor and returned data size: {data_size}");
 
         Self {
             header,

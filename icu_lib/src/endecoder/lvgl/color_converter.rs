@@ -261,7 +261,7 @@ pub fn rgba8888_from(
                 row.iter()
                     .flat_map(|alpha| {
                         (0u8..8u8 / bpp).flat_map(move |i| {
-                            iter::repeat(0).take(3).chain(iter::once(
+                            std::iter::repeat_n(0, 3).chain(iter::once(
                                 (alpha >> ((8 / bpp - 1 - i) * bpp)) << (8 - bpp),
                             ))
                         })
@@ -274,7 +274,7 @@ pub fn rgba8888_from(
             let argb_iter = data.chunks_exact(stride_bytes).flat_map(|row| {
                 row.iter()
                     .take(width_bytes)
-                    .flat_map(|alpha| iter::repeat(0).take(3).chain(iter::once(*alpha)))
+                    .flat_map(|alpha| std::iter::repeat_n(0, 3).chain(iter::once(*alpha)))
             });
             argb_iter.collect()
         }
@@ -282,7 +282,7 @@ pub fn rgba8888_from(
             let argb_iter = data.chunks_exact(stride_bytes).flat_map(|row| {
                 row.iter()
                     .take(width_bytes)
-                    .flat_map(|chunk| iter::repeat(*chunk).take(3).chain(iter::once(0xFF)))
+                    .flat_map(|chunk| std::iter::repeat_n(*chunk, 3).chain(iter::once(0xFF)))
             });
             argb_iter.collect()
         }

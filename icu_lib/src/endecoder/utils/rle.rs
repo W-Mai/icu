@@ -14,6 +14,12 @@ pub struct RleCoder {
     threshold: usize,
 }
 
+impl Default for RleCoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RleCoder {
     pub fn new() -> Self {
         Self {

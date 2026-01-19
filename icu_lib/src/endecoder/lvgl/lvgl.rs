@@ -57,7 +57,7 @@ impl EnDecoder for LVGL {
                         let mut compressed_data = match rle_coder.encode(&img_data) {
                             Ok(data) => data,
                             Err(err) => {
-                                log::error!("RLE encoding failed: {:?}", err);
+                                log::error!("RLE encoding failed: {err:?}");
                                 return vec![];
                             }
                         };
