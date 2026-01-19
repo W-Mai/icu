@@ -1,5 +1,18 @@
 # Changelog
 
+## [v0.2.0] - 2026-01-19
+
+### 🔖 Version Tag
+
+- 🚀 **New Features**:
+    - ✨ Added a conversion panel in the GUI for image format conversion (supports LVGL, PNG, JPEG, etc.).
+    - ✨ Shared conversion logic between CLI and GUI for consistent behavior.
+    - ✨ Implemented automatic panel opening when a single image is loaded.
+    - ✨ Added WASM support for image conversion and saving.
+- 🔧 **Improvements**:
+    - 🧹 Refactored `converter` module for better code reuse.
+    - 🧹 Updated dependencies and fixed WASM compilation issues.
+
 ## [v0.1.23] - 2026-01-19
 
 ### 🔖 Version Tag
