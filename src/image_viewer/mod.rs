@@ -7,6 +7,39 @@ pub mod plotter;
 pub mod ui;
 pub mod utils;
 
+fn setup_custom_fonts(ctx: &eframe::egui::Context) {
+    let mut fonts = eframe::egui::FontDefinitions::default();
+    fonts.font_data.insert(
+        "ark-pixel".to_owned(),
+        std::sync::Arc::new(eframe::egui::FontData::from_static(include_bytes!(
+            "../../assets/ark-pixel-12px-monospaced-zh_cn.otf"
+        ))),
+    );
+
+    fn insert_font(
+        font: &mut eframe::egui::FontDefinitions,
+        family: eframe::egui::FontFamily,
+        font_name: &str,
+    ) {
+        let ins = font.families.get_mut(&family);
+
+        if let Some(font_list) = ins {
+            font_list.insert(0, font_name.to_owned());
+        } else {
+            log::error!("Failed to get {family:?} font family for {font_name:?}");
+        }
+    }
+
+    insert_font(
+        &mut fonts,
+        eframe::egui::FontFamily::Proportional,
+        "ark-pixel",
+    );
+    insert_font(&mut fonts, eframe::egui::FontFamily::Monospace, "ark-pixel");
+
+    ctx.set_fonts(fonts);
+}
+
 // When compiling to web using trunk:
 #[cfg(target_arch = "wasm32")]
 pub fn show_image(files: Vec<DroppedFile>) {
@@ -33,7 +66,10 @@ pub fn show_image(files: Vec<DroppedFile>) {
             .start(
                 canvas,
                 web_options,
-                Box::new(|cc| Ok(Box::new(MyEguiApp::new(cc, files)))),
+                Box::new(|cc| {
+                    setup_custom_fonts(&cc.egui_ctx);
+                    Ok(Box::new(MyEguiApp::new(cc, files)))
+                }),
             )
             .await;
 
@@ -61,7 +97,10 @@ pub fn show_image(files: Vec<DroppedFile>) {
     eframe::run_native(
         "ICU Preview",
         native_options,
-        Box::new(move |cc| Ok(Box::new(MyEguiApp::new(cc, files)))),
+        Box::new(move |cc| {
+            setup_custom_fonts(&cc.egui_ctx);
+            Ok(Box::new(MyEguiApp::new(cc, files)))
+        }),
     )
     .expect("Failed to run eframe");
 }
