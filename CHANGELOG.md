@@ -1,5 +1,19 @@
 # Changelog
 
+## [v0.1.23] - 2026-01-19
+
+### 🔖 Version Tag
+
+- 🚀 **New Features**:
+    - ✨ Introduced i18n support with runtime language switching and auto-detection.
+    - ✨ Added custom font support (Ark Pixel) for consistent UI rendering.
+    - ✨ Added "Drag files here!" placeholder text for empty state.
+    - ✨ Added bottom panel with version info and links.
+- 🔧 **Improvements**:
+    - 🧹 Moved language selector to bottom panel for better layout.
+    - 🧹 Improved bottom panel responsiveness.
+    - 🧹 Code formatting and clippy fixes in `icu_lib`.
+
 ## [v0.1.22] - 2026-01-19
 
 ### 🔖 Version Tag
