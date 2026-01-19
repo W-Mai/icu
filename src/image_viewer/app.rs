@@ -11,21 +11,20 @@ pub struct MyEguiApp {
 
 impl MyEguiApp {
     pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<DroppedFile>) -> Self {
-        let context = if let Some(storage) = cc.storage {
-            eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
-        } else {
-            Default::default()
+        let mut state = ViewerState {
+            image_items: process_images(&files),
+            context: cc
+                .storage
+                .and_then(|storage| eframe::get_value(storage, eframe::APP_KEY))
+                .unwrap_or_default(),
+            ..Default::default()
         };
 
-        let image_items = process_images(&files);
-
-        let mut state = ViewerState::default();
-        state.context = context;
-        if let Some(first) = image_items.first() {
+        if let Some(first) = state.image_items.first() {
             state.current_image = Some(first.clone());
             state.selected_image_item_index = Some(0);
         }
-        state.image_items = image_items;
+        rust_i18n::set_locale(&state.context.language);
 
         Self { state }
     }

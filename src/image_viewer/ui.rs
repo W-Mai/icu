@@ -12,11 +12,36 @@ pub fn draw_top_panel(ctx: &egui::Context, state: &mut ViewerState) {
             ui.set_height(30.0);
             egui::widgets::global_theme_preference_switch(ui);
             ui.separator();
-            ui.toggle_value(&mut state.context.show_grid, "Show Grid");
-            ui.toggle_value(&mut state.context.anti_alias, "Anti-Aliasing");
+            egui::ComboBox::from_id_salt("Language")
+                .selected_text(t!("language"))
+                .show_ui(ui, |ui| {
+                    if ui
+                        .selectable_value(
+                            &mut state.context.language,
+                            "en-US".to_string(),
+                            "English",
+                        )
+                        .clicked()
+                    {
+                        rust_i18n::set_locale("en-US");
+                    }
+                    if ui
+                        .selectable_value(
+                            &mut state.context.language,
+                            "zh-CN".to_string(),
+                            "简体中文",
+                        )
+                        .clicked()
+                    {
+                        rust_i18n::set_locale("zh-CN");
+                    }
+                });
+            ui.separator();
+            ui.toggle_value(&mut state.context.show_grid, t!("show_grid"));
+            ui.toggle_value(&mut state.context.anti_alias, t!("anti_aliasing"));
 
             ui.separator();
-            if ui.button("Clear").clicked() {
+            if ui.button(t!("clear")).clicked() {
                 state.context.background_color =
                     state.context.background_color.linear_multiply(0.0);
             }
@@ -30,7 +55,7 @@ pub fn draw_top_panel(ctx: &egui::Context, state: &mut ViewerState) {
                 ui.available_size(),
                 egui::Layout::right_to_left(egui::Align::Center),
                 |ui| {
-                    ui.toggle_value(&mut state.context.image_diff, "Image Diff");
+                    ui.toggle_value(&mut state.context.image_diff, t!("image_diff"));
                 },
             );
         });
@@ -69,17 +94,17 @@ pub fn draw_bottom_panel(ctx: &egui::Context) {
                     if show_lesser {
                         #[cfg(not(target_arch = "wasm32"))]
                         {
-                            str_web_version = "🌐";
+                            str_web_version = "🌐".to_string();
                         }
-                        str_cli_version = ">_";
+                        str_cli_version = ">_".to_string();
                         str_source_code = format!("{GITHUB}");
                     } else {
                         #[cfg(not(target_arch = "wasm32"))]
                         {
-                            str_web_version = "🌐 Web Version";
+                            str_web_version = format!("🌐 {}", t!("web_version"));
                         }
-                        str_cli_version = ">_ CLI Version";
-                        str_source_code = format!("{GITHUB} Source Code");
+                        str_cli_version = format!(">_ {}", t!("cli_version"));
+                        str_source_code = format!("{GITHUB} {}", t!("source_code"));
                     }
 
                     #[cfg(not(target_arch = "wasm32"))]
@@ -146,7 +171,7 @@ pub fn draw_left_panel(
                                 ui.horizontal(|ui| {
                                     let diff1_selected = state.diff_image1_index == Some(index);
                                     let diff2_selected = state.diff_image2_index == Some(index);
-                                    if ui.selectable_label(diff1_selected, "Diff1").clicked() {
+                                    if ui.selectable_label(diff1_selected, t!("diff1")).clicked() {
                                         if state.diff_image1_index == Some(index) {
                                             state.diff_image1_index = None;
                                         } else {
@@ -157,7 +182,7 @@ pub fn draw_left_panel(
                                             }
                                         }
                                     }
-                                    if ui.selectable_label(diff2_selected, "Diff2").clicked() {
+                                    if ui.selectable_label(diff2_selected, t!("diff2")).clicked() {
                                         if state.diff_image2_index == Some(index) {
                                             state.diff_image2_index = None;
                                         } else {
@@ -220,7 +245,7 @@ pub fn draw_right_panel(ctx: &egui::Context, state: &mut ViewerState) {
                 ui.add_space(8.0);
                 ui.spacing_mut().item_spacing.y = 6.0;
                 ui.add(toggle(
-                    "Only Show Diff Area",
+                    t!("only_show_diff_area"),
                     &mut state.context.only_show_diff,
                 ));
                 ui.add(
@@ -228,7 +253,7 @@ pub fn draw_right_panel(ctx: &egui::Context, state: &mut ViewerState) {
                         &mut state.context.diff_tolerance,
                         state.context.min_diff..=state.context.max_diff,
                     )
-                    .text("Diff Tolerance"),
+                    .text(t!("diff_tolerance")),
                 );
                 if !state.context.only_show_diff {
                     egui::containers::Frame::new()
@@ -242,7 +267,7 @@ pub fn draw_right_panel(ctx: &egui::Context, state: &mut ViewerState) {
                         .show(ui, |ui| {
                             let diff_blend_slider = ui.add(
                                 egui::Slider::new(&mut state.context.diff_blend, 0.0..=1.0)
-                                    .text("Diff Blend"),
+                                    .text(t!("diff_blend")),
                             );
 
                             if diff_blend_slider.double_clicked() {
@@ -266,7 +291,7 @@ pub fn draw_right_panel(ctx: &egui::Context, state: &mut ViewerState) {
                                 if ui
                                     .add_sized(
                                         [btn_w, btn_h],
-                                        egui::Button::selectable(diff1_selected, "diff1"),
+                                        egui::Button::selectable(diff1_selected, t!("diff1")),
                                     )
                                     .clicked()
                                 {
@@ -278,7 +303,7 @@ pub fn draw_right_panel(ctx: &egui::Context, state: &mut ViewerState) {
                                 if ui
                                     .add_sized(
                                         [btn_w, btn_h],
-                                        egui::Button::selectable(blended_selected, "blended"),
+                                        egui::Button::selectable(blended_selected, t!("blended")),
                                     )
                                     .clicked()
                                 {
@@ -290,7 +315,7 @@ pub fn draw_right_panel(ctx: &egui::Context, state: &mut ViewerState) {
                                 if ui
                                     .add_sized(
                                         [btn_w, btn_h],
-                                        egui::Button::selectable(diff2_selected, "diff2"),
+                                        egui::Button::selectable(diff2_selected, t!("diff2")),
                                     )
                                     .clicked()
                                 {
@@ -298,14 +323,14 @@ pub fn draw_right_panel(ctx: &egui::Context, state: &mut ViewerState) {
                                 }
                             });
 
-                            ui.add(toggle("Fast Switch", &mut state.context.fast_switch));
+                            ui.add(toggle(t!("fast_switch"), &mut state.context.fast_switch));
                             if state.context.fast_switch {
                                 ui.add(
                                     egui::Slider::new(
                                         &mut state.context.fast_switch_speed,
                                         0.5..=10.0,
                                     )
-                                    .text("Switch Speed (Hz)"),
+                                    .text(t!("switch_speed")),
                                 );
                             }
                         });
@@ -369,7 +394,7 @@ pub fn draw_right_panel(ctx: &egui::Context, state: &mut ViewerState) {
 
                         // Controls
                         ui.horizontal(|ui| {
-                            egui::ComboBox::from_label("Sort")
+                            egui::ComboBox::from_label(t!("sort"))
                                 .selected_text(format!("{:?}", state.context.diff_sorting))
                                 .show_ui(ui, |ui| {
                                     ui.selectable_value(
@@ -438,7 +463,7 @@ pub fn draw_right_panel(ctx: &egui::Context, state: &mut ViewerState) {
                             {
                                 state.context.diff_page_index += 1;
                             }
-                            ui.label(format!("Total: {}", total_pixels));
+                            ui.label(format!("Total: {total_pixels}"));
                         });
 
                         let start = state.context.diff_page_index * state.context.diff_page_size;
@@ -605,31 +630,31 @@ pub fn draw_central_panel(ctx: &egui::Context, state: &mut ViewerState) {
 
 pub fn draw_image_info(ctx: &egui::Context, state: &mut ViewerState) {
     if let Some(current_image) = &state.current_image {
-        egui::Window::new("Image Info").show(ctx, |ui| {
+        egui::Window::new(t!("image_info")).show(ctx, |ui| {
             egui::Grid::new("info_grid")
                 .num_columns(2)
                 .spacing([40.0, 4.0])
                 .striped(true)
                 .show(ui, |ui| {
-                    ui.label("Width");
+                    ui.label(t!("width"));
                     ui.label(format!("{}", current_image.info.width));
                     ui.end_row();
 
-                    ui.label("Height");
+                    ui.label(t!("height"));
                     ui.label(format!("{}", current_image.info.height));
                     ui.end_row();
 
-                    ui.label("Format");
+                    ui.label(t!("format"));
                     ui.label(&current_image.info.format);
                     ui.end_row();
 
-                    ui.label("Size");
+                    ui.label(t!("size"));
                     ui.label(format!("{} bytes", current_image.info.data_size));
                     ui.end_row();
                 });
 
             ui.separator();
-            ui.label("Other Info:");
+            ui.label(t!("other_info"));
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui_tree_view(ui, &current_image.info.other_info);
             });
@@ -657,13 +682,13 @@ fn ui_yaml_tree(ui: &mut egui::Ui, value: &serde_yaml::Value) {
             ui.label(n.to_string());
         }
         serde_yaml::Value::String(s) => {
-            ui.label(format!("{:?}", s));
+            ui.label(format!("{s:?}"));
         }
         serde_yaml::Value::Sequence(seq) => {
             ui.collapsing(format!("Sequence [{}]", seq.len()), |ui| {
                 for (i, v) in seq.iter().enumerate() {
                     ui.horizontal(|ui| {
-                        ui.label(format!("- [{}]", i));
+                        ui.label(format!("- [{i}]"));
                         ui_yaml_tree(ui, v);
                     });
                 }
@@ -675,7 +700,7 @@ fn ui_yaml_tree(ui: &mut egui::Ui, value: &serde_yaml::Value) {
                     serde_yaml::Value::String(s) => s.clone(),
                     serde_yaml::Value::Number(n) => n.to_string(),
                     serde_yaml::Value::Bool(b) => b.to_string(),
-                    _ => format!("{:?}", k),
+                    _ => format!("{k:?}"),
                 };
 
                 if v.is_mapping() || v.is_sequence() {
@@ -684,7 +709,7 @@ fn ui_yaml_tree(ui: &mut egui::Ui, value: &serde_yaml::Value) {
                     });
                 } else {
                     ui.horizontal(|ui| {
-                        ui.label(format!("{}: ", key_str));
+                        ui.label(format!("{key_str}: "));
                         ui_yaml_tree(ui, v);
                     });
                 }

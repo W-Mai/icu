@@ -27,6 +27,7 @@ pub struct AppContext {
     pub fast_switch_speed: f32, // Speed of fast switch (Hz)
     pub fast_switch_phase: f32, // Internal phase for fast switch
     pub only_show_diff: bool,   // Only show diff area
+    pub language: String,
 
     pub diff_sorting: DiffSorting,
     pub diff_page_index: usize,
@@ -58,6 +59,7 @@ impl Default for AppContext {
             fast_switch_speed: 1.0,
             fast_switch_phase: 0.0,
             only_show_diff: false,
+            language: "en-US".to_string(),
             diff_sorting: DiffSorting::Z,
             diff_page_index: 0,
             diff_page_size: 100,
