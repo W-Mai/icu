@@ -11,23 +11,7 @@ pub fn draw_top_panel(ctx: &egui::Context, state: &mut ViewerState) {
         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.set_height(30.0);
             egui::widgets::global_theme_preference_switch(ui);
-            ui.separator();
-            egui::ComboBox::from_id_salt("Language")
-                .selected_text(t!("language"))
-                .show_ui(ui, |ui| {
-                    let lang_choices = [
-                        ("en-US", "English"),
-                        ("zh-CN", "简体中文"),
-                    ];
-                    for (code, label) in lang_choices {
-                        if ui
-                            .selectable_value(&mut state.context.language, code.to_owned(), label)
-                            .clicked()
-                        {
-                            rust_i18n::set_locale(code);
-                        }
-                    }
-                });
+
             ui.separator();
             ui.toggle_value(&mut state.context.show_grid, t!("show_grid"));
             ui.toggle_value(&mut state.context.anti_alias, t!("anti_aliasing"));
@@ -54,15 +38,13 @@ pub fn draw_top_panel(ctx: &egui::Context, state: &mut ViewerState) {
     });
 }
 
-pub fn draw_bottom_panel(ctx: &egui::Context) {
+pub fn draw_bottom_panel(ctx: &egui::Context, state: &mut ViewerState) {
     egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
         const VERSION: &str = env!("CARGO_PKG_VERSION");
         let show_lesser = ui.ctx().viewport_rect().width() <= 450.0;
         use egui::special_emojis::GITHUB;
 
         ui.horizontal_wrapped(|ui| {
-            egui::widgets::global_theme_preference_switch(ui);
-            ui.separator();
             if show_lesser {
                 ui.heading("ICU");
             } else {
@@ -70,6 +52,23 @@ pub fn draw_bottom_panel(ctx: &egui::Context) {
             }
 
             ui.separator();
+
+            egui::ComboBox::from_id_salt("Language")
+                .selected_text(t!("language"))
+                .show_ui(ui, |ui| {
+                    let lang_choices = [("en-US", "English"), ("zh-CN", "简体中文")];
+                    for (code, label) in lang_choices {
+                        if ui
+                            .selectable_value(&mut state.context.language, code.to_owned(), label)
+                            .clicked()
+                        {
+                            rust_i18n::set_locale(code);
+                        }
+                    }
+                });
+
+            ui.separator();
+
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.horizontal_wrapped(|ui| {
                     ui.hyperlink_to(

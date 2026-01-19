@@ -98,7 +98,7 @@ impl MyEguiApp {
 impl eframe::App for MyEguiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ui::draw_top_panel(ctx, &mut self.state);
-        ui::draw_bottom_panel(ctx);
+        ui::draw_bottom_panel(ctx, &mut self.state);
 
         if self.state.context.image_diff
             && self.state.image_items.len() == 2
