@@ -30,7 +30,18 @@ impl MyEguiApp {
         }
         rust_i18n::set_locale(&state.context.language);
 
+        Self::init_theme(&cc.egui_ctx);
+
         Self { state }
+    }
+
+    fn init_theme(ctx: &egui::Context) {
+        let curr_theme = ctx.theme();
+        ctx.set_theme(egui::Theme::Dark);
+        catppuccin_egui::set_theme(ctx, catppuccin_egui::MOCHA);
+        ctx.set_theme(egui::Theme::Light);
+        catppuccin_egui::set_theme(ctx, catppuccin_egui::LATTE);
+        ctx.set_theme(curr_theme);
     }
 
     fn reset_state(state: &mut ViewerState) {
