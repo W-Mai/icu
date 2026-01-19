@@ -10,17 +10,21 @@ fn toggle_ui(ui: &mut egui::Ui, label: impl Into<RichText>, on: &mut bool) -> eg
             *on = !*on;
             response.mark_changed();
         }
-        response.widget_info(|| {
-            egui::WidgetInfo::selected(egui::WidgetType::Checkbox, true, *on, "")
-        });
+        response
+            .widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, true, *on, ""));
 
         if ui.is_rect_visible(rect) {
             let how_on = ui.ctx().animate_bool(response.id, *on);
             let visuals = ui.style().interact_selectable(&response, *on);
             let rect = rect.expand(visuals.expansion);
             let radius = 0.5 * rect.height();
-            ui.painter()
-                .rect(rect, radius, visuals.bg_fill, visuals.bg_stroke, StrokeKind::Outside);
+            ui.painter().rect(
+                rect,
+                radius,
+                visuals.bg_fill,
+                visuals.bg_stroke,
+                StrokeKind::Outside,
+            );
             let circle_x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), how_on);
             let center = egui::pos2(circle_x, rect.center().y);
             ui.painter()

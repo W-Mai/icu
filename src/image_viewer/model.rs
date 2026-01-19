@@ -1,6 +1,6 @@
 use eframe::egui::{Color32, DroppedFile};
-use icu_lib::endecoder::utils::diff::ImageDiffResult;
 use icu_lib::endecoder::ImageInfo;
+use icu_lib::endecoder::utils::diff::ImageDiffResult;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, PartialEq)]

@@ -2,9 +2,9 @@
 mod arguments;
 #[cfg(not(target_arch = "wasm32"))]
 mod cli;
+mod cus_component;
 mod image_viewer;
 mod utils;
-mod cus_component;
 
 // When compiling to web using trunk:
 #[cfg(target_arch = "wasm32")]
