@@ -1,5 +1,6 @@
-use crate::arguments::{
-    ImageFormatCategory, ImageFormats, OutputFileFormatCategory, SubCommands, parse_args,
+use crate::arguments::{SubCommands, parse_args};
+use crate::converter::{
+    ImageFormatCategory, ImageFormats, OutputFileFormatCategory,
 };
 use crate::image_viewer::show_image;
 use eframe::egui::DroppedFile;

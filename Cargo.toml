@@ -59,8 +59,21 @@ eframe = { version = "0.33.2", features = [
     "glow",
     "persistence"
 ] }
-wasm-bindgen-futures = "0.4.50"
-web-sys = "0.3.70"              # to access the DOM (to hide the loading text)
+web-sys = { version = "0.3.70", features = [
+    "HtmlAnchorElement",
+    "Document",
+    "Url",
+    "Blob",
+    "BlobPropertyBag",
+    "Window",
+    "HtmlCanvasElement",
+    "Element"
+] }
+js-sys = "0.3.70"
+wasm-bindgen-futures = "0.4.58"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rfd = "0.17.2"
 
 [patch.crates-io]
 icu_lib = { path = "icu_lib" }

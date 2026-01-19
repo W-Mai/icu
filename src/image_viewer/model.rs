@@ -1,3 +1,7 @@
+pub use crate::converter::{
+    ImageFormats as ImageFormat, LVGL_Version as LvglVersion,
+    OutputColorFormats as LvglColorFormat, OutputCompressedMethod as LvglCompression,
+};
 use eframe::egui::{Color32, DroppedFile};
 use icu_lib::endecoder::ImageInfo;
 use icu_lib::endecoder::utils::diff::ImageDiffResult;
@@ -32,6 +36,9 @@ pub struct AppContext {
     pub diff_sorting: DiffSorting,
     pub diff_page_index: usize,
     pub diff_page_size: usize,
+
+    pub show_convert_panel: bool,
+    pub convert_params: ConvertParams,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Copy, Clone, Debug)]
@@ -43,6 +50,30 @@ pub enum DiffSorting {
     DiffAsc,  // Diff value ascending
     DiffDesc, // Diff value descending
 }
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ConvertParams {
+    pub output_format: ImageFormat,
+    pub lvgl_version: LvglVersion,
+    pub color_format: LvglColorFormat,
+    pub compression: LvglCompression,
+    pub stride_align: u8,
+    pub dither: bool,
+}
+
+impl Default for ConvertParams {
+    fn default() -> Self {
+        Self {
+            output_format: ImageFormat::LVGL,
+            lvgl_version: LvglVersion::V9,
+            color_format: LvglColorFormat::RGB565,
+            compression: LvglCompression::None,
+            stride_align: 1,
+            dither: false,
+        }
+    }
+}
+
 
 impl Default for AppContext {
     fn default() -> Self {
@@ -63,6 +94,8 @@ impl Default for AppContext {
             diff_sorting: DiffSorting::Z,
             diff_page_index: 0,
             diff_page_size: 100,
+            show_convert_panel: false,
+            convert_params: ConvertParams::default(),
         }
     }
 }
@@ -86,4 +119,6 @@ pub struct ViewerState {
     pub selected_diff_pixel: Option<[u32; 2]>,
     pub hovered_diff_pixel: Option<[u32; 2]>,
     pub hovered_diff_pixel_from_plot: Option<[u32; 2]>,
+
+    pub is_converting: bool,
 }

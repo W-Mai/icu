@@ -2,6 +2,7 @@
 mod arguments;
 #[cfg(not(target_arch = "wasm32"))]
 mod cli;
+pub mod converter;
 mod cus_component;
 mod image_viewer;
 mod utils;

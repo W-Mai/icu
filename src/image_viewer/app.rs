@@ -101,6 +101,11 @@ impl MyEguiApp {
             self.state
                 .image_items
                 .append(&mut process_images(&self.state.dropped_files));
+
+            if self.state.image_items.len() == 1 {
+                self.state.context.show_convert_panel = true;
+            }
+
             if let Some(image) = self.state.image_items.first() {
                 self.state.current_image = Some(image.clone());
                 self.state.selected_image_item_index = Some(0);
@@ -128,6 +133,7 @@ impl eframe::App for MyEguiApp {
         });
 
         ui::draw_right_panel(ctx, &mut self.state);
+        ui::draw_convert_panel(ctx, &mut self.state);
 
         // diff algorithm
         if let (Some(i1), Some(i2)) = (self.state.diff_image1_index, self.state.diff_image2_index)

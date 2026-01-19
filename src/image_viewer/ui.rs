@@ -1,5 +1,7 @@
 use crate::cus_component::toggle;
-use crate::image_viewer::model::{DiffSorting, ViewerState};
+use crate::image_viewer::model::{
+    DiffSorting, ImageFormat, LvglColorFormat, LvglCompression, LvglVersion, ViewerState,
+};
 use crate::image_viewer::plotter::ImagePlotter;
 use eframe::egui;
 use eframe::egui::color_picker::Alpha;
@@ -32,6 +34,7 @@ pub fn draw_top_panel(ctx: &egui::Context, state: &mut ViewerState) {
                 egui::Layout::right_to_left(egui::Align::Center),
                 |ui| {
                     ui.toggle_value(&mut state.context.image_diff, t!("image_diff"));
+                    ui.toggle_value(&mut state.context.show_convert_panel, t!("convert_panel"));
                 },
             );
         });
@@ -592,6 +595,246 @@ pub fn draw_right_panel(ctx: &egui::Context, state: &mut ViewerState) {
     }
 }
 
+pub fn draw_convert_panel(ctx: &egui::Context, state: &mut ViewerState) {
+    if state.context.show_convert_panel {
+        egui::SidePanel::right("ConvertPanel")
+            .exact_width(280.0)
+            .show(ctx, |ui| {
+                ui.add_space(8.0);
+
+                egui::Grid::new("convert_grid")
+                    .num_columns(2)
+                    .spacing([8.0, 8.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        ui.label(t!("output_format"));
+                        egui::ComboBox::from_id_salt("output_format")
+                            .selected_text(format!("{:?}", state.context.convert_params.output_format))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut state.context.convert_params.output_format,
+                                    ImageFormat::PNG,
+                                    "PNG",
+                                );
+                                ui.selectable_value(
+                                    &mut state.context.convert_params.output_format,
+                                    ImageFormat::JPEG,
+                                    "JPEG",
+                                );
+                                ui.selectable_value(
+                                    &mut state.context.convert_params.output_format,
+                                    ImageFormat::BMP,
+                                    "BMP",
+                                );
+                                ui.selectable_value(
+                                    &mut state.context.convert_params.output_format,
+                                    ImageFormat::GIF,
+                                    "GIF",
+                                );
+                                ui.selectable_value(
+                                    &mut state.context.convert_params.output_format,
+                                    ImageFormat::TIFF,
+                                    "TIFF",
+                                );
+                                ui.selectable_value(
+                                    &mut state.context.convert_params.output_format,
+                                    ImageFormat::WEBP,
+                                    "WEBP",
+                                );
+                                ui.selectable_value(
+                                    &mut state.context.convert_params.output_format,
+                                    ImageFormat::ICO,
+                                    "ICO",
+                                );
+                                ui.selectable_value(
+                                    &mut state.context.convert_params.output_format,
+                                    ImageFormat::PBM,
+                                    "PBM",
+                                );
+                                ui.selectable_value(
+                                    &mut state.context.convert_params.output_format,
+                                    ImageFormat::PGM,
+                                    "PGM",
+                                );
+                                ui.selectable_value(
+                                    &mut state.context.convert_params.output_format,
+                                    ImageFormat::PPM,
+                                    "PPM",
+                                );
+                                ui.selectable_value(
+                                    &mut state.context.convert_params.output_format,
+                                    ImageFormat::PAM,
+                                    "PAM",
+                                );
+                                ui.selectable_value(
+                                    &mut state.context.convert_params.output_format,
+                                    ImageFormat::LVGL,
+                                    "LVGL",
+                                );
+                            });
+                        ui.end_row();
+
+                        if state.context.convert_params.output_format == ImageFormat::LVGL {
+                            ui.label(t!("lvgl_version"));
+                            egui::ComboBox::from_id_salt("lvgl_version")
+                                .selected_text(format!(
+                                    "{:?}",
+                                    state.context.convert_params.lvgl_version
+                                ))
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.lvgl_version,
+                                        LvglVersion::V8,
+                                        "V8",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.lvgl_version,
+                                        LvglVersion::V9,
+                                        "V9",
+                                    );
+                                });
+                            ui.end_row();
+
+                            ui.label(t!("color_format"));
+                            egui::ComboBox::from_id_salt("color_format")
+                                .selected_text(format!(
+                                    "{:?}",
+                                    state.context.convert_params.color_format
+                                ))
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.color_format,
+                                        LvglColorFormat::RGB565,
+                                        "RGB565",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.color_format,
+                                        LvglColorFormat::RGB565A8,
+                                        "RGB565A8",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.color_format,
+                                        LvglColorFormat::RGB888,
+                                        "RGB888",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.color_format,
+                                        LvglColorFormat::ARGB8888,
+                                        "ARGB8888",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.color_format,
+                                        LvglColorFormat::XRGB8888,
+                                        "XRGB8888",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.color_format,
+                                        LvglColorFormat::A1,
+                                        "A1",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.color_format,
+                                        LvglColorFormat::A2,
+                                        "A2",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.color_format,
+                                        LvglColorFormat::A4,
+                                        "A4",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.color_format,
+                                        LvglColorFormat::A8,
+                                        "A8",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.color_format,
+                                        LvglColorFormat::L8,
+                                        "L8",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.color_format,
+                                        LvglColorFormat::I1,
+                                        "I1",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.color_format,
+                                        LvglColorFormat::I2,
+                                        "I2",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.color_format,
+                                        LvglColorFormat::I4,
+                                        "I4",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.color_format,
+                                        LvglColorFormat::I8,
+                                        "I8",
+                                    );
+                                });
+                            ui.end_row();
+
+                            ui.label("Compression"); // TODO: Add translation
+                            egui::ComboBox::from_id_salt("compression")
+                                .selected_text(format!(
+                                    "{:?}",
+                                    state.context.convert_params.compression
+                                ))
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.compression,
+                                        LvglCompression::None,
+                                        "None",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.compression,
+                                        LvglCompression::Rle,
+                                        "RLE",
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.compression,
+                                        LvglCompression::LZ4,
+                                        "LZ4",
+                                    );
+                                });
+                            ui.end_row();
+
+                            ui.label(t!("stride_align"));
+                            ui.add(egui::DragValue::new(
+                                &mut state.context.convert_params.stride_align,
+                            ));
+                            ui.end_row();
+
+                            ui.label(t!("dither"));
+                            ui.checkbox(&mut state.context.convert_params.dither, "");
+                            ui.end_row();
+                        }
+                    });
+
+                ui.add_space(20.0);
+
+                if state.is_converting {
+                     ui.centered_and_justified(|ui| {
+                        ui.label(t!("converting"));
+                     });
+                } else {
+                    let btn_text = if state.image_items.len() > 1 {
+                        t!("convert_all")
+                    } else {
+                        t!("convert")
+                    };
+                    if ui.button(btn_text).clicked() {
+                        state.is_converting = true;
+                        crate::image_viewer::utils::save_images(&state.image_items, &state.context.convert_params);
+                        state.is_converting = false;
+                        // TODO: Show success message?
+                    }
+                }
+            });
+    }
+}
+
 pub fn draw_central_panel(ctx: &egui::Context, state: &mut ViewerState) {
     egui::CentralPanel::default().show(ctx, |ui| {
         let mut image_plotter = ImagePlotter::new("viewer")
@@ -619,7 +862,7 @@ pub fn draw_central_panel(ctx: &egui::Context, state: &mut ViewerState) {
             ui.centered_and_justified(|ui| {
                 ui.heading(
                     egui::RichText::new(t!("drag_here"))
-                        .size(100.0)
+                        .size(50.0)
                         .color(ui.style().visuals.weak_text_color()),
                 );
             });
