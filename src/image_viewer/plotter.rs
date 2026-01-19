@@ -129,12 +129,6 @@ impl<'a> ImagePlotter<'a> {
                     .show_y(!self.show_only)
                     .show_background(self.background_color.is_additive());
 
-                if let Some([x, y]) = self.highlight_pixel {
-                    let auto_size = (img_w * img_h).sqrt() / 1.618;
-                    plot = plot.default_x_bounds(x as f64 - auto_size, x as f64 + auto_size);
-                    plot = plot.default_y_bounds(-(y as f64 + auto_size), -(y as f64 - auto_size));
-                }
-
                 if !self.show_only {
                     plot = plot.coordinates_formatter(
                         Corner::LeftBottom,
@@ -179,10 +173,18 @@ impl<'a> ImagePlotter<'a> {
                     let scale = 1.0 / (plot_bounds.width() as f32 / plot_size.width());
 
                     if let Some([x, y]) = self.highlight_pixel {
+                        plot_ui.set_plot_bounds_x(
+                            x as f64 - plot_bounds.width() / 2.0
+                                ..=x as f64 + plot_bounds.width() / 2.0,
+                        );
+                        plot_ui.set_plot_bounds_y(
+                            -(y as f64 + plot_bounds.height() / 2.0)
+                                ..=-(y as f64 - plot_bounds.height() / 2.0),
+                        );
                         let center = [x as f64 + 0.5, -(y as f64 + 0.5)];
                         let alpha = (time * 5.0).sin().abs() as f32;
-                        let color = Color32::RED.linear_multiply(alpha);
-                        let stroke_width = 2.0;
+                        let color = Color32::CYAN.linear_multiply(alpha);
+                        let stroke_width = 3.0;
                         let radius = 1.5 / scale as f64;
 
                         plot_ui.polygon(
@@ -210,6 +212,7 @@ impl<'a> ImagePlotter<'a> {
                             .fill_color(Color32::TRANSPARENT)
                             .stroke(egui::Stroke::new(stroke_width, color)),
                         );
+                        plot_ui.ctx().request_repaint();
                     }
 
                     if let Some(pos) = plot_ui.pointer_coordinate() {
