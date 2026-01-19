@@ -15,25 +15,17 @@ pub fn draw_top_panel(ctx: &egui::Context, state: &mut ViewerState) {
             egui::ComboBox::from_id_salt("Language")
                 .selected_text(t!("language"))
                 .show_ui(ui, |ui| {
-                    if ui
-                        .selectable_value(
-                            &mut state.context.language,
-                            "en-US".to_string(),
-                            "English",
-                        )
-                        .clicked()
-                    {
-                        rust_i18n::set_locale("en-US");
-                    }
-                    if ui
-                        .selectable_value(
-                            &mut state.context.language,
-                            "zh-CN".to_string(),
-                            "简体中文",
-                        )
-                        .clicked()
-                    {
-                        rust_i18n::set_locale("zh-CN");
+                    let lang_choices = [
+                        ("en-US", "English"),
+                        ("zh-CN", "简体中文"),
+                    ];
+                    for (code, label) in lang_choices {
+                        if ui
+                            .selectable_value(&mut state.context.language, code.to_owned(), label)
+                            .clicked()
+                        {
+                            rust_i18n::set_locale(code);
+                        }
                     }
                 });
             ui.separator();
