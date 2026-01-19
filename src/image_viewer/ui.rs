@@ -613,9 +613,17 @@ pub fn draw_central_panel(ctx: &egui::Context, state: &mut ViewerState) {
             && state.context.image_diff
         {
             image_plotter.show(ui, &Some(diff_img.clone()));
+        } else if let Some(image) = &state.current_image {
+            image_plotter.show(ui, &Some(image.clone()));
         } else {
-            image_plotter.show(ui, &state.current_image);
-        };
+            ui.centered_and_justified(|ui| {
+                ui.heading(
+                    egui::RichText::new(t!("drag_here"))
+                        .size(100.0)
+                        .color(ui.style().visuals.weak_text_color()),
+                );
+            });
+        }
     });
 }
 
