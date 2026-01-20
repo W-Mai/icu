@@ -52,34 +52,7 @@ fn draw_diff_panel_controls(ui: &mut egui::Ui, state: &mut ViewerState) {
         .text(t!("diff_tolerance")),
     );
     if !state.context.only_show_diff {
-        egui::containers::Frame::new()
-            .inner_margin(6.0)
-            .outer_margin(4.0)
-            .stroke(egui::Stroke::new(
-                1.0,
-                ui.style().visuals.widgets.noninteractive.fg_stroke.color,
-            ))
-            .corner_radius(6.0)
-            .show(ui, |ui| {
-                let diff_blend_slider = ui.add(
-                    egui::Slider::new(&mut state.context.diff_blend, 0.0..=1.0)
-                        .text(t!("diff_blend")),
-                );
-
-                if diff_blend_slider.double_clicked() {
-                    state.context.diff_blend = 0.5;
-                }
-
-                draw_blend_preset_buttons(ui, state, diff_blend_slider.interact_rect.width());
-
-                ui.add(toggle(t!("fast_switch"), &mut state.context.fast_switch));
-                if state.context.fast_switch {
-                    ui.add(
-                        egui::Slider::new(&mut state.context.fast_switch_speed, 0.5..=10.0)
-                            .text(t!("switch_speed")),
-                    );
-                }
-            });
+        draw_diff_blend_settings(ui, state);
     } else {
         state.context.fast_switch = false;
     }
@@ -144,82 +117,35 @@ fn draw_diff_pixel_list(
 ) {
     let diff_pixels = get_sorted_diff_pixels(context, diff_result);
 
-    // Controls
-    ui.horizontal(|ui| {
-        egui::ComboBox::from_label(t!("sort"))
-            .selected_text(t!(format!("diff_order.{:?}", context.diff_sorting)))
-            .show_ui(ui, |ui| {
-                for &variant in DiffSorting::value_variants() {
-                    ui.selectable_value(
-                        &mut context.diff_sorting,
-                        variant,
-                        t!(format!("diff_order.{variant:?}")),
-                    );
-                }
-            });
-    });
+    draw_diff_sorting_controls(ui, context);
 
-    // Auto jump to page
     if let Some(hovered) = hovered_diff_pixel_from_plot {
-        if let Some(index) = diff_pixels
-            .iter()
-            .position(|p| p.pos.0 == hovered[0] && p.pos.1 == hovered[1])
-        {
-            context.diff_page_index = index / context.diff_page_size;
-        }
+        update_diff_page_from_hover(context, &diff_pixels, hovered);
     }
 
     let total_pixels = diff_pixels.len();
-    let total_pages =
-        (total_pixels + context.diff_page_size - 1) / context.diff_page_size.max(1);
+    let total_pages = (total_pixels + context.diff_page_size - 1) / context.diff_page_size.max(1);
 
     if context.diff_page_index >= total_pages {
         context.diff_page_index = total_pages.saturating_sub(1);
     }
 
-    ui.horizontal(|ui| {
-        if ui.button("<").clicked() && context.diff_page_index > 0 {
-            context.diff_page_index -= 1;
-        }
-        ui.label(format!(
-            "{}/{}",
-            context.diff_page_index + 1,
-            total_pages
-        ));
-        if ui.button(">").clicked() && context.diff_page_index + 1 < total_pages {
-            context.diff_page_index += 1;
-        }
-        ui.label(format!("Total: {total_pixels}"));
-    });
+    draw_diff_pagination_controls(ui, context, total_pages, total_pixels);
 
     let start = context.diff_page_index * context.diff_page_size;
 
     draw_diff_list_header(ui);
 
     ui.separator();
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        ui.spacing_mut().item_spacing.y = 0.0;
-        let mut target_rect = None;
-        for diff_pixel in diff_pixels
-            .into_iter()
-            .skip(start)
-            .take(context.diff_page_size)
-        {
-            if let Some(rect) = draw_diff_list_row(
-                ui,
-                selected_diff_pixel,
-                hovered_diff_pixel,
-                hovered_diff_pixel_from_plot,
-                diff_pixel,
-            ) {
-                target_rect = Some(rect);
-            }
-        }
-
-        if let Some(target_rect) = target_rect {
-            ui.scroll_to_rect_animation(target_rect, None, egui::style::ScrollAnimation::default());
-        }
-    });
+    draw_diff_list_scroll_area(
+        ui,
+        diff_pixels,
+        start,
+        context.diff_page_size,
+        selected_diff_pixel,
+        hovered_diff_pixel,
+        hovered_diff_pixel_from_plot,
+    );
 }
 
 /// Filters and sorts the diff pixels based on current context settings.
@@ -351,4 +277,122 @@ fn draw_diff_list_row(
         });
 
     target_rect
+}
+
+fn draw_diff_blend_settings(ui: &mut egui::Ui, state: &mut ViewerState) {
+    egui::containers::Frame::new()
+        .inner_margin(6.0)
+        .outer_margin(4.0)
+        .stroke(egui::Stroke::new(
+            1.0,
+            ui.style().visuals.widgets.noninteractive.fg_stroke.color,
+        ))
+        .corner_radius(6.0)
+        .show(ui, |ui| {
+            let diff_blend_slider = ui.add(
+                egui::Slider::new(&mut state.context.diff_blend, 0.0..=1.0).text(t!("diff_blend")),
+            );
+
+            if diff_blend_slider.double_clicked() {
+                state.context.diff_blend = 0.5;
+            }
+
+            draw_blend_preset_buttons(ui, state, diff_blend_slider.interact_rect.width());
+
+            ui.add(toggle(t!("fast_switch"), &mut state.context.fast_switch));
+            if state.context.fast_switch {
+                ui.add(
+                    egui::Slider::new(&mut state.context.fast_switch_speed, 0.5..=10.0)
+                        .text(t!("switch_speed")),
+                );
+            }
+        });
+}
+
+fn draw_diff_sorting_controls(
+    ui: &mut egui::Ui,
+    context: &mut crate::image_viewer::model::AppContext,
+) {
+    ui.horizontal(|ui| {
+        egui::ComboBox::from_label(t!("sort"))
+            .selected_text(t!(format!("diff_order.{:?}", context.diff_sorting)))
+            .show_ui(ui, |ui| {
+                for &variant in DiffSorting::value_variants() {
+                    ui.selectable_value(
+                        &mut context.diff_sorting,
+                        variant,
+                        t!(format!("diff_order.{variant:?}")),
+                    );
+                }
+            });
+    });
+}
+
+fn update_diff_page_from_hover(
+    context: &mut crate::image_viewer::model::AppContext,
+    diff_pixels: &[&ImageDiffPixel],
+    hovered: [u32; 2],
+) {
+    if let Some(index) = diff_pixels
+        .iter()
+        .position(|p| p.pos.0 == hovered[0] && p.pos.1 == hovered[1])
+    {
+        context.diff_page_index = index / context.diff_page_size;
+    }
+}
+
+fn draw_diff_pagination_controls(
+    ui: &mut egui::Ui,
+    context: &mut crate::image_viewer::model::AppContext,
+    total_pages: usize,
+    total_pixels: usize,
+) {
+    ui.horizontal(|ui| {
+        if ui.button("<").clicked() && context.diff_page_index > 0 {
+            context.diff_page_index -= 1;
+        }
+        ui.label(format!(
+            "{}/{}",
+            context.diff_page_index + 1,
+            total_pages
+        ));
+        if ui.button(">").clicked() && context.diff_page_index + 1 < total_pages {
+            context.diff_page_index += 1;
+        }
+        ui.label(format!("Total: {total_pixels}"));
+    });
+}
+
+fn draw_diff_list_scroll_area(
+    ui: &mut egui::Ui,
+    diff_pixels: Vec<&ImageDiffPixel>,
+    start: usize,
+    page_size: usize,
+    selected_diff_pixel: &mut Option<[u32; 2]>,
+    hovered_diff_pixel: &mut Option<[u32; 2]>,
+    hovered_diff_pixel_from_plot: Option<[u32; 2]>,
+) {
+    egui::ScrollArea::vertical().show(ui, |ui| {
+        ui.spacing_mut().item_spacing.y = 0.0;
+        let mut target_rect = None;
+        for diff_pixel in diff_pixels.into_iter().skip(start).take(page_size) {
+            if let Some(rect) = draw_diff_list_row(
+                ui,
+                selected_diff_pixel,
+                hovered_diff_pixel,
+                hovered_diff_pixel_from_plot,
+                diff_pixel,
+            ) {
+                target_rect = Some(rect);
+            }
+        }
+
+        if let Some(target_rect) = target_rect {
+            ui.scroll_to_rect_animation(
+                target_rect,
+                None,
+                egui::style::ScrollAnimation::default(),
+            );
+        }
+    });
 }
