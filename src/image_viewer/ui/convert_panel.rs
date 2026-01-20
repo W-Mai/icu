@@ -3,6 +3,7 @@ use crate::image_viewer::model::{
 };
 use clap::ValueEnum;
 use eframe::egui;
+use crate::cus_component::toggle;
 
 /// Draws the convert panel.
 pub fn draw_convert_panel(ctx: &egui::Context, state: &mut ViewerState) {
@@ -89,7 +90,7 @@ fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                 ui.end_row();
 
                 ui.label(t!("dither"));
-                ui.checkbox(&mut state.context.convert_params.dither, "");
+                ui.add(toggle("", &mut state.context.convert_params.dither));
                 ui.end_row();
             }
         });
