@@ -2,6 +2,7 @@ pub use crate::converter::{
     ImageFormats as ImageFormat, LVGL_Version as LvglVersion,
     OutputColorFormats as LvglColorFormat, OutputCompressedMethod as LvglCompression,
 };
+use clap::ValueEnum;
 use eframe::egui::{Color32, DroppedFile};
 use icu_lib::endecoder::ImageInfo;
 use icu_lib::endecoder::utils::diff::ImageDiffResult;
@@ -41,7 +42,7 @@ pub struct AppContext {
     pub convert_params: ConvertParams,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Copy, Clone, Debug, ValueEnum)]
 pub enum DiffSorting {
     Z,        // Z-order (default, row by row)
     N,        // N-order (column by column)
@@ -73,7 +74,6 @@ impl Default for ConvertParams {
         }
     }
 }
-
 
 impl Default for AppContext {
     fn default() -> Self {
