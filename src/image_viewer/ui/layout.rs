@@ -28,8 +28,20 @@ pub fn draw_top_panel(ctx: &egui::Context, state: &mut ViewerState) {
                 ui.available_size(),
                 egui::Layout::right_to_left(egui::Align::Center),
                 |ui| {
-                    ui.toggle_value(&mut state.context.image_diff, t!("image_diff"));
-                    ui.toggle_value(&mut state.context.show_convert_panel, t!("convert_panel"));
+                    if ui
+                        .toggle_value(&mut state.context.image_diff, t!("image_diff"))
+                        .clicked()
+                        && state.context.image_diff
+                    {
+                        state.context.show_convert_panel = false;
+                    }
+                    if ui
+                        .toggle_value(&mut state.context.show_convert_panel, t!("convert_panel"))
+                        .clicked()
+                        && state.context.show_convert_panel
+                    {
+                        state.context.image_diff = false;
+                    }
                 },
             );
         });
