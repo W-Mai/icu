@@ -9,6 +9,16 @@
     <!-- change this to your project name -->
     <title>ICUI (ICU Web UI)</title>
 
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-49NKJB9S8R"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'G-49NKJB9S8R');
+    </script>
+
     <!-- config for our rust wasm binary. go to https://trunkrs.dev/assets/#rust for more customization -->
     <link data-trunk rel="rust" data-wasm-opt="2" />
     <!-- this is the base url relative to which other urls will be constructed. trunk will insert this from the public-url option -->
