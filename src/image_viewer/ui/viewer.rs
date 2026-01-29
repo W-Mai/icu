@@ -32,6 +32,7 @@ pub fn draw_central_panel(ctx: &egui::Context, state: &mut ViewerState) {
                 ui.heading(
                     egui::RichText::new(t!("drag_here"))
                         .size(50.0)
+                        .line_height(Some(60.0))
                         .color(ui.style().visuals.weak_text_color()),
                 );
             });
