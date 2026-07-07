@@ -97,14 +97,9 @@ impl EnDecoder for PNG {
     }
 
     fn encode(&self, data: &MiData, encoder_params: EncoderParams) -> Vec<u8> {
+        let color_format: lvgl::ColorFormat = encoder_params.color_format.into();
         match data {
             MiData::RGBA(img) => {
-                let color_format = if encoder_params.color_format == lvgl::ColorFormat::UNKNOWN {
-                    lvgl::ColorFormat::ARGB8888
-                } else {
-                    encoder_params.color_format
-                };
-
                 let mut buf = Cursor::new(Vec::new());
 
                 let mut encoder = png::Encoder::new(&mut buf, img.width(), img.height());
@@ -186,7 +181,12 @@ impl EnDecoder for PNG {
                         writer.write_image_data(&data).unwrap();
                     }
                     _ => {
-                        unimplemented!()
+                        let data = img.to_vec();
+                        encoder.set_color(png::ColorType::Rgba);
+                        encoder.set_depth(png::BitDepth::Eight);
+
+                        let mut writer = encoder.write_header().unwrap();
+                        writer.write_image_data(&data).unwrap();
                     }
                 }
                 {}

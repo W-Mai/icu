@@ -122,6 +122,52 @@ fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
         });
     }
 
+    // MIRX Specific Options Group
+    if state.context.convert_params.output_format == ImageFormat::MIRX {
+        draw_section_frame(ui, "MIRX Settings", |ui| {
+            egui::Grid::new("mirx_settings_grid")
+                .num_columns(2)
+                .spacing([12.0, 8.0])
+                .striped(false)
+                .show(ui, |ui| {
+                    ui.label(t!("color_format"));
+                    egui::ComboBox::from_id_salt("mirx_color_format")
+                        .selected_text(format!("{:?}", state.context.convert_params.color_format))
+                        .width(160.0)
+                        .show_ui(ui, |ui| {
+                            for &format in LvglColorFormat::value_variants() {
+                                if matches!(
+                                    format,
+                                    LvglColorFormat::RGB565
+                                        | LvglColorFormat::RGB565Swapped
+                                        | LvglColorFormat::RGB888
+                                        | LvglColorFormat::RGBA8888
+                                        | LvglColorFormat::BGRA8888
+                                        | LvglColorFormat::XRGB8888
+                                ) {
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.color_format,
+                                        format,
+                                        format!("{format:?}"),
+                                    );
+                                }
+                            }
+                        });
+                    ui.end_row();
+
+                    ui.label(t!("stride_align"));
+                    ui.add(egui::DragValue::new(
+                        &mut state.context.convert_params.stride_align,
+                    ));
+                    ui.end_row();
+
+                    ui.label(t!("dither"));
+                    ui.add(toggle("", &mut state.context.convert_params.dither));
+                    ui.end_row();
+                });
+        });
+    }
+
     ui.add_space(24.0);
 
     // Convert Action

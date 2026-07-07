@@ -1,8 +1,11 @@
+pub mod color_format;
 pub mod common;
 pub mod lvgl;
 pub mod mirui;
 pub mod raw;
 pub mod utils;
+
+pub use color_format::ColorFormat;
 
 use crate::midata::MiData;
 use crate::EncoderParams;

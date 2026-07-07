@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use icu_lib::endecoder::{common, lvgl};
+    use icu_lib::endecoder::{ColorFormat, common, lvgl};
     use icu_lib::midata::MiData;
     use icu_lib::EncoderParams;
     use std::fs;
@@ -15,7 +15,7 @@ mod tests {
             let data = mid.encode_into(
                 &lvgl::LVGL {},
                 EncoderParams {
-                    color_format: lvgl::ColorFormat::$cf,
+                    color_format: ColorFormat::$cf,
                     stride_align: 256,
                     lvgl_version: lvgl::LVGLVersion::V9,
                     ..Default::default()

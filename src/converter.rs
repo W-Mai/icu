@@ -77,6 +77,9 @@ pub enum OutputColorFormats {
     I2,
     I4,
     I8,
+    RGB565Swapped,
+    RGBA8888,
+    BGRA8888,
 }
 
 #[allow(non_camel_case_types)]
@@ -134,23 +137,26 @@ impl From<LVGL_Version> for icu_lib::endecoder::lvgl::LVGLVersion {
     }
 }
 
-impl From<OutputColorFormats> for icu_lib::endecoder::lvgl::ColorFormat {
+impl From<OutputColorFormats> for icu_lib::endecoder::ColorFormat {
     fn from(format: OutputColorFormats) -> Self {
         match format {
-            OutputColorFormats::RGB565 => icu_lib::endecoder::lvgl::ColorFormat::RGB565,
-            OutputColorFormats::RGB565A8 => icu_lib::endecoder::lvgl::ColorFormat::RGB565A8,
-            OutputColorFormats::RGB888 => icu_lib::endecoder::lvgl::ColorFormat::RGB888,
-            OutputColorFormats::ARGB8888 => icu_lib::endecoder::lvgl::ColorFormat::ARGB8888,
-            OutputColorFormats::XRGB8888 => icu_lib::endecoder::lvgl::ColorFormat::XRGB8888,
-            OutputColorFormats::A1 => icu_lib::endecoder::lvgl::ColorFormat::A1,
-            OutputColorFormats::A2 => icu_lib::endecoder::lvgl::ColorFormat::A2,
-            OutputColorFormats::A4 => icu_lib::endecoder::lvgl::ColorFormat::A4,
-            OutputColorFormats::A8 => icu_lib::endecoder::lvgl::ColorFormat::A8,
-            OutputColorFormats::L8 => icu_lib::endecoder::lvgl::ColorFormat::L8,
-            OutputColorFormats::I1 => icu_lib::endecoder::lvgl::ColorFormat::I1,
-            OutputColorFormats::I2 => icu_lib::endecoder::lvgl::ColorFormat::I2,
-            OutputColorFormats::I4 => icu_lib::endecoder::lvgl::ColorFormat::I4,
-            OutputColorFormats::I8 => icu_lib::endecoder::lvgl::ColorFormat::I8,
+            OutputColorFormats::RGB565 => Self::RGB565,
+            OutputColorFormats::RGB565A8 => Self::RGB565A8,
+            OutputColorFormats::RGB888 => Self::RGB888,
+            OutputColorFormats::ARGB8888 => Self::ARGB8888,
+            OutputColorFormats::XRGB8888 => Self::XRGB8888,
+            OutputColorFormats::A1 => Self::A1,
+            OutputColorFormats::A2 => Self::A2,
+            OutputColorFormats::A4 => Self::A4,
+            OutputColorFormats::A8 => Self::A8,
+            OutputColorFormats::L8 => Self::L8,
+            OutputColorFormats::I1 => Self::I1,
+            OutputColorFormats::I2 => Self::I2,
+            OutputColorFormats::I4 => Self::I4,
+            OutputColorFormats::I8 => Self::I8,
+            OutputColorFormats::RGB565Swapped => Self::RGB565Swapped,
+            OutputColorFormats::RGBA8888 => Self::RGBA8888,
+            OutputColorFormats::BGRA8888 => Self::BGRA8888,
         }
     }
 }

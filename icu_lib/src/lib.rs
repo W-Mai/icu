@@ -5,7 +5,7 @@ pub mod midata;
 type RawImageHeader = lvgl::ImageHeader;
 
 pub struct EncoderParams {
-    pub color_format: lvgl::ColorFormat,
+    pub color_format: endecoder::ColorFormat,
     pub stride_align: u32,
     pub dither: Option<u32>,
     pub compress: lvgl::Compress,
@@ -16,7 +16,7 @@ pub struct EncoderParams {
 impl Default for EncoderParams {
     fn default() -> Self {
         Self {
-            color_format: Default::default(),
+            color_format: endecoder::ColorFormat::RGB565,
             stride_align: 1,
             dither: None,
             compress: Default::default(),
@@ -31,7 +31,7 @@ impl EncoderParams {
         Self::default()
     }
 
-    pub fn with_color_format(mut self, color_format: lvgl::ColorFormat) -> Self {
+    pub fn with_color_format(mut self, color_format: endecoder::ColorFormat) -> Self {
         self.color_format = color_format;
         self
     }

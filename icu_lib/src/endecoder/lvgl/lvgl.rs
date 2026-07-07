@@ -25,7 +25,10 @@ impl EnDecoder for LVGL {
     }
 
     fn encode(&self, data: &MiData, encoder_params: EncoderParams) -> Vec<u8> {
-        let color_format = encoder_params.color_format;
+        let color_format: crate::endecoder::lvgl::ColorFormat = encoder_params.color_format.into();
+        if color_format == crate::endecoder::lvgl::ColorFormat::UNKNOWN {
+            return Vec::new();
+        }
 
         match data {
             MiData::RGBA(img) => {
