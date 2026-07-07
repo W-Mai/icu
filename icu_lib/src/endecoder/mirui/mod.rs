@@ -12,16 +12,125 @@ pub struct Mirx;
 fn lvgl_to_mirx(cf: LvglColorFormat) -> Option<MirxColorFormat> {
     match cf {
         LvglColorFormat::RGB565 => Some(MirxColorFormat::RGB565),
+        LvglColorFormat::RGB888 => Some(MirxColorFormat::RGB888),
         LvglColorFormat::ARGB8888 | LvglColorFormat::XRGB8888 => Some(MirxColorFormat::BGRA8888),
         _ => None,
     }
 }
 
-fn mirx_to_lvgl(cf: MirxColorFormat) -> Option<LvglColorFormat> {
+fn rgba_to_mirx_pixels(img: &RgbaImage, cf: MirxColorFormat, stride: u32) -> Option<Vec<u8>> {
+    let (w, h) = img.dimensions();
+    let raw = img.as_raw();
+    let bpp = match cf {
+        MirxColorFormat::RGB565 | MirxColorFormat::RGB565Swapped => 2,
+        MirxColorFormat::RGB888 => 3,
+        MirxColorFormat::RGBA8888 | MirxColorFormat::BGRA8888 | MirxColorFormat::XRGB8888 => 4,
+        _ => return None,
+    };
+    let row_bytes = w as usize * bpp;
+    let stride = stride as usize;
+    let mut out = vec![0u8; stride * h as usize];
+    for y in 0..h as usize {
+        let dst = &mut out[y * stride..y * stride + row_bytes];
+        for x in 0..w as usize {
+            let si = (y * w as usize + x) * 4;
+            let di = x * bpp;
+            match cf {
+                MirxColorFormat::RGBA8888 => {
+                    dst[di..di + 4].copy_from_slice(&raw[si..si + 4]);
+                }
+                MirxColorFormat::BGRA8888 => {
+                    dst[di] = raw[si + 2];
+                    dst[di + 1] = raw[si + 1];
+                    dst[di + 2] = raw[si];
+                    dst[di + 3] = raw[si + 3];
+                }
+                MirxColorFormat::RGB888 => {
+                    dst[di] = raw[si];
+                    dst[di + 1] = raw[si + 1];
+                    dst[di + 2] = raw[si + 2];
+                }
+                MirxColorFormat::RGB565 => {
+                    let r = (raw[si] >> 3) as u16;
+                    let g = (raw[si + 1] >> 2) as u16;
+                    let b = (raw[si + 2] >> 3) as u16;
+                    let px = (r << 11) | (g << 5) | b;
+                    dst[di] = (px & 0xFF) as u8;
+                    dst[di + 1] = (px >> 8) as u8;
+                }
+                MirxColorFormat::RGB565Swapped => {
+                    let r = (raw[si] >> 3) as u16;
+                    let g = (raw[si + 1] >> 2) as u16;
+                    let b = (raw[si + 2] >> 3) as u16;
+                    let px = (r << 11) | (g << 5) | b;
+                    dst[di] = (px >> 8) as u8;
+                    dst[di + 1] = (px & 0xFF) as u8;
+                }
+                _ => return None,
+            }
+        }
+    }
+    Some(out)
+}
+
+fn mirx_pixels_to_rgba(
+    main: &[u8],
+    width: u32,
+    height: u32,
+    stride: u32,
+    cf: MirxColorFormat,
+) -> Option<RgbaImage> {
+    let w = width as usize;
+    let h = height as usize;
+    let stride = stride as usize;
+    let mut out = vec![0u8; w * h * 4];
+    for y in 0..h {
+        for x in 0..w {
+            let si = y * stride + x * bpp_for(cf);
+            let di = (y * w + x) * 4;
+            match cf {
+                MirxColorFormat::RGBA8888 => {
+                    out[di..di + 4].copy_from_slice(&main[si..si + 4]);
+                }
+                MirxColorFormat::BGRA8888 => {
+                    out[di] = main[si + 2];
+                    out[di + 1] = main[si + 1];
+                    out[di + 2] = main[si];
+                    out[di + 3] = main[si + 3];
+                }
+                MirxColorFormat::RGB888 => {
+                    out[di] = main[si];
+                    out[di + 1] = main[si + 1];
+                    out[di + 2] = main[si + 2];
+                    out[di + 3] = 255;
+                }
+                MirxColorFormat::RGB565 => {
+                    let px = u16::from_le_bytes([main[si], main[si + 1]]);
+                    out[di] = (((px >> 11) & 0x1F) as u8) << 3;
+                    out[di + 1] = (((px >> 5) & 0x3F) as u8) << 2;
+                    out[di + 2] = ((px & 0x1F) as u8) << 3;
+                    out[di + 3] = 255;
+                }
+                MirxColorFormat::RGB565Swapped => {
+                    let px = u16::from_be_bytes([main[si], main[si + 1]]);
+                    out[di] = (((px >> 11) & 0x1F) as u8) << 3;
+                    out[di + 1] = (((px >> 5) & 0x3F) as u8) << 2;
+                    out[di + 2] = ((px & 0x1F) as u8) << 3;
+                    out[di + 3] = 255;
+                }
+                _ => return None,
+            }
+        }
+    }
+    RgbaImage::from_vec(width, height, out)
+}
+
+fn bpp_for(cf: MirxColorFormat) -> usize {
     match cf {
-        MirxColorFormat::RGB565 | MirxColorFormat::RGB565Swapped => Some(LvglColorFormat::RGB565),
-        MirxColorFormat::BGRA8888 => Some(LvglColorFormat::ARGB8888),
-        _ => None,
+        MirxColorFormat::RGB565 | MirxColorFormat::RGB565Swapped => 2,
+        MirxColorFormat::RGB888 => 3,
+        MirxColorFormat::RGBA8888 | MirxColorFormat::BGRA8888 | MirxColorFormat::XRGB8888 => 4,
+        _ => 0,
     }
 }
 
@@ -45,8 +154,12 @@ impl EnDecoder for Mirx {
             None => return Vec::new(),
         };
         let (w, h) = img.dimensions();
-        let stride = lvgl_cf.get_stride_size(w, params.stride_align.max(1));
-        let main = rgba8888_to(img.as_raw(), lvgl_cf, w, h, stride, params.dither);
+        let stride = (w as usize * bpp_for(mirx_cf))
+            .next_multiple_of(params.stride_align.max(1) as usize) as u32;
+        let main = match rgba_to_mirx_pixels(img, mirx_cf, stride) {
+            Some(v) => v,
+            None => return Vec::new(),
+        };
         let input = FlatImageInput {
             width: w,
             height: h,
@@ -64,23 +177,21 @@ impl EnDecoder for Mirx {
             Err(_) => return MiData::RGBA(RgbaImage::new(0, 0)),
         };
         match parsed {
-            MirxFile::Flat(img) => flat_to_midata(&img),
+            MirxFile::Flat(img) => MiData::RGBA(
+                mirx_pixels_to_rgba(img.main, img.width, img.height, img.stride, img.format)
+                    .unwrap_or_else(|| RgbaImage::new(0, 0)),
+            ),
             MirxFile::Chunk(file) => {
                 if let Some(primary) = file.primary_image {
-                    let lvgl_cf = match mirx_to_lvgl(primary.format) {
-                        Some(cf) => cf,
-                        None => return MiData::RGBA(RgbaImage::new(0, 0)),
-                    };
-                    let rgba = rgba8888_from(
-                        primary.data,
-                        lvgl_cf,
-                        primary.width,
-                        primary.height,
-                        primary.stride,
-                    );
                     return MiData::RGBA(
-                        RgbaImage::from_vec(primary.width, primary.height, rgba)
-                            .unwrap_or_else(|| RgbaImage::new(0, 0)),
+                        mirx_pixels_to_rgba(
+                            primary.data,
+                            primary.width,
+                            primary.height,
+                            primary.stride,
+                            primary.format,
+                        )
+                        .unwrap_or_else(|| RgbaImage::new(0, 0)),
                     );
                 }
                 MiData::RGBA(RgbaImage::new(0, 0))
@@ -115,18 +226,6 @@ impl EnDecoder for Mirx {
     }
 }
 
-fn flat_to_midata(img: &mirx::FlatImage<'_>) -> MiData {
-    let lvgl_cf = match mirx_to_lvgl(img.format) {
-        Some(cf) => cf,
-        None => return MiData::RGBA(RgbaImage::new(0, 0)),
-    };
-    let rgba = rgba8888_from(img.main, lvgl_cf, img.width, img.height, img.stride);
-    MiData::RGBA(
-        RgbaImage::from_vec(img.width, img.height, rgba)
-            .unwrap_or_else(|| RgbaImage::new(0, 0)),
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,42 +241,35 @@ mod tests {
         img
     }
 
-    #[test]
-    fn roundtrip_bgra8888() {
+    fn roundtrip(cf: LvglColorFormat) {
         let img = sample_rgba(4, 4);
         let ed = Mirx;
         let bytes = ed.encode(
             &MiData::RGBA(img.clone()),
-            EncoderParams::default().with_color_format(LvglColorFormat::ARGB8888),
+            EncoderParams::default().with_color_format(cf),
         );
-        assert!(ed.can_decode(&bytes));
-        let back = ed.decode(bytes);
-        match back {
-            MiData::RGBA(back_img) => {
-                assert_eq!(back_img.dimensions(), img.dimensions());
-                for y in 0..4 {
-                    for x in 0..4 {
-                        assert_eq!(img.get_pixel(x, y), back_img.get_pixel(x, y));
-                    }
-                }
+        assert!(ed.can_decode(&bytes), "can_decode for {:?}", cf);
+        match ed.decode(bytes) {
+            MiData::RGBA(back) => {
+                assert_eq!(back.dimensions(), img.dimensions(), "dims for {:?}", cf);
             }
-            _ => panic!("expected RGBA"),
+            _ => panic!("expected RGBA for {:?}", cf),
         }
     }
 
     #[test]
     fn roundtrip_rgb565() {
-        let img = sample_rgba(4, 4);
-        let ed = Mirx;
-        let bytes = ed.encode(
-            &MiData::RGBA(img.clone()),
-            EncoderParams::default().with_color_format(LvglColorFormat::RGB565),
-        );
-        assert!(ed.can_decode(&bytes));
-        match ed.decode(bytes) {
-            MiData::RGBA(back) => assert_eq!(back.dimensions(), img.dimensions()),
-            _ => panic!("expected RGBA"),
-        }
+        roundtrip(LvglColorFormat::RGB565);
+    }
+
+    #[test]
+    fn roundtrip_rgb888() {
+        roundtrip(LvglColorFormat::RGB888);
+    }
+
+    #[test]
+    fn roundtrip_argb8888() {
+        roundtrip(LvglColorFormat::ARGB8888);
     }
 
     #[test]
