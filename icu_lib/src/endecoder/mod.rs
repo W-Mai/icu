@@ -1,5 +1,6 @@
 pub mod common;
 pub mod lvgl;
+pub mod mirui;
 pub mod raw;
 pub mod utils;
 
@@ -30,6 +31,7 @@ pub fn find_endecoder(data: &[u8]) -> Option<&'static dyn EnDecoder> {
         &common::PNG {} as &dyn EnDecoder,
         &common::AutoDetect {} as &dyn EnDecoder,
         &lvgl::LVGL {} as &dyn EnDecoder,
+        &mirui::Mirx {} as &dyn EnDecoder,
     ];
 
     for ed in eds {

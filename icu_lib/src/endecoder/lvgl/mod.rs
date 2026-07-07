@@ -1,7 +1,7 @@
 use modular_bitfield::prelude::*;
 use std::io::{Cursor, Write};
 
-mod color_converter;
+pub mod color_converter;
 mod lvgl;
 
 #[derive(Specifier)]
