@@ -54,6 +54,9 @@ pub enum ImageFormats {
 
     /// LVGL image formats
     LVGL,
+
+    /// MIRX image formats
+    MIRX,
 }
 
 #[allow(non_camel_case_types)]
@@ -99,6 +102,7 @@ impl ImageFormats {
             ImageFormats::PPM => &icu_lib::endecoder::common::PPM {} as &dyn EnDecoder,
             ImageFormats::PAM => &icu_lib::endecoder::common::PAM {} as &dyn EnDecoder,
             ImageFormats::LVGL => &icu_lib::endecoder::lvgl::LVGL {} as &dyn EnDecoder,
+            ImageFormats::MIRX => &icu_lib::endecoder::mirui::Mirx {} as &dyn EnDecoder,
         }
     }
 
@@ -116,6 +120,7 @@ impl ImageFormats {
             ImageFormats::PPM => "ppm",
             ImageFormats::PAM => "pam",
             ImageFormats::LVGL => "bin",
+            ImageFormats::MIRX => "mirx",
         }
     }
 }
