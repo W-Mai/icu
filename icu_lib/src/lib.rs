@@ -1,5 +1,6 @@
 use crate::endecoder::lvgl;
 
+pub use image;
 pub use mirx;
 
 pub mod endecoder;

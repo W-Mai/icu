@@ -55,6 +55,7 @@ pub fn diff_image(
                             Color32::from_rgba_unmultiplied(pixel[0], pixel[1], pixel[2], pixel[3])
                         })
                         .collect::<Vec<Color32>>(),
+                    midata: None,
                 },
                 diff_result,
             ))

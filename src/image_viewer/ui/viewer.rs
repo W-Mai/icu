@@ -1,10 +1,31 @@
 use crate::image_viewer::model::ViewerState;
 use crate::image_viewer::plotter::ImagePlotter;
+use crate::image_viewer::ui::panels;
 use eframe::egui;
+use icu_lib::midata::MiData;
 use serde::Serialize;
 
-/// Draws the central panel displaying the image or drag-drop area.
 pub fn draw_central_panel(ctx: &egui::Context, state: &mut ViewerState) {
+    if let Some(image) = &state.current_image {
+        if let Some(midata) = &image.midata {
+            match midata {
+                MiData::FONT(_) => {
+                    panels::draw_font_panel(ctx, state);
+                    return;
+                }
+                MiData::PATH(_) => {
+                    panels::draw_path_panel(ctx, state);
+                    return;
+                }
+                MiData::INDEXED(_) => {
+                    panels::draw_indexed_panel(ctx, state);
+                    return;
+                }
+                _ => {}
+            }
+        }
+    }
+
     egui::CentralPanel::default().show(ctx, |ui| {
         let mut image_plotter = ImagePlotter::new("viewer")
             .anti_alias(state.context.anti_alias)

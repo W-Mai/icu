@@ -2,6 +2,7 @@ pub mod convert_panel;
 pub mod diff_panel;
 pub mod image_list;
 pub mod layout;
+pub mod panels;
 pub mod viewer;
 
 pub use convert_panel::draw_convert_panel;

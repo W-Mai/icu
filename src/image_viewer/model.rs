@@ -6,6 +6,7 @@ use clap::ValueEnum;
 use eframe::egui::{Color32, DroppedFile};
 use icu_lib::endecoder::ImageInfo;
 use icu_lib::endecoder::utils::diff::ImageDiffResult;
+use icu_lib::midata::MiData;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, PartialEq)]
@@ -15,6 +16,7 @@ pub struct ImageItem {
     pub width: u32,
     pub height: u32,
     pub image_data: Vec<Color32>,
+    pub midata: Option<MiData>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -100,25 +102,46 @@ impl Default for AppContext {
     }
 }
 
-#[derive(Default)]
 pub struct ViewerState {
     pub current_image: Option<ImageItem>,
-
     pub image_items: Vec<ImageItem>,
     pub selected_image_item_index: Option<usize>,
     pub hovered_image_item_index: Option<usize>,
-
     pub dropped_files: Vec<DroppedFile>,
-
     pub context: AppContext,
-
     pub diff_image1_index: Option<usize>,
     pub diff_image2_index: Option<usize>,
     pub diff_result: Option<(ImageItem, ImageDiffResult)>,
-
     pub selected_diff_pixel: Option<[u32; 2]>,
     pub hovered_diff_pixel: Option<[u32; 2]>,
     pub hovered_diff_pixel_from_plot: Option<[u32; 2]>,
-
     pub is_converting: bool,
+    pub font_preview_text: String,
+    pub font_rendered_preview: Option<icu_lib::image::RgbaImage>,
+    pub path_selected_op: Option<usize>,
+    pub indexed_hover_palette: Option<u8>,
+}
+
+impl Default for ViewerState {
+    fn default() -> Self {
+        Self {
+            current_image: None,
+            image_items: Vec::new(),
+            selected_image_item_index: None,
+            hovered_image_item_index: None,
+            dropped_files: Vec::new(),
+            context: AppContext::default(),
+            diff_image1_index: None,
+            diff_image2_index: None,
+            diff_result: None,
+            selected_diff_pixel: None,
+            hovered_diff_pixel: None,
+            hovered_diff_pixel_from_plot: None,
+            is_converting: false,
+            font_preview_text: "The quick brown fox".to_string(),
+            font_rendered_preview: None,
+            path_selected_op: None,
+            indexed_hover_palette: None,
+        }
+    }
 }

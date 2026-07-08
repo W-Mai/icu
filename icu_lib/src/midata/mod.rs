@@ -2,6 +2,7 @@ use crate::endecoder::EnDecoder;
 use crate::EncoderParams;
 use image::{GrayAlphaImage, RgbaImage};
 
+#[derive(Clone, PartialEq)]
 pub enum MiData {
     RGBA(RgbaImage),
     GRAY(GrayAlphaImage),
@@ -22,15 +23,18 @@ impl MiData {
     }
 }
 
+#[derive(Clone, PartialEq)]
 pub struct SceneData {
     pub scene: mirx::Scene,
 }
 
+#[derive(Clone, PartialEq)]
 pub enum FontData {
     Mirx(mirx::Font),
     FreeType(FreeTypeFontData),
 }
 
+#[derive(Clone, PartialEq)]
 pub struct FreeTypeFontData {
     pub family: String,
     pub style: String,
@@ -42,6 +46,7 @@ pub struct FreeTypeFontData {
     pub glyphs: Vec<FreeTypeGlyph>,
 }
 
+#[derive(Clone, PartialEq)]
 pub struct FreeTypeGlyph {
     pub codepoint: u32,
     pub advance: u16,
@@ -51,6 +56,7 @@ pub struct FreeTypeGlyph {
     pub outline: Vec<mirx::PathCmd>,
 }
 
+#[derive(Clone, PartialEq)]
 pub struct IndexedImageData {
     pub rgba: RgbaImage,
     pub palette: Vec<[u8; 4]>,

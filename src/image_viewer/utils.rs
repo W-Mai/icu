@@ -39,6 +39,7 @@ pub fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
                 }
             };
 
+            let midata_clone = mi_data.clone();
             match mi_data {
                 MiData::RGBA(img_buffer) => {
                     let width = img_buffer.width();
@@ -56,6 +57,7 @@ pub fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
                         width,
                         height,
                         image_data,
+                        midata: Some(midata_clone),
                     })
                 }
                 MiData::GRAY(_) => None,
@@ -83,6 +85,7 @@ pub fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
                         width,
                         height,
                         image_data,
+                        midata: Some(midata_clone),
                     })
                 }
                 MiData::FONT(font_data) => {
@@ -108,6 +111,7 @@ pub fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
                         width,
                         height,
                         image_data,
+                        midata: Some(midata_clone),
                     })
                 }
                 MiData::INDEXED(indexed) => {
@@ -126,6 +130,7 @@ pub fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
                         width,
                         height,
                         image_data,
+                        midata: Some(midata_clone),
                     })
                 }
             }
