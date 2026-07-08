@@ -4,6 +4,7 @@ pub use mirx;
 
 pub mod endecoder;
 pub mod midata;
+pub mod postprocess;
 type RawImageHeader = lvgl::ImageHeader;
 
 pub struct EncoderParams {

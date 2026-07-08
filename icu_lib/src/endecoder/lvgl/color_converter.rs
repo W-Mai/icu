@@ -335,3 +335,75 @@ pub fn rgba8888_from(
         }
     }
 }
+
+pub fn extract_indexed(
+    data: &[u8],
+    color_format: ColorFormat,
+    width: u32,
+    height: u32,
+    stride: u32,
+) -> Option<(Vec<[u8; 4]>, Vec<u8>, u8)> {
+    if !matches!(
+        color_format,
+        ColorFormat::I1 | ColorFormat::I2 | ColorFormat::I4 | ColorFormat::I8
+    ) {
+        return None;
+    }
+    let bpp = color_format.get_bpp() as u8;
+    let color_map_size = 1usize << bpp;
+    let color_map_size_bytes = color_map_size * ColorFormat::ARGB8888.get_size() as usize;
+    if data.len() < color_map_size_bytes {
+        return None;
+    }
+    let color_map = rgba8888_from(
+        &data[0..color_map_size_bytes],
+        ColorFormat::ARGB8888,
+        color_map_size as u32,
+        1,
+        ColorFormat::ARGB8888.get_stride_size(color_map_size as u32, 1),
+    );
+    let mut palette: Vec<[u8; 4]> = Vec::with_capacity(color_map_size);
+    for i in 0..color_map_size {
+        let off = i * 4;
+        palette.push([
+            color_map[off],
+            color_map[off + 1],
+            color_map[off + 2],
+            color_map[off + 3],
+        ]);
+    }
+
+    let stride_bytes = stride as usize;
+    let pixel_count = (width * height) as usize;
+    let mut indexes: Vec<u8> = Vec::with_capacity(pixel_count);
+    let body = &data[color_map_size_bytes..];
+    if color_format == ColorFormat::I8 {
+        for row in body.chunks_exact(stride_bytes) {
+            for &idx in row.iter().take(width as usize) {
+                indexes.push(idx);
+            }
+        }
+    } else {
+        let mask = ((1u16 << bpp) - 1) as u8;
+        let per_byte = 8 / bpp;
+        for row in body.chunks_exact(stride_bytes) {
+            let mut taken = 0u32;
+            for &byte in row.iter() {
+                if taken >= width {
+                    break;
+                }
+                for i in 0..per_byte {
+                    if taken >= width {
+                        break;
+                    }
+                    let shift = (per_byte - 1 - i) * bpp;
+                    let idx = (byte >> shift) & mask;
+                    indexes.push(idx);
+                    taken += 1;
+                }
+            }
+        }
+    }
+    indexes.truncate(pixel_count);
+    Some((palette, indexes, bpp))
+}

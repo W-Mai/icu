@@ -7,6 +7,7 @@ pub enum MiData {
     GRAY(GrayAlphaImage),
     PATH(SceneData),
     FONT(FontData),
+    INDEXED(IndexedImageData),
 }
 
 impl MiData {
@@ -16,6 +17,7 @@ impl MiData {
             MiData::GRAY(_) => "GRAY",
             MiData::PATH(_) => "PATH",
             MiData::FONT(_) => "FONT",
+            MiData::INDEXED(_) => "INDEXED",
         }
     }
 }
@@ -47,6 +49,15 @@ pub struct FreeTypeGlyph {
     pub bearing_y: i16,
     pub bbox: (i16, i16, i16, i16),
     pub outline: Vec<mirx::PathCmd>,
+}
+
+pub struct IndexedImageData {
+    pub rgba: RgbaImage,
+    pub palette: Vec<[u8; 4]>,
+    pub indexes: Vec<u8>,
+    pub bpp: u8,
+    pub width: u32,
+    pub height: u32,
 }
 
 impl MiData {

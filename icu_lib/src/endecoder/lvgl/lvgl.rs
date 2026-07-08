@@ -1,10 +1,10 @@
-use crate::endecoder::lvgl::color_converter::{rgba8888_from, rgba8888_to};
+use crate::endecoder::lvgl::color_converter::{extract_indexed, rgba8888_from, rgba8888_to};
 use crate::endecoder::lvgl::{
     has_flag, with_flag, Compress, Flags, HeaderFlag, ImageCompressedHeader, ImageDescriptor,
     ImageHeader, LVGLVersion, LVGL,
 };
 use crate::endecoder::{EnDecoder, ImageInfo};
-use crate::midata::MiData;
+use crate::midata::{IndexedImageData, MiData};
 use crate::EncoderParams;
 use image::imageops;
 use image::RgbaImage;
@@ -115,17 +115,30 @@ impl EnDecoder for LVGL {
         log::trace!("Decoded image header: {:#?}", img_desc.header);
         log::trace!("Converting image data to RGBA");
 
-        // Convert image data to RGBA
+        let cf = header.cf();
+        let w = header.w() as u32;
+        let h = header.h() as u32;
+        let stride = header.stride() as u32;
+
+        if let Some((palette, indexes, bpp)) =
+            extract_indexed(&img_desc.data, cf, w, h, stride)
+        {
+            let rgba_buf = rgba8888_from(&img_desc.data, cf, w, h, stride);
+            let rgba = RgbaImage::from_vec(w, h, rgba_buf).unwrap_or_else(|| RgbaImage::new(0, 0));
+            return MiData::INDEXED(IndexedImageData {
+                rgba,
+                palette,
+                indexes,
+                bpp,
+                width: w,
+                height: h,
+            });
+        }
+
         let img_buffer = RgbaImage::from_vec(
-            header.w() as u32,
-            header.h() as u32,
-            rgba8888_from(
-                img_desc.data.clone().as_mut(),
-                header.cf(),
-                header.w() as u32,
-                header.h() as u32,
-                header.stride() as u32,
-            ),
+            w,
+            h,
+            rgba8888_from(&img_desc.data, cf, w, h, stride),
         )
         .unwrap();
 

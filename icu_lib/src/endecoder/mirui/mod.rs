@@ -183,6 +183,7 @@ impl EnDecoder for Mirx {
                 )
             }
             MiData::GRAY(_) => Vec::new(),
+            MiData::INDEXED(_) => Vec::new(),
         }
     }
 

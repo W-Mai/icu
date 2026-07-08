@@ -110,6 +110,24 @@ pub fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
                         image_data,
                     })
                 }
+                MiData::INDEXED(indexed) => {
+                    let width = indexed.width;
+                    let height = indexed.height;
+                    let image_data = indexed
+                        .rgba
+                        .chunks(4)
+                        .map(|pixel| {
+                            Color32::from_rgba_unmultiplied(pixel[0], pixel[1], pixel[2], pixel[3])
+                        })
+                        .collect::<Vec<Color32>>();
+                    Some(ImageItem {
+                        path: file_path_info,
+                        info: image_info,
+                        width,
+                        height,
+                        image_data,
+                    })
+                }
             }
         })
         .collect()
