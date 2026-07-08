@@ -1,5 +1,7 @@
 use crate::endecoder::lvgl;
 
+pub use mirx;
+
 pub mod endecoder;
 pub mod midata;
 type RawImageHeader = lvgl::ImageHeader;

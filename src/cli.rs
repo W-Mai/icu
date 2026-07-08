@@ -209,6 +209,32 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
                 duration.as_secs_f64() - user_duration
             );
         }
+        SubCommands::BakeFont {
+            ttf,
+            charset,
+            charset_file,
+            size,
+            bit_depth,
+            spread,
+            format,
+            output_folder,
+            override_output,
+        } => {
+            bake_font_command(
+                ttf,
+                charset,
+                charset_file,
+                *size,
+                *bit_depth,
+                *spread,
+                *format,
+                output_folder.as_deref(),
+                *override_output,
+            )?;
+        }
+        SubCommands::MergeFonts { inputs, output } => {
+            merge_fonts_command(inputs, output)?;
+        }
     }
 
     Ok(())
@@ -324,4 +350,110 @@ fn get_info_with(
         ImageFormatCategory::Common => Ok(common::AutoDetect {}.info(&data)),
         ImageFormatCategory::LVGL_V9 => Ok(lvgl::LVGL {}.info(&data)),
     }
+}
+
+fn bake_font_command(
+    ttf: &str,
+    charset: &str,
+    charset_file: &Option<String>,
+    size: u16,
+    bit_depth: u8,
+    spread: Option<u16>,
+    format: crate::arguments::BakeFormat,
+    output_folder: Option<&str>,
+    override_output: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use icu_lib::endecoder::mirui::font_bake::{FontBakeParams, bake_font};
+    use icu_lib::mirx::FontChunkKind;
+
+    let ttf_bytes = fs::read(ttf)?;
+    let charset_str = match charset_file {
+        Some(path) => fs::read_to_string(path)?,
+        None => charset.to_string(),
+    };
+    let mut chars: Vec<char> = charset_str.chars().collect();
+    chars.sort();
+    chars.dedup();
+
+    let kind = match format {
+        crate::arguments::BakeFormat::Sdf => FontChunkKind::Sdf,
+        crate::arguments::BakeFormat::Gray => FontChunkKind::Grayscale,
+    };
+    let valid_bd = match kind {
+        FontChunkKind::Sdf => bit_depth == 4 || bit_depth == 8,
+        FontChunkKind::Grayscale => matches!(bit_depth, 1 | 2 | 4 | 8),
+    };
+    if !valid_bd {
+        return Err(format!(
+            "bit_depth {bit_depth} invalid for format {:?} (sdf: 4|8, gray: 1|2|4|8)",
+            format
+        )
+        .into());
+    }
+    let spread = spread.unwrap_or((size / 4).max(1));
+
+    let params = FontBakeParams {
+        kind,
+        source_size: size,
+        bit_depth,
+        spread,
+        charset: chars,
+    };
+    let font = bake_font(&ttf_bytes, &params).ok_or("bake failed")?;
+    let payload = font.encode();
+    let mirx_bytes = icu_lib::mirx::encode_chunk_generic(
+        icu_lib::mirx::chunk_type::FONT,
+        icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
+        &payload,
+    );
+
+    let ttf_path = Path::new(ttf);
+    let stem = ttf_path.file_stem().unwrap_or_default().to_string_lossy();
+    let suffix = match kind {
+        FontChunkKind::Sdf => "sdf",
+        FontChunkKind::Grayscale => "gray",
+    };
+    let out_name = format!("{stem}_{suffix}_{size}.mirx");
+    let out_path = match output_folder {
+        Some(dir) => Path::new(dir).join(&out_name),
+        None => ttf_path.with_file_name(&out_name),
+    };
+    if out_path.exists() && !override_output {
+        return Err(format!(
+            "output {} exists; pass --override-output to replace",
+            out_path.display()
+        )
+        .into());
+    }
+    fs::write(&out_path, &mirx_bytes)?;
+    println!(
+        "wrote {} bytes to {} ({} glyphs, format={:?}, source_size={}, bit_depth={})",
+        mirx_bytes.len(),
+        out_path.display(),
+        font.metrics.len(),
+        kind,
+        size,
+        bit_depth,
+    );
+    Ok(())
+}
+
+fn merge_fonts_command(
+    inputs: &[String],
+    output: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use icu_lib::endecoder::mirui::font_bake::merge_font_chunks;
+    let mut input_bytes: Vec<Vec<u8>> = Vec::with_capacity(inputs.len());
+    for path in inputs {
+        input_bytes.push(fs::read(path)?);
+    }
+    let merged = merge_font_chunks(&input_bytes);
+    fs::write(output, &merged)?;
+    println!(
+        "merged {} fonts into {} ({} bytes)",
+        inputs.len(),
+        output,
+        merged.len(),
+    );
+    Ok(())
 }

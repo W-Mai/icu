@@ -101,6 +101,51 @@ pub(crate) enum SubCommands {
         #[arg(long, value_enum, default_value = "v9")]
         lvgl_version: LVGL_Version,
     },
+
+    /// Bake a TTF/OTF font into a mirx FONT chunk (SDF or grayscale atlas)
+    BakeFont {
+        #[arg(value_hint = clap::ValueHint::FilePath)]
+        ttf: String,
+
+        #[arg(long, default_value = " ")]
+        charset: String,
+
+        #[arg(long, value_hint = clap::ValueHint::FilePath)]
+        charset_file: Option<String>,
+
+        #[arg(long, default_value_t = 24)]
+        size: u16,
+
+        #[arg(long, default_value_t = 4)]
+        bit_depth: u8,
+
+        #[arg(long)]
+        spread: Option<u16>,
+
+        #[arg(long, value_enum, default_value = "sdf")]
+        format: BakeFormat,
+
+        #[arg(short = 'O', long, value_hint = clap::ValueHint::DirPath)]
+        output_folder: Option<String>,
+
+        #[arg(short = 'r', long)]
+        override_output: bool,
+    },
+
+    /// Merge multiple mirx font files into one multi-FONT-chunk bundle
+    MergeFonts {
+        #[arg(required = true, value_hint = clap::ValueHint::FilePath)]
+        inputs: Vec<String>,
+
+        #[arg(short = 'O', long, value_hint = clap::ValueHint::FilePath)]
+        output: String,
+    },
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BakeFormat {
+    Sdf,
+    Gray,
 }
 
 pub fn parse_args() -> Args {
@@ -144,6 +189,7 @@ pub fn parse_args() -> Args {
                     }
                 }
             }
+            SubCommands::BakeFont { .. } | SubCommands::MergeFonts { .. } => {}
         }
     } else {
         command.flatten_help(true).print_long_help().unwrap();

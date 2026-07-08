@@ -5,6 +5,7 @@ use image::RgbaImage;
 use mirx::{ColorFormat as MirxColorFormat, FlatImageInput, MirxFile};
 use serde_json::json;
 
+pub mod font_bake;
 pub mod font_render;
 pub mod scene_render;
 
