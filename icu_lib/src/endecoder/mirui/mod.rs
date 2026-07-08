@@ -1,9 +1,12 @@
 use crate::endecoder::{EnDecoder, ImageInfo};
-use crate::midata::MiData;
+use crate::midata::{FontData, MiData, SceneData};
 use crate::EncoderParams;
 use image::RgbaImage;
 use mirx::{ColorFormat as MirxColorFormat, FlatImageInput, MirxFile};
 use serde_json::json;
+
+pub mod font_render;
+pub mod scene_render;
 
 pub struct Mirx;
 
@@ -132,30 +135,50 @@ impl EnDecoder for Mirx {
     }
 
     fn encode(&self, data: &MiData, params: EncoderParams) -> Vec<u8> {
-        let img = match data {
-            MiData::RGBA(img) => img,
-            _ => return Vec::new(),
-        };
-        let mirx_cf = match params.color_format.to_mirx() {
-            Some(cf) => cf,
-            None => return Vec::new(),
-        };
-        let (w, h) = img.dimensions();
-        let stride = (w as usize * bpp_for(mirx_cf))
-            .next_multiple_of(params.stride_align.max(1) as usize) as u32;
-        let main = match rgba_to_mirx_pixels(img, mirx_cf, stride) {
-            Some(v) => v,
-            None => return Vec::new(),
-        };
-        let input = FlatImageInput {
-            width: w,
-            height: h,
-            stride,
-            format: mirx_cf,
-            main: &main,
-            extra: None,
-        };
-        mirx::encode_flat(&input)
+        match data {
+            MiData::RGBA(img) => {
+                let mirx_cf = match params.color_format.to_mirx() {
+                    Some(cf) => cf,
+                    None => return Vec::new(),
+                };
+                let (w, h) = img.dimensions();
+                let stride = (w as usize * bpp_for(mirx_cf))
+                    .next_multiple_of(params.stride_align.max(1) as usize) as u32;
+                let main = match rgba_to_mirx_pixels(img, mirx_cf, stride) {
+                    Some(v) => v,
+                    None => return Vec::new(),
+                };
+                let input = FlatImageInput {
+                    width: w,
+                    height: h,
+                    stride,
+                    format: mirx_cf,
+                    main: &main,
+                    extra: None,
+                };
+                mirx::encode_flat(&input)
+            }
+            MiData::PATH(scene_data) => {
+                let payload = match scene_data.scene.encode() {
+                    Ok(p) => p,
+                    Err(_) => return Vec::new(),
+                };
+                mirx::encode_chunk_generic(
+                    mirx::chunk_type::VECTOR,
+                    mirx::ChunkEntry::FLAG_CRITICAL,
+                    &payload,
+                )
+            }
+            MiData::FONT(font_data) => {
+                let payload = font_data.font.encode();
+                mirx::encode_chunk_generic(
+                    mirx::chunk_type::FONT,
+                    mirx::ChunkEntry::FLAG_CRITICAL,
+                    &payload,
+                )
+            }
+            MiData::GRAY(_) => Vec::new(),
+        }
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
@@ -169,6 +192,16 @@ impl EnDecoder for Mirx {
                     .unwrap_or_else(|| RgbaImage::new(0, 0)),
             ),
             MirxFile::Chunk(file) => {
+                if let Some(payload) = file.chunk_payload(&data, mirx::chunk_type::VECTOR) {
+                    if let Ok(scene) = mirx::Scene::decode(payload) {
+                        return MiData::PATH(SceneData { scene });
+                    }
+                }
+                if let Some(payload) = file.chunk_payload(&data, mirx::chunk_type::FONT) {
+                    if let Ok(font) = mirx::Font::decode(payload) {
+                        return MiData::FONT(FontData { font });
+                    }
+                }
                 if let Some(primary) = file.primary_image {
                     return MiData::RGBA(
                         mirx_pixels_to_rgba(
@@ -195,13 +228,57 @@ impl EnDecoder for Mirx {
                 format: format!("{:?}", img.format),
                 other_info: json!({"layout": "flat"}),
             },
-            Ok(MirxFile::Chunk(file)) => ImageInfo {
-                width: file.header.primary_width,
-                height: file.header.primary_height,
-                data_size: data.len() as u32,
-                format: format!("{:?}", file.header.primary_color_format),
-                other_info: json!({"layout": "chunk", "chunks": file.entries.len()}),
-            },
+            Ok(MirxFile::Chunk(file)) => {
+                let mut chunks_info = serde_json::Map::new();
+                for entry in &file.entries {
+                    let payload = match data.get(entry.chunk_offset as usize..) {
+                        Some(p) => p,
+                        None => continue,
+                    };
+                    let payload_len = entry.chunk_size as usize;
+                    let payload = &payload[..payload_len.min(payload.len())];
+                    match entry.chunk_type {
+                        mirx::chunk_type::VECTOR => {
+                            if let Ok(scene) = mirx::Scene::decode(payload) {
+                                chunks_info.insert("vector".into(), json!({"op_count": scene.ops.len()}));
+                            }
+                        }
+                        mirx::chunk_type::FONT => {
+                            if let Ok(font) = mirx::Font::decode(payload) {
+                                chunks_info.insert(
+                                    "font".into(),
+                                    json!({
+                                        "kind": format!("{:?}", font.chunk_header.kind),
+                                        "glyph_count": font.atlas.glyph_count,
+                                        "source_size": font.atlas.source_size,
+                                        "bit_depth": font.atlas.bit_depth,
+                                    }),
+                                );
+                            }
+                        }
+                        mirx::chunk_type::IMAGE => {
+                            if let Some(primary) = &file.primary_image {
+                                chunks_info.insert(
+                                    "image".into(),
+                                    json!({
+                                        "width": primary.width,
+                                        "height": primary.height,
+                                        "format": format!("{:?}", primary.format),
+                                    }),
+                                );
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                ImageInfo {
+                    width: file.header.primary_width,
+                    height: file.header.primary_height,
+                    data_size: data.len() as u32,
+                    format: format!("{:?}", file.header.primary_color_format),
+                    other_info: json!({"layout": "chunk", "chunks": chunks_info}),
+                }
+            }
             Err(_) => ImageInfo {
                 width: 0,
                 height: 0,
@@ -283,5 +360,93 @@ mod tests {
         assert_eq!(info.width, 2);
         assert_eq!(info.height, 2);
         assert!(info.format.contains("BGRA8888"));
+    }
+
+    #[test]
+    fn roundtrip_vector_chunk_preserves_ops() {
+        let scene = mirx::Scene {
+            ops: vec![mirx::SceneOp::FillPath {
+                path: mirx::Path {
+                    cmds: vec![
+                        mirx::PathCmd::MoveTo(mirx::Point::new(mirx::Fixed::from_int(0), mirx::Fixed::from_int(0))),
+                        mirx::PathCmd::LineTo(mirx::Point::new(mirx::Fixed::from_int(10), mirx::Fixed::from_int(0))),
+                        mirx::PathCmd::LineTo(mirx::Point::new(mirx::Fixed::from_int(10), mirx::Fixed::from_int(10))),
+                        mirx::PathCmd::Close,
+                    ],
+                },
+                transform: mirx::Transform::IDENTITY,
+                color: mirx::Color { r: 255, g: 128, b: 0, a: 255 },
+                opa: 200,
+                fill_rule: mirx::FillRule::EvenOdd,
+            }],
+        };
+        let ed = Mirx;
+        let bytes = ed.encode(&MiData::PATH(SceneData { scene: scene.clone() }), EncoderParams::default());
+        assert!(ed.can_decode(&bytes));
+        match ed.decode(bytes) {
+            MiData::PATH(back) => assert_eq!(back.scene.ops.len(), 1),
+            other => panic!("expected PATH, got {}", other.variant_name()),
+        }
+    }
+
+    #[test]
+    fn roundtrip_font_chunk_preserves_atlas() {
+        let font = mirx::Font {
+            chunk_header: mirx::FontChunkHeader {
+                kind: mirx::FontChunkKind::Sdf,
+                format: 4,
+                size: 24,
+            },
+            atlas: mirx::AtlasHeader {
+                version: mirx::SUPPORTED_VERSION,
+                bit_depth: 4,
+                _pad0: 0,
+                source_size: 4,
+                spread: 1,
+                glyph_count: 2,
+                metric_offset: mirx::HEADER_LEN as u32,
+                data_offset: (mirx::HEADER_LEN + 2 * mirx::METRIC_LEN) as u32,
+                bytes_per_glyph: 8,
+                ascender: 3,
+                descender: 1,
+                line_height: 4,
+                _pad1: 0,
+            },
+            metrics: vec![
+                mirx::GlyphMetric { codepoint: 'A' as u32, advance: 4, bearing_x: 0, bearing_y: 3 },
+                mirx::GlyphMetric { codepoint: 'B' as u32, advance: 4, bearing_x: 0, bearing_y: 3 },
+            ],
+            data: vec![0u8; 16],
+        };
+        let ed = Mirx;
+        let bytes = ed.encode(&MiData::FONT(FontData { font: font.clone() }), EncoderParams::default());
+        assert!(ed.can_decode(&bytes));
+        match ed.decode(bytes) {
+            MiData::FONT(back) => {
+                assert_eq!(back.font.atlas.glyph_count, 2);
+                assert_eq!(back.font.metrics.len(), 2);
+                assert_eq!(back.font.metrics[0].codepoint, 'A' as u32);
+            }
+            other => panic!("expected FONT, got {}", other.variant_name()),
+        }
+    }
+
+    #[test]
+    fn info_reports_vector_chunk_op_count() {
+        let scene = mirx::Scene {
+            ops: vec![mirx::SceneOp::FillPath {
+                path: mirx::Path { cmds: vec![mirx::PathCmd::Close] },
+                transform: mirx::Transform::IDENTITY,
+                color: mirx::Color { r: 255, g: 255, b: 255, a: 255 },
+                opa: 255,
+                fill_rule: mirx::FillRule::EvenOdd,
+            }],
+        };
+        let ed = Mirx;
+        let bytes = ed.encode(&MiData::PATH(SceneData { scene }), EncoderParams::default());
+        let info = ed.info(&bytes);
+        let chunks = info.other_info.get("chunks").and_then(|c| c.as_object()).unwrap();
+        let vector = chunks.get("vector").unwrap();
+        assert_eq!(vector.get("op_count").and_then(|v| v.as_u64()), Some(1));
     }
 }

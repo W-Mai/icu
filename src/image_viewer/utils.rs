@@ -59,7 +59,52 @@ pub fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
                     })
                 }
                 MiData::GRAY(_) => None,
-                MiData::PATH => None,
+                MiData::PATH(scene_data) => {
+                    let (w, h) = icu_lib::endecoder::mirui::scene_render::scene_dimensions(
+                        &scene_data.scene,
+                    )
+                    .unwrap_or((256, 256));
+                    let img = icu_lib::endecoder::mirui::scene_render::render_scene(
+                        &scene_data.scene,
+                        w,
+                        h,
+                    );
+                    let width = img.width();
+                    let height = img.height();
+                    let image_data = img
+                        .chunks(4)
+                        .map(|pixel| {
+                            Color32::from_rgba_unmultiplied(pixel[0], pixel[1], pixel[2], pixel[3])
+                        })
+                        .collect::<Vec<Color32>>();
+                    Some(ImageItem {
+                        path: file_path_info,
+                        info: image_info,
+                        width,
+                        height,
+                        image_data,
+                    })
+                }
+                MiData::FONT(font_data) => {
+                    let img = icu_lib::endecoder::mirui::font_render::render_font_atlas(
+                        &font_data.font,
+                    );
+                    let width = img.width();
+                    let height = img.height();
+                    let image_data = img
+                        .chunks(4)
+                        .map(|pixel| {
+                            Color32::from_rgba_unmultiplied(pixel[0], pixel[1], pixel[2], pixel[3])
+                        })
+                        .collect::<Vec<Color32>>();
+                    Some(ImageItem {
+                        path: file_path_info,
+                        info: image_info,
+                        width,
+                        height,
+                        image_data,
+                    })
+                }
             }
         })
         .collect()

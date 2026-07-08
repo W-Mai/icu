@@ -5,7 +5,27 @@ use image::{GrayAlphaImage, RgbaImage};
 pub enum MiData {
     RGBA(RgbaImage),
     GRAY(GrayAlphaImage),
-    PATH,
+    PATH(SceneData),
+    FONT(FontData),
+}
+
+impl MiData {
+    pub fn variant_name(&self) -> &'static str {
+        match self {
+            MiData::RGBA(_) => "RGBA",
+            MiData::GRAY(_) => "GRAY",
+            MiData::PATH(_) => "PATH",
+            MiData::FONT(_) => "FONT",
+        }
+    }
+}
+
+pub struct SceneData {
+    pub scene: mirx::Scene,
+}
+
+pub struct FontData {
+    pub font: mirx::Font,
 }
 
 impl MiData {
