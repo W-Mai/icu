@@ -170,7 +170,11 @@ impl EnDecoder for Mirx {
                 )
             }
             MiData::FONT(font_data) => {
-                let payload = font_data.font.encode();
+                let font = match font_data {
+                    FontData::Mirx(f) => f,
+                    FontData::FreeType(_) => return Vec::new(),
+                };
+                let payload = font.encode();
                 mirx::encode_chunk_generic(
                     mirx::chunk_type::FONT,
                     mirx::ChunkEntry::FLAG_CRITICAL,
@@ -199,7 +203,7 @@ impl EnDecoder for Mirx {
                 }
                 if let Some(payload) = file.chunk_payload(&data, mirx::chunk_type::FONT) {
                     if let Ok(font) = mirx::Font::decode(payload) {
-                        return MiData::FONT(FontData { font });
+                        return MiData::FONT(FontData::Mirx(font));
                     }
                 }
                 if let Some(primary) = file.primary_image {
@@ -419,15 +423,15 @@ mod tests {
             data: vec![0u8; 16],
         };
         let ed = Mirx;
-        let bytes = ed.encode(&MiData::FONT(FontData { font: font.clone() }), EncoderParams::default());
+        let bytes = ed.encode(&MiData::FONT(FontData::Mirx(font.clone())), EncoderParams::default());
         assert!(ed.can_decode(&bytes));
         match ed.decode(bytes) {
-            MiData::FONT(back) => {
-                assert_eq!(back.font.atlas.glyph_count, 2);
-                assert_eq!(back.font.metrics.len(), 2);
-                assert_eq!(back.font.metrics[0].codepoint, 'A' as u32);
+            MiData::FONT(FontData::Mirx(back)) => {
+                assert_eq!(back.atlas.glyph_count, 2);
+                assert_eq!(back.metrics.len(), 2);
+                assert_eq!(back.metrics[0].codepoint, 'A' as u32);
             }
-            other => panic!("expected FONT, got {}", other.variant_name()),
+            other => panic!("expected FONT Mirx, got {}", other.variant_name()),
         }
     }
 

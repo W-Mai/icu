@@ -2,6 +2,7 @@ use image::RgbaImage;
 use mirui::render::backends::sw::SwRenderer;
 use mirui::render::canvas::Canvas;
 use mirui::render::font::Font;
+use mirui::render::path::{Path, PathCmd};
 use mirui::render::texture::{ColorFormat, Texture};
 use mirui::types::{Fixed, Point, Rect};
 use mirx::FontChunkKind;
@@ -38,6 +39,94 @@ pub fn render_font_atlas(font: &mirx::Font) -> RgbaImage {
         }
     }
     img
+}
+
+pub fn render_freetype_glyphs(font: &crate::midata::FreeTypeFontData) -> RgbaImage {
+    if font.glyphs.is_empty() {
+        return RgbaImage::new(0, 0);
+    }
+    let cell: u32 = 48;
+    let gap: u32 = 2;
+    let cols = (font.glyphs.len() as f64).sqrt().ceil() as u32;
+    let cols = cols.max(1);
+    let rows = (font.glyphs.len() as u32 + cols - 1) / cols;
+    let grid_w = cols * cell + (cols + 1) * gap;
+    let grid_h = rows * cell + (rows + 1) * gap;
+    let mut buffer = vec![0u8; (grid_w * grid_h * 4) as usize];
+    let w = grid_w.min(u16::MAX as u32) as u16;
+    let h = grid_h.min(u16::MAX as u32) as u16;
+    let texture = Texture::new(&mut buffer, w, h, ColorFormat::RGBA8888);
+    let mut renderer = SwRenderer::new(texture);
+    let clip = Rect::new(Fixed::ZERO, Fixed::ZERO, Fixed::from_int(w as i32), Fixed::from_int(h as i32));
+    let units = font.units_per_em.max(1) as f32;
+    let scale = cell as f32 * 0.7 / units;
+    let baseline = cell as f32 * 0.8;
+    for (i, glyph) in font.glyphs.iter().enumerate() {
+        let row = i as u32 / cols;
+        let col = i as u32 % cols;
+        let x0 = gap + col * (cell + gap);
+        let y0 = gap + row * (cell + gap);
+        if glyph.outline.is_empty() {
+            continue;
+        }
+        let mut path = Path::new();
+        for cmd in &glyph.outline {
+            let mirui_cmd: PathCmd = cmd.clone().into();
+            let mapped = map_freetype_cmd(&mirui_cmd, x0, y0, scale, baseline);
+            match mapped {
+                PathCmd::MoveTo(p) => {
+                    path.move_to(p);
+                }
+                PathCmd::LineTo(p) => {
+                    path.line_to(p);
+                }
+                PathCmd::QuadTo { ctrl, end } => {
+                    path.quad_to(ctrl, end);
+                }
+                PathCmd::CubicTo { ctrl1, ctrl2, end } => {
+                    path.cubic_to(ctrl1, ctrl2, end);
+                }
+                PathCmd::Close => {
+                    path.close();
+                }
+            }
+        }
+        let color = mirui::types::Color { r: 220, g: 220, b: 220, a: 255 };
+        renderer.fill_path(&path, &clip, &color, 255);
+    }
+    renderer.flush();
+    RgbaImage::from_raw(grid_w, grid_h, buffer).unwrap_or_else(|| RgbaImage::new(grid_w, grid_h))
+}
+
+fn map_freetype_cmd(
+    cmd: &PathCmd,
+    x0: u32,
+    y0: u32,
+    scale: f32,
+    baseline: f32,
+) -> PathCmd {
+    let map_pt = |p: mirui::types::Point| -> mirui::types::Point {
+        let raw_x = p.x.raw() as f32 / 256.0;
+        let raw_y = p.y.raw() as f32 / 256.0;
+        mirui::types::Point::new(
+            Fixed::from_f32(x0 as f32 + raw_x * scale),
+            Fixed::from_f32(y0 as f32 + baseline - raw_y * scale),
+        )
+    };
+    match cmd {
+        PathCmd::MoveTo(p) => PathCmd::MoveTo(map_pt(*p)),
+        PathCmd::LineTo(p) => PathCmd::LineTo(map_pt(*p)),
+        PathCmd::QuadTo { ctrl, end } => PathCmd::QuadTo {
+            ctrl: map_pt(*ctrl),
+            end: map_pt(*end),
+        },
+        PathCmd::CubicTo { ctrl1, ctrl2, end } => PathCmd::CubicTo {
+            ctrl1: map_pt(*ctrl1),
+            ctrl2: map_pt(*ctrl2),
+            end: map_pt(*end),
+        },
+        PathCmd::Close => PathCmd::Close,
+    }
 }
 
 fn sample_atlas_pixel(bytes: &[u8], source: u32, x: u32, y: u32, bit_depth: u8) -> u8 {

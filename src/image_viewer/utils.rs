@@ -86,9 +86,14 @@ pub fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
                     })
                 }
                 MiData::FONT(font_data) => {
-                    let img = icu_lib::endecoder::mirui::font_render::render_font_atlas(
-                        &font_data.font,
-                    );
+                    let img = match font_data {
+                        icu_lib::midata::FontData::Mirx(f) => {
+                            icu_lib::endecoder::mirui::font_render::render_font_atlas(&f)
+                        }
+                        icu_lib::midata::FontData::FreeType(f) => {
+                            icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(&f)
+                        }
+                    };
                     let width = img.width();
                     let height = img.height();
                     let image_data = img

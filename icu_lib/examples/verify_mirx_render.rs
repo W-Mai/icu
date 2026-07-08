@@ -23,17 +23,20 @@ fn main() {
     let bytes = std::fs::read("/tmp/test_font.mirx").unwrap();
     let midata = ed.decode(bytes);
     match &midata {
-        MiData::FONT(font_data) => {
-            let img = font_render::render_font_atlas(&font_data.font);
-            println!("atlas image: {}x{}", img.width(), img.height());
-            img.save("/tmp/test_font_atlas.png").unwrap();
-            let non_zero = img.pixels().filter(|p| p.0[0] > 0).count();
-            println!("non-zero pixels: {}", non_zero);
+        MiData::FONT(font_data) => match font_data {
+            icu_lib::midata::FontData::Mirx(font) => {
+                let img = font_render::render_font_atlas(font);
+                println!("atlas image: {}x{}", img.width(), img.height());
+                img.save("/tmp/test_font_atlas.png").unwrap();
+                let non_zero = img.pixels().filter(|p| p.0[0] > 0).count();
+                println!("non-zero pixels: {}", non_zero);
 
-            let text_img = font_render::render_font_text(&font_data.font, "A", 32, 16);
-            println!("text image: {}x{}", text_img.width(), text_img.height());
-            text_img.save("/tmp/test_font_text.png").unwrap();
-        }
+                let text_img = font_render::render_font_text(font, "A", 32, 16);
+                println!("text image: {}x{}", text_img.width(), text_img.height());
+                text_img.save("/tmp/test_font_text.png").unwrap();
+            }
+            icu_lib::midata::FontData::FreeType(_) => println!("expected Mirx font"),
+        },
         other => println!("expected FONT, got {}", other.variant_name()),
     }
 }

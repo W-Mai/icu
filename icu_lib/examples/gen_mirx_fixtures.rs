@@ -47,7 +47,7 @@ fn main() {
         data: vec![0xAAu8; 8],
     };
     let bytes = ed.encode(
-        &MiData::FONT(icu_lib::midata::FontData { font }),
+        &MiData::FONT(icu_lib::midata::FontData::Mirx(font)),
         EncoderParams::default(),
     );
     std::fs::write("/tmp/test_font.mirx", &bytes).unwrap();

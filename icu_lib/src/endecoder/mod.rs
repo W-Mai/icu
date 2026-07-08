@@ -1,5 +1,6 @@
 pub mod color_format;
 pub mod common;
+pub mod font;
 pub mod lvgl;
 pub mod mirui;
 pub mod raw;
@@ -35,6 +36,7 @@ pub fn find_endecoder(data: &[u8]) -> Option<&'static dyn EnDecoder> {
         &common::AutoDetect {} as &dyn EnDecoder,
         &lvgl::LVGL {} as &dyn EnDecoder,
         &mirui::Mirx {} as &dyn EnDecoder,
+        &font::FreeType {} as &dyn EnDecoder,
     ];
 
     for ed in eds {

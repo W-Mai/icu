@@ -24,8 +24,29 @@ pub struct SceneData {
     pub scene: mirx::Scene,
 }
 
-pub struct FontData {
-    pub font: mirx::Font,
+pub enum FontData {
+    Mirx(mirx::Font),
+    FreeType(FreeTypeFontData),
+}
+
+pub struct FreeTypeFontData {
+    pub family: String,
+    pub style: String,
+    pub units_per_em: u16,
+    pub ascender: i16,
+    pub descender: i16,
+    pub line_height: i16,
+    pub glyph_count: u32,
+    pub glyphs: Vec<FreeTypeGlyph>,
+}
+
+pub struct FreeTypeGlyph {
+    pub codepoint: u32,
+    pub advance: u16,
+    pub bearing_x: i16,
+    pub bearing_y: i16,
+    pub bbox: (i16, i16, i16, i16),
+    pub outline: Vec<mirx::PathCmd>,
 }
 
 impl MiData {

@@ -26,6 +26,7 @@ kamadak-exif = "0.6.1"
 mirx = "0.41"
 mirui = { version = "0.41", default-features = false }
 critical-section = { version = "1", features = ["std"] }
+ttf-parser = "0.25"
 
 [dev-dependencies]
 criterion = "0.7.0"
