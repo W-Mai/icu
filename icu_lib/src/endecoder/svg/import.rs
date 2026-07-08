@@ -4,6 +4,43 @@ fn fixed_from_f32(v: f32) -> Fixed {
     Fixed::from_raw((v * 256.0).round() as i32)
 }
 
+fn circle_to_path(cx: Fixed, cy: Fixed, rx: Fixed, ry: Fixed) -> Path {
+    let k = 0.5523f32;
+    let cxf = cx.to_f32();
+    let cyf = cy.to_f32();
+    let rxf = rx.to_f32();
+    let ryf = ry.to_f32();
+    let kr = rxf * k;
+    let kry = ryf * k;
+    let p = |x: f32, y: f32| Point::new(fixed_from_f32(x), fixed_from_f32(y));
+    Path {
+        cmds: vec![
+            PathCmd::MoveTo(p(cxf + rxf, cyf)),
+            PathCmd::CubicTo {
+                ctrl1: p(cxf + rxf, cyf + kry),
+                ctrl2: p(cxf + kr, cyf + ryf),
+                end: p(cxf, cyf + ryf),
+            },
+            PathCmd::CubicTo {
+                ctrl1: p(cxf - kr, cyf + ryf),
+                ctrl2: p(cxf - rxf, cyf + kry),
+                end: p(cxf - rxf, cyf),
+            },
+            PathCmd::CubicTo {
+                ctrl1: p(cxf - rxf, cyf - kry),
+                ctrl2: p(cxf - kr, cyf - ryf),
+                end: p(cxf, cyf - ryf),
+            },
+            PathCmd::CubicTo {
+                ctrl1: p(cxf + kr, cyf - ryf),
+                ctrl2: p(cxf + rxf, cyf - kry),
+                end: p(cxf + rxf, cyf),
+            },
+            PathCmd::Close,
+        ],
+    }
+}
+
 fn parse_color(s: &str) -> Color {
     let s = s.trim();
     if let Some(hex) = s.strip_prefix('#') {
@@ -395,6 +432,84 @@ pub fn svg_to_scene(data: &[u8]) -> Scene {
             });
             continue;
         }
+        if tag.starts_with("circle") {
+            let cx = extract_attr(&tag, "cx").map(|s| parse_fixed(&s)).unwrap_or(Fixed::from_int(0));
+            let cy = extract_attr(&tag, "cy").map(|s| parse_fixed(&s)).unwrap_or(Fixed::from_int(0));
+            let r = extract_attr(&tag, "r").map(|s| parse_fixed(&s)).unwrap_or(Fixed::from_int(0));
+            let fill = extract_attr(&tag, "fill").map(|s| parse_color(&s)).unwrap_or(Color { r: 0, g: 0, b: 0, a: 255 });
+            let opa = extract_attr(&tag, "fill-opacity")
+                .or_else(|| extract_attr(&tag, "opacity"))
+                .map(|s| parse_opacity(&s))
+                .unwrap_or(255);
+            let transform = extract_attr(&tag, "transform").map(|s| parse_transform(&s));
+            let path = circle_to_path(cx, cy, r, r);
+            ops.push(SceneOp::FillPath {
+                path,
+                transform: transform.unwrap_or(Transform::IDENTITY),
+                color: fill,
+                opa,
+                fill_rule: FillRule::NonZero,
+            });
+            continue;
+        }
+        if tag.starts_with("ellipse") {
+            let cx = extract_attr(&tag, "cx").map(|s| parse_fixed(&s)).unwrap_or(Fixed::from_int(0));
+            let cy = extract_attr(&tag, "cy").map(|s| parse_fixed(&s)).unwrap_or(Fixed::from_int(0));
+            let rx = extract_attr(&tag, "rx").map(|s| parse_fixed(&s)).unwrap_or(Fixed::from_int(0));
+            let ry = extract_attr(&tag, "ry").map(|s| parse_fixed(&s)).unwrap_or(Fixed::from_int(0));
+            let fill = extract_attr(&tag, "fill").map(|s| parse_color(&s)).unwrap_or(Color { r: 0, g: 0, b: 0, a: 255 });
+            let opa = extract_attr(&tag, "fill-opacity")
+                .or_else(|| extract_attr(&tag, "opacity"))
+                .map(|s| parse_opacity(&s))
+                .unwrap_or(255);
+            let transform = extract_attr(&tag, "transform").map(|s| parse_transform(&s));
+            let path = circle_to_path(cx, cy, rx, ry);
+            ops.push(SceneOp::FillPath {
+                path,
+                transform: transform.unwrap_or(Transform::IDENTITY),
+                color: fill,
+                opa,
+                fill_rule: FillRule::NonZero,
+            });
+            continue;
+        }
+        if tag.starts_with("polyline") || tag.starts_with("polygon") {
+            let closed = tag.starts_with("polygon");
+            let points_str = extract_attr(&tag, "points").unwrap_or_default();
+            let fill = extract_attr(&tag, "fill").map(|s| parse_color(&s)).unwrap_or(Color { r: 0, g: 0, b: 0, a: 255 });
+            let opa = extract_attr(&tag, "fill-opacity")
+                .or_else(|| extract_attr(&tag, "opacity"))
+                .map(|s| parse_opacity(&s))
+                .unwrap_or(255);
+            let transform = extract_attr(&tag, "transform").map(|s| parse_transform(&s));
+            let nums: Vec<f32> = points_str
+                .split(|c: char| c.is_ascii_whitespace() || c == ',')
+                .filter(|s| !s.is_empty())
+                .filter_map(|s| s.parse().ok())
+                .collect();
+            let mut cmds: Vec<PathCmd> = Vec::new();
+            let mut i = 0;
+            while i + 1 < nums.len() {
+                let p = Point::new(fixed_from_f32(nums[i]), fixed_from_f32(nums[i + 1]));
+                if cmds.is_empty() {
+                    cmds.push(PathCmd::MoveTo(p));
+                } else {
+                    cmds.push(PathCmd::LineTo(p));
+                }
+                i += 2;
+            }
+            if closed {
+                cmds.push(PathCmd::Close);
+            }
+            ops.push(SceneOp::FillPath {
+                path: Path { cmds },
+                transform: transform.unwrap_or(Transform::IDENTITY),
+                color: fill,
+                opa,
+                fill_rule: FillRule::NonZero,
+            });
+            continue;
+        }
     }
     while group_depth > 0 {
         ops.push(SceneOp::GroupEnd);
@@ -499,5 +614,40 @@ mod tests {
             }
             _ => panic!("expected FillPath"),
         }
+    }
+
+    #[test]
+    fn parse_circle_to_fill_path() {
+        let svg = b"<svg><circle cx=\"50\" cy=\"50\" r=\"20\" fill=\"#00FF00\"/></svg>";
+        let scene = svg_to_scene(svg);
+        assert_eq!(scene.ops.len(), 1);
+        match &scene.ops[0] {
+            SceneOp::FillPath { path, color, .. } => {
+                assert_eq!(path.cmds.len(), 6);
+                assert_eq!(color.g, 255);
+            }
+            _ => panic!("expected FillPath"),
+        }
+    }
+
+    #[test]
+    fn parse_polygon_uses_close() {
+        let svg = b"<svg><polygon points=\"0,0 10,0 10,10\" fill=\"red\"/></svg>";
+        let scene = svg_to_scene(svg);
+        assert_eq!(scene.ops.len(), 1);
+        match &scene.ops[0] {
+            SceneOp::FillPath { path, .. } => {
+                assert_eq!(path.cmds.len(), 4);
+                assert!(matches!(path.cmds.last(), Some(PathCmd::Close)));
+            }
+            _ => panic!("expected FillPath"),
+        }
+    }
+
+    #[test]
+    fn parse_polyline_open() {
+        let svg = b"<svg><polyline points=\"0,0 10,0 10,10\" fill=\"red\" stroke=\"black\" stroke-width=\"1\"/></svg>";
+        let scene = svg_to_scene(svg);
+        assert!(scene.ops.len() >= 1);
     }
 }

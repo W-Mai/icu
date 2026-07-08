@@ -321,6 +321,161 @@ pub fn merge_font_chunks(inputs: &[Vec<u8>]) -> Vec<u8> {
     mirx::encode_chunks(&chunks.iter().map(|(t, f, p)| (*t, *f, *p)).collect::<Vec<_>>())
 }
 
+pub fn sdf_to_gray_font(sdf_font: &mirx::Font, target_size: u16) -> Option<mirx::Font> {
+    if sdf_font.chunk_header.kind != mirx::FontChunkKind::Sdf {
+        return None;
+    }
+    let payload = sdf_font.encode();
+    let payload: &'static [u8] = Box::leak(payload.into_boxed_slice());
+    let mirui_font = mirui::render::font::sdf::font_from_mirx_chunk("sdf-to-gray", payload).ok()?;
+    let provider = match &mirui_font.backend {
+        mirui::render::font::FontBackend::Custom(p) => p.clone(),
+        _ => return None,
+    };
+
+    let bit_depth: u8 = 8;
+    let cell = target_size as u32;
+    let bytes_per_glyph = (cell * cell * bit_depth as u32 / 8) as usize;
+    let mut metrics: Vec<mirx::GlyphMetric> = Vec::with_capacity(sdf_font.metrics.len());
+    let mut data: Vec<u8> = Vec::with_capacity(sdf_font.metrics.len() * bytes_per_glyph);
+
+    for m in &sdf_font.metrics {
+        let ch = char::from_u32(m.codepoint).unwrap_or('?');
+        let glyph = provider.glyph(ch, target_size);
+        let glyph = match glyph {
+            Some(g) => g,
+            None => {
+                metrics.push(mirx::GlyphMetric {
+                    codepoint: m.codepoint,
+                    advance: m.advance,
+                    bearing_x: m.bearing_x,
+                    bearing_y: m.bearing_y,
+                });
+                data.extend(std::iter::repeat_n(0u8, bytes_per_glyph));
+                continue;
+            }
+        };
+        let kind = match &glyph.kind {
+            mirui::render::font::GlyphKind::Sdf {
+                atlas,
+                source_size,
+                bit_depth: sdf_bd,
+                spread,
+                bbox_w,
+                bbox_h,
+                bearing_x,
+                bearing_y,
+            } => render_sdf_glyph_to_coverage(
+                atlas,
+                *source_size,
+                *sdf_bd,
+                *spread,
+                *bbox_w,
+                *bbox_h,
+                *bearing_x,
+                *bearing_y,
+                target_size,
+            ),
+            _ => Vec::new(),
+        };
+        let mut packed = vec![0u8; bytes_per_glyph];
+        let n = kind.len().min(packed.len());
+        packed[..n].copy_from_slice(&kind[..n]);
+        data.extend(packed);
+
+        metrics.push(mirx::GlyphMetric {
+            codepoint: m.codepoint,
+            advance: glyph.advance,
+            bearing_x: m.bearing_x,
+            bearing_y: m.bearing_y,
+        });
+    }
+
+    Some(mirx::Font {
+        chunk_header: mirx::FontChunkHeader {
+            kind: mirx::FontChunkKind::Grayscale,
+            format: bit_depth,
+            size: target_size,
+        },
+        atlas: mirx::AtlasHeader {
+            version: mirx::SUPPORTED_VERSION,
+            bit_depth,
+            _pad0: 0,
+            source_size: target_size,
+            spread: 0,
+            glyph_count: metrics.len() as u32,
+            metric_offset: mirx::HEADER_LEN as u32,
+            data_offset: (mirx::HEADER_LEN + metrics.len() * mirx::METRIC_LEN) as u32,
+            bytes_per_glyph: bytes_per_glyph as u32,
+            ascender: sdf_font.atlas.ascender,
+            descender: sdf_font.atlas.descender,
+            line_height: sdf_font.atlas.line_height,
+            _pad1: 0,
+        },
+        metrics,
+        data,
+    })
+}
+
+fn render_sdf_glyph_to_coverage(
+    atlas: &[u8],
+    source_size: u16,
+    sdf_bit_depth: u8,
+    spread: u16,
+    bbox_w: u8,
+    bbox_h: u8,
+    bearing_x: i8,
+    bearing_y: i8,
+    target_size: u16,
+) -> Vec<u8> {
+    let cell = target_size as u32;
+    let mut coverage = vec![0u8; (cell * cell) as usize];
+    let scale = source_size as f32 / target_size as f32;
+    for py in 0..cell {
+        for px in 0..cell {
+            let sx = px as f32 * scale;
+            let sy = (cell - 1 - py) as f32 * scale;
+            let d = sample_sdf_distance(atlas, source_size, sdf_bit_depth, spread, sx, sy);
+            let inside = d <= 0.0;
+            if inside {
+                let strength = (-d / spread as f32).clamp(0.0, 1.0);
+                coverage[(py * cell + px) as usize] = (strength * 255.0).round() as u8;
+            }
+        }
+    }
+    let _ = (bbox_w, bbox_h, bearing_x, bearing_y);
+    coverage
+}
+
+fn sample_sdf_distance(
+    atlas: &[u8],
+    source_size: u16,
+    bit_depth: u8,
+    spread: u16,
+    sx: f32,
+    sy: f32,
+) -> f32 {
+    let s = source_size as i32;
+    let x = (sx.max(0.0).min((s - 1) as f32)) as i32;
+    let y = (sy.max(0.0).min((s - 1) as f32)) as i32;
+    let idx = (y * s + x) as usize;
+    let byte_idx = idx / if bit_depth == 4 { 2 } else { 1 };
+    let q = if bit_depth == 4 {
+        let byte = atlas.get(byte_idx).copied().unwrap_or(0);
+        if idx & 1 == 0 {
+            byte & 0x0F
+        } else {
+            (byte >> 4) & 0x0F
+        }
+    } else {
+        atlas.get(idx).copied().unwrap_or(0)
+    };
+    let max_q = if bit_depth == 4 { 15.0 } else { 255.0 };
+    let zero = max_q / 2.0;
+    let signed = (q as f32 - zero) / zero * spread as f32;
+    signed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -439,5 +594,30 @@ mod tests {
             }
             _ => panic!("expected chunk file"),
         }
+    }
+
+    #[test]
+    fn sdf_to_gray_downsamples() {
+        let data = match load_test_ttf() {
+            Some(d) => d,
+            None => {
+                eprintln!("skip: no test TTF");
+                return;
+            }
+        };
+        let p = FontBakeParams {
+            kind: FontChunkKind::Sdf,
+            source_size: 24,
+            bit_depth: 4,
+            spread: 4,
+            charset: vec!['A', 'B'],
+        };
+        let sdf = bake_font(&data, &p).unwrap();
+        let gray = sdf_to_gray_font(&sdf, 12).expect("downsample should succeed");
+        assert_eq!(gray.chunk_header.kind, FontChunkKind::Grayscale);
+        assert_eq!(gray.atlas.source_size, 12);
+        assert_eq!(gray.atlas.bit_depth, 8);
+        assert_eq!(gray.metrics.len(), 2);
+        assert!(!gray.data.is_empty());
     }
 }

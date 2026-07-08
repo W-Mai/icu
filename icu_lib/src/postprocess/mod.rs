@@ -137,6 +137,104 @@ impl ImageOverlay for IndexHoverOverlay {
     }
 }
 
+pub struct QualityOverlay {
+    pub original: RgbaImage,
+    pub indexes: Vec<u8>,
+    pub palette: Vec<[u8; 4]>,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl QualityOverlay {
+    pub fn new(indexed: &crate::midata::IndexedImageData, original: RgbaImage) -> Self {
+        Self {
+            original,
+            indexes: indexed.indexes.clone(),
+            palette: indexed.palette.clone(),
+            width: indexed.width,
+            height: indexed.height,
+        }
+    }
+}
+
+impl ImageOverlay for QualityOverlay {
+    fn pixel_at(&self, x: u32, y: u32, _base: &RgbaImage) -> Option<Rgba<u8>> {
+        if x >= self.width || y >= self.height {
+            return None;
+        }
+        let idx = (y * self.width + x) as usize;
+        if idx >= self.indexes.len() {
+            return None;
+        }
+        let pal_idx = self.indexes[idx] as usize;
+        if pal_idx >= self.palette.len() {
+            return None;
+        }
+        let orig = self.original.get_pixel(x, y);
+        let pal = self.palette[pal_idx];
+        let diff = [
+            orig.0[0].abs_diff(pal[0]),
+            orig.0[1].abs_diff(pal[1]),
+            orig.0[2].abs_diff(pal[2]),
+        ];
+        let max_diff = diff.iter().copied().max().unwrap_or(0);
+        let intensity = (max_diff as u32 * 4).min(255) as u8;
+        Some(Rgba([intensity, intensity / 4, 0, 255]))
+    }
+
+    fn is_fullscreen(&self) -> bool {
+        true
+    }
+}
+
+pub struct DiffOverlay {
+    pub img1: RgbaImage,
+    pub img2: RgbaImage,
+    pub tolerance: f32,
+    pub blend: f32,
+    pub color: Rgba<u8>,
+}
+
+impl DiffOverlay {
+    pub fn new(img1: RgbaImage, img2: RgbaImage, tolerance: f32, blend: f32) -> Self {
+        Self {
+            img1,
+            img2,
+            tolerance,
+            blend,
+            color: Rgba([255, 0, 0, 255]),
+        }
+    }
+}
+
+impl ImageOverlay for DiffOverlay {
+    fn pixel_at(&self, x: u32, y: u32, base: &RgbaImage) -> Option<Rgba<u8>> {
+        if x >= self.img1.width() || y >= self.img1.height() {
+            return None;
+        }
+        let p1 = self.img1.get_pixel(x, y);
+        let p2 = self.img2.get_pixel(x, y);
+        let max_diff = p1
+            .0
+            .iter()
+            .zip(p2.0.iter())
+            .map(|(a, b)| (*a as f32 - *b as f32).abs())
+            .fold(0.0_f32, f32::max);
+        if max_diff < self.tolerance {
+            return None;
+        }
+        let t = (self.blend - 0.5).abs() / 0.5;
+        let base_px = base.get_pixel(x, y);
+        let blended = [
+            (self.color.0[0] as f32 * t + base_px.0[0] as f32 * (1.0 - t)) as u8,
+            (self.color.0[1] as f32 * t + base_px.0[1] as f32 * (1.0 - t)) as u8,
+            (self.color.0[2] as f32 * t + base_px.0[2] as f32 * (1.0 - t)) as u8,
+            255,
+        ];
+        Some(Rgba(blended))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -222,5 +320,43 @@ mod tests {
         assert!(!stack.dirty);
         stack.pop();
         assert!(stack.dirty);
+    }
+
+    #[test]
+    fn quality_overlay_marks_error() {
+        use crate::midata::IndexedImageData;
+        let original = rgba(2, 1, [200, 100, 50, 255]);
+        let indexed = IndexedImageData {
+            rgba: rgba(2, 1, [100, 50, 25, 255]),
+            palette: vec![[100, 50, 25, 255]],
+            indexes: vec![0, 0],
+            bpp: 1,
+            width: 2,
+            height: 1,
+        };
+        let overlay = QualityOverlay::new(&indexed, original);
+        let c0 = overlay.pixel_at(0, 0, &indexed.rgba).unwrap();
+        assert!(c0.0[0] > 0, "red channel should carry error magnitude");
+        assert_eq!(c0.0[3], 255);
+    }
+
+    #[test]
+    fn diff_overlay_skips_matching_pixels() {
+        let img1 = rgba(2, 1, [10, 20, 30, 255]);
+        let img2 = img1.clone();
+        let overlay = DiffOverlay::new(img1, img2, 1.0, 0.5);
+        let base = rgba(2, 1, [0, 0, 0, 255]);
+        assert!(overlay.pixel_at(0, 0, &base).is_none());
+    }
+
+    #[test]
+    fn diff_overlay_marks_changed_pixels() {
+        let img1 = rgba(1, 1, [10, 20, 30, 255]);
+        let img2 = rgba(1, 1, [200, 20, 30, 255]);
+        let overlay = DiffOverlay::new(img1, img2, 1.0, 1.0);
+        let base = rgba(1, 1, [0, 0, 0, 255]);
+        let p = overlay.pixel_at(0, 0, &base).unwrap();
+        assert_eq!(p.0[3], 255);
+        assert!(p.0[0] > 0);
     }
 }
