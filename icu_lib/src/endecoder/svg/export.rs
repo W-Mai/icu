@@ -1,4 +1,4 @@
-use mirx::{Color, FillRule, Path, PathCmd, Scene, SceneOp, Transform};
+use mirx::{Color, FillRule, LineCap, LineJoin, Path, PathCmd, Scene, SceneOp, Transform};
 
 fn fixed_f(v: mirx::Fixed) -> f32 {
     v.to_f32()
@@ -35,6 +35,22 @@ fn fill_rule_str(r: FillRule) -> &'static str {
     match r {
         FillRule::NonZero => "nonzero",
         FillRule::EvenOdd => "evenodd",
+    }
+}
+
+fn line_cap_str(c: LineCap) -> &'static str {
+    match c {
+        LineCap::Butt => "butt",
+        LineCap::Round => "round",
+        LineCap::Square => "square",
+    }
+}
+
+fn line_join_str(j: LineJoin) -> &'static str {
+    match j {
+        LineJoin::Miter => "miter",
+        LineJoin::Round => "round",
+        LineJoin::Bevel => "bevel",
     }
 }
 
@@ -121,6 +137,35 @@ pub fn scene_to_svg(scene: &Scene, width: u32, height: u32) -> String {
                     *opa as f32 / 255.0,
                     fill_rule_str(*fill_rule)
                 );
+                if *transform != Transform::IDENTITY {
+                    attrs.push_str(&transform_attr(transform));
+                }
+                svg.push_str(&format!("<path{}/>", attrs));
+            }
+            SceneOp::StrokePath {
+                path,
+                transform,
+                color,
+                width,
+                opa,
+                line_cap,
+                line_join,
+                miter_limit,
+            } => {
+                let d = path_to_d(path);
+                let mut attrs = format!(
+                    " d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\" stroke-opacity=\"{:.3}\"",
+                    d,
+                    color_hex(color),
+                    fixed_f(*width),
+                    *opa as f32 / 255.0
+                );
+                attrs.push_str(&format!(" stroke-linecap=\"{}\"", line_cap_str(*line_cap)));
+                attrs.push_str(&format!(" stroke-linejoin=\"{}\"", line_join_str(*line_join)));
+                let ml = fixed_f(*miter_limit);
+                if (ml - 4.0).abs() > 0.01 {
+                    attrs.push_str(&format!(" stroke-miterlimit=\"{}\"", ml));
+                }
                 if *transform != Transform::IDENTITY {
                     attrs.push_str(&transform_attr(transform));
                 }
@@ -214,7 +259,7 @@ fn scene_bbox(scene: &Scene) -> (u32, u32) {
     let mut max_y = 0f32;
     for op in &scene.ops {
         match op {
-            SceneOp::FillPath { path, .. } => {
+            SceneOp::FillPath { path, .. } | SceneOp::StrokePath { path, .. } => {
                 for cmd in &path.cmds {
                     if let Some(p) = cmd_endpoint(cmd) {
                         max_x = max_x.max(p.0);

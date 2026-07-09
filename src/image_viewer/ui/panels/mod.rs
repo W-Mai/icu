@@ -89,6 +89,7 @@ pub fn draw_path_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                     icu_lib::mirx::SceneOp::GroupBegin { .. } => "GroupBegin",
                     icu_lib::mirx::SceneOp::GroupEnd => "GroupEnd",
                     icu_lib::mirx::SceneOp::FillPath { .. } => "FillPath",
+                    icu_lib::mirx::SceneOp::StrokePath { .. } => "StrokePath",
                     icu_lib::mirx::SceneOp::FillRect { .. } => "FillRect",
                     icu_lib::mirx::SceneOp::Border { .. } => "Border",
                     icu_lib::mirx::SceneOp::Line { .. } => "Line",
