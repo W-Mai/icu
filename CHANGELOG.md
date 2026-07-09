@@ -1,5 +1,32 @@
 # Changelog
 
+## [v0.3.0] - 2026-07-09
+
+### 🔖 Version Tag
+
+- 🚀 **New Features**:
+    - ✨ **mirx image format support** — icu now decodes and encodes mirx FLAT images (all pixel formats: RGB565 / RGB565Swapped / RGB888 / RGBA8888 / BGRA8888 / XRGB8888) plus mirx CHUNK files with VECTOR / FONT chunks. `icu convert -F mirx` produces mirx output; `icu info` reports per-chunk metadata (op_count, glyph_count, source_size, bit_depth).
+    - ✨ **TTF/OTF/TTC font parsing** via `ttf-parser` — `icu info` on a TTF reports family, style, units_per_em, ascender, descender, line_height, glyph_count. Glyph outlines collect into `mirx::PathCmd` (MoveTo / LineTo / QuadTo / CubicTo / Close) with 24.8 fixed coordinates.
+    - ✨ **`icu bake-font` CLI** — bakes a TTF/OTF into a mirx FONT chunk (SDF or grayscale atlas). Pipeline: ttf-parser outline → mirui scanline coverage → Euclidean distance transform → 4/8-bit quantization (SDF) or packed coverage (gray). Supports `--charset` / `--charset-file` / `--size` / `--bit-depth` / `--spread` / `--format sdf|gray`.
+    - ✨ **`icu merge-fonts` CLI** — merges multiple single-font `.mirx` files into one multi-FONT-chunk bundle for `MultiFontProvider` size-based selection at runtime.
+    - ✨ **SVG import/export** — `icu info` / `icu show` / `icu convert` accept SVG. Import uses `usvg` (resolves `<defs>`, `<use>`, `<symbol>`, transform lists, style inheritance, gradients/clip-paths/masks). Export emits `<path>` / `<rect>` / `<line>` / `<g>` with fill, fill-opacity, fill-rule, stroke, stroke-width, stroke-linecap, stroke-linejoin, transform. `icu convert test.svg -F mirx` produces a VECTOR chunk.
+    - ✨ **`MiData::PATH` / `FONT` / `INDEXED` variants** — `MiData` carries structured data alongside the flat RGBA preview. `PATH(SceneData)` wraps `mirx::Scene`; `FONT(FontData)` is an enum (`Mirx(mirx::Font)` | `FreeType(FreeTypeFontData)`); `INDEXED(IndexedImageData)` carries palette + per-pixel indexes + bpp.
+    - ✨ **Font/path/indexed viewer panels** in the GUI — `ImageItem` carries the original `MiData`; central panel dispatches on variant. FONT shows metadata + preview-text input + rendered atlas; PATH shows a scene op tree; INDEXED shows a palette grid whose entries drive an `IndexHoverOverlay`.
+    - ✨ **SDF → Gray downsample** — `sdf_to_gray_font` samples an SDF atlas at a target pixel size and packs coverage into an 8-bit grayscale font, no re-bake from TTF needed.
+    - ✨ **Postprocess overlay framework** — `ImageOverlay` trait + `OverlayStack` composite with alpha blending and dirty-flag cache. `IndexHoverOverlay` highlights palette-indexed pixels; `QualityOverlay` renders a quantization-error heat map; `DiffOverlay` drives the diff display.
+    - ✨ **LVGL indexed decode** — I1/I2/I4/I8 color formats decode to `MiData::INDEXED` with palette + indexes + bpp extracted before the generic RGBA conversion.
+    - ✨ **ColorFormat unification** — `icu_lib::endecoder::ColorFormat` is the universal enum; LVGL and mirx each `From` their own wire format. `EncoderParams.color_format` is now `icu_lib::ColorFormat`.
+- 🔧 **Improvements**:
+    - 🧹 Diff display routed through `OverlayStack` + `DiffOverlay`. `ImageDiffResult` still feeds `diff_panel` pixel list / min-max range.
+    - 🧹 `icu_lib` re-exports `mirx` and `image` crates.
+    - 🧹 `MiData` + all variants derive `Clone` + `PartialEq`.
+
+### 📦 Dependencies
+
+- ➕ `ttf-parser = "0.25"` (icu_lib)
+- ➕ `usvg = { version = "0.47", default-features = false }` (icu_lib; no fontdb, no text shaping — +~510KB binary)
+- ➕ `mirx = "0.41"` + `mirui = { version = "0.41", default-features = false }` + `critical-section = { version = "1", features = ["std"] }` (icu_lib)
+
 ## [v0.2.0] - 2026-01-19
 
 ### 🔖 Version Tag
