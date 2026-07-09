@@ -1,3 +1,4 @@
+use crate::endecoder::utils::diff::ImageDiffResult;
 use image::{Rgba, RgbaImage};
 
 pub trait ImageOverlay {
@@ -188,18 +189,16 @@ impl ImageOverlay for QualityOverlay {
 }
 
 pub struct DiffOverlay {
-    pub img1: RgbaImage,
-    pub img2: RgbaImage,
+    pub diff_result: ImageDiffResult,
     pub tolerance: f32,
     pub blend: f32,
     pub color: Rgba<u8>,
 }
 
 impl DiffOverlay {
-    pub fn new(img1: RgbaImage, img2: RgbaImage, tolerance: f32, blend: f32) -> Self {
+    pub fn new(diff_result: ImageDiffResult, tolerance: f32, blend: f32) -> Self {
         Self {
-            img1,
-            img2,
+            diff_result,
             tolerance,
             blend,
             color: Rgba([255, 0, 0, 255]),
@@ -209,16 +208,21 @@ impl DiffOverlay {
 
 impl ImageOverlay for DiffOverlay {
     fn pixel_at(&self, x: u32, y: u32, base: &RgbaImage) -> Option<Rgba<u8>> {
-        if x >= self.img1.width() || y >= self.img1.height() {
+        let (w, h) = self.diff_result.size();
+        if x >= w || y >= h {
             return None;
         }
-        let p1 = self.img1.get_pixel(x, y);
-        let p2 = self.img2.get_pixel(x, y);
-        let max_diff = p1
-            .0
+        let idx = (y * w + x) as usize;
+        let diffs = self.diff_result.diffs();
+        if idx >= diffs.len() {
+            return None;
+        }
+        let diff_pixel = &diffs[idx];
+        let max_diff = diff_pixel
+            .diff
             .iter()
-            .zip(p2.0.iter())
-            .map(|(a, b)| (*a as f32 - *b as f32).abs())
+            .copied()
+            .map(f32::abs)
             .fold(0.0_f32, f32::max);
         if max_diff < self.tolerance {
             return None;
@@ -226,9 +230,9 @@ impl ImageOverlay for DiffOverlay {
         let t = (self.blend - 0.5).abs() / 0.5;
         let base_px = base.get_pixel(x, y);
         let blended = [
-            (self.color.0[0] as f32 * t + base_px.0[0] as f32 * (1.0 - t)) as u8,
-            (self.color.0[1] as f32 * t + base_px.0[1] as f32 * (1.0 - t)) as u8,
-            (self.color.0[2] as f32 * t + base_px.0[2] as f32 * (1.0 - t)) as u8,
+            (self.color.0[0] as f32 * (1.0 - t) + base_px.0[0] as f32 * t) as u8,
+            (self.color.0[1] as f32 * (1.0 - t) + base_px.0[1] as f32 * t) as u8,
+            (self.color.0[2] as f32 * (1.0 - t) + base_px.0[2] as f32 * t) as u8,
             255,
         ];
         Some(Rgba(blended))
@@ -342,21 +346,32 @@ mod tests {
 
     #[test]
     fn diff_overlay_skips_matching_pixels() {
+        use crate::endecoder::utils::diff::diff_image;
+        use crate::midata::MiData;
         let img1 = rgba(2, 1, [10, 20, 30, 255]);
-        let img2 = img1.clone();
-        let overlay = DiffOverlay::new(img1, img2, 1.0, 0.5);
+        let img2 = rgba(2, 1, [11, 21, 31, 255]);
+        let dr = diff_image(
+            &MiData::RGBA(img1),
+            &MiData::RGBA(img2),
+        )
+        .expect("diff_image should produce a result");
+        let overlay = DiffOverlay::new(dr, 5.0, 0.5);
         let base = rgba(2, 1, [0, 0, 0, 255]);
         assert!(overlay.pixel_at(0, 0, &base).is_none());
     }
 
     #[test]
     fn diff_overlay_marks_changed_pixels() {
+        use crate::endecoder::utils::diff::diff_image as compute_diff;
+        use crate::midata::MiData;
         let img1 = rgba(1, 1, [10, 20, 30, 255]);
         let img2 = rgba(1, 1, [200, 20, 30, 255]);
-        let overlay = DiffOverlay::new(img1, img2, 1.0, 1.0);
+        let dr = compute_diff(&MiData::RGBA(img1), &MiData::RGBA(img2))
+            .expect("diff_image should produce a result");
+        let overlay = DiffOverlay::new(dr, 1.0, 0.5);
         let base = rgba(1, 1, [0, 0, 0, 255]);
         let p = overlay.pixel_at(0, 0, &base).unwrap();
         assert_eq!(p.0[3], 255);
-        assert!(p.0[0] > 0);
+        assert!(p.0[0] > 0, "blend=0.5 → t=0 → full RED");
     }
 }

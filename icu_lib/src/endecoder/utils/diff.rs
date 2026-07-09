@@ -1,8 +1,7 @@
 use crate::midata::MiData;
 use image::{Pixel, Rgba, RgbaImage};
 
-const RED: Rgba<u8> = Rgba([0xFF, 0x00, 0x00, 0xFF]);
-
+#[derive(Clone)]
 pub struct ImageDiffPixel {
     pub pos: (u32, u32),
     pub color_lhs: Rgba<u8>,
@@ -33,6 +32,7 @@ impl ImageDiffPixel {
     }
 }
 
+#[derive(Clone)]
 pub struct ImageDiffResult {
     size: (u32, u32),
     diffs: Vec<ImageDiffPixel>,
@@ -172,41 +172,3 @@ pub fn diff_image(img1: &MiData, img2: &MiData) -> Option<ImageDiffResult> {
     }
 }
 
-pub fn blend_diff_image(
-    img1: &MiData,
-    img2: &MiData,
-    diff_blend: f32,
-    diff_tolerance: f32,
-    only_show_diff: bool,
-) -> Option<(MiData, ImageDiffResult)> {
-    let diff_result = diff_image(img1, img2)?;
-    let mut diff_mask = diff_result.render_diff_mask(diff_tolerance, RED);
-
-    if only_show_diff {
-        return Some((MiData::RGBA(diff_mask), diff_result));
-    }
-
-    match (img1, img2) {
-        (MiData::RGBA(img1), MiData::RGBA(img2)) => {
-            for ((p1, p2), diff_pixel) in
-                img1.pixels().zip(img2.pixels()).zip(diff_mask.pixels_mut())
-            {
-                let blended = blend_color32(p1, p2, diff_blend);
-                *diff_pixel = blended.to_rgba();
-            }
-
-            for pixel in diff_result.diff_filter(diff_tolerance) {
-                let (x, y) = pixel.pos;
-                let p = diff_mask.get_pixel(x, y);
-
-                let t = (diff_blend - 0.5).abs() / 0.5;
-
-                let blended = blend_color32(&RED, p, t).to_rgba();
-                diff_mask.put_pixel(x, y, blended);
-            }
-
-            Some((MiData::RGBA(diff_mask), diff_result))
-        }
-        _ => None,
-    }
-}
