@@ -34,6 +34,38 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                     );
                     state.font_rendered_preview = Some(img);
                 }
+                ui.separator();
+                ui.label("Merge fonts:");
+                if ui.button("Add font file...").clicked() {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("mirx", &["mirx"])
+                        .pick_file()
+                    {
+                        state.merge_font_paths.push(path.to_string_lossy().into());
+                    }
+                }
+                for (i, p) in state.merge_font_paths.clone().iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{}", p));
+                        if ui.button("×").clicked() {
+                            state.merge_font_paths.remove(i);
+                        }
+                    });
+                }
+                if state.merge_font_paths.len() >= 2 && ui.button("Merge & Save").clicked() {
+                    let inputs: Vec<Vec<u8>> = state.merge_font_paths
+                        .iter()
+                        .filter_map(|p| std::fs::read(p).ok())
+                        .collect();
+                    let merged = icu_lib::endecoder::mirui::font_bake::merge_font_chunks(&inputs);
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("mirx", &["mirx"])
+                        .set_file_name("bundle.mirx")
+                        .save_file()
+                    {
+                        let _ = std::fs::write(&path, merged);
+                    }
+                }
             }
             FontData::FreeType(f) => {
                 ui.label(format!("family: {}", f.family));
@@ -218,7 +250,12 @@ pub fn draw_indexed_panel(ctx: &egui::Context, state: &mut crate::image_viewer::
         ui.separator();
         ui.checkbox(&mut state.indexed_show_quality, "Quality view");
         ui.separator();
-        ui.label("Hover a palette entry:");
+        ui.horizontal(|ui| {
+            ui.label("Dither:");
+            ui.add(egui::Slider::new(&mut state.indexed_dither, 0..=30).text("level"));
+        });
+        ui.separator();
+        ui.label("Palette (click to edit):");
         let cols = match indexed.bpp {
             1 => 2,
             2 => 4,
@@ -232,13 +269,26 @@ pub fn draw_indexed_panel(ctx: &egui::Context, state: &mut crate::image_viewer::
                 for (i, color) in indexed.palette.iter().enumerate() {
                     let c = Color32::from_rgba_unmultiplied(color[0], color[1], color[2], color[3]);
                     let selected = state.indexed_hover_palette == Some(i as u8);
-                    let resp = ui.add(
+                    let btn = ui.add(
                         egui::Button::new(format!("{}", i))
                             .fill(c)
                             .selected(selected),
                     );
-                    if resp.hovered() {
+                    if btn.hovered() {
                         state.indexed_hover_palette = Some(i as u8);
+                    }
+                    if btn.clicked() {
+                        let mut picked = egui::Rgba::from_rgb(color[0] as f32 / 255.0, color[1] as f32 / 255.0, color[2] as f32 / 255.0);
+                        egui::color_picker::color_edit_button_rgba(ui, &mut picked, egui::color_picker::Alpha::Opaque);
+                        let mut idx = indexed.clone();
+                        idx.palette[i] = [(picked.r() * 255.0) as u8, (picked.g() * 255.0) as u8, (picked.b() * 255.0) as u8, (picked.a() * 255.0) as u8];
+                        for px in 0..idx.indexes.len() {
+                            if idx.indexes[px] == i as u8 {
+                                let p = idx.palette[i];
+                                let rgba = idx.rgba.get_pixel_mut(px as u32 % idx.width, px as u32 / idx.width);
+                                rgba.0 = [p[0], p[1], p[2], p[3]];
+                            }
+                        }
                     }
                     if (i + 1) % cols == 0 {
                         ui.end_row();

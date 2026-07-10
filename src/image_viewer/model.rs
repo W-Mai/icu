@@ -123,6 +123,8 @@ pub struct ViewerState {
     pub indexed_show_quality: bool,
     pub font_bake_size: u16,
     pub font_bake_format: String,
+    pub indexed_dither: u32,
+    pub merge_font_paths: Vec<String>,
 }
 
 impl Default for ViewerState {
@@ -148,6 +150,8 @@ impl Default for ViewerState {
             indexed_show_quality: false,
             font_bake_size: 24,
             font_bake_format: "sdf".to_string(),
+            indexed_dither: 0,
+            merge_font_paths: Vec::new(),
         }
     }
 }
