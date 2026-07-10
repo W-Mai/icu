@@ -57,7 +57,12 @@ pub fn render_scene_into(scene: &mirx::Scene, width: u32, height: u32, buffer: &
     let textures: &[(&str, &Texture)] = &[];
     let resolver = SliceResolver::new(fonts, textures);
 
-    let clip = Rect::new(Fixed::ZERO, Fixed::ZERO, Fixed::from_int(w as i32), Fixed::from_int(h as i32));
+    let clip = Rect::new(
+        Fixed::ZERO,
+        Fixed::ZERO,
+        Fixed::from_int(w as i32),
+        Fixed::from_int(h as i32),
+    );
     let _ = mirui_scene.replay(&mut renderer, &clip, &resolver);
     renderer.flush();
 }
@@ -90,7 +95,12 @@ mod tests {
             ops: vec![SceneOp::FillPath {
                 path,
                 transform: Transform::IDENTITY,
-                paint: Paint::Color(Color { r: 255, g: 0, b: 0, a: 255 }),
+                paint: Paint::Color(Color {
+                    r: 255,
+                    g: 0,
+                    b: 0,
+                    a: 255,
+                }),
                 opa: 255,
                 fill_rule: FillRule::EvenOdd,
             }],

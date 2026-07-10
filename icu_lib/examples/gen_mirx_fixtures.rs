@@ -27,7 +27,11 @@ fn main() {
     println!("wrote /tmp/test_vector.mirx ({} bytes)", bytes.len());
 
     let font = Font {
-        chunk_header: FontChunkHeader { kind: FontChunkKind::Sdf, format: 4, size: 24 },
+        chunk_header: FontChunkHeader {
+            kind: FontChunkKind::Sdf,
+            format: 4,
+            size: 24,
+        },
         atlas: AtlasHeader {
             version: mirx::SUPPORTED_VERSION,
             bit_depth: 4,
@@ -43,7 +47,12 @@ fn main() {
             line_height: 4,
             _pad1: 0,
         },
-        metrics: vec![GlyphMetric { codepoint: 'A' as u32, advance: 4, bearing_x: 0, bearing_y: 3 }],
+        metrics: vec![GlyphMetric {
+            codepoint: 'A' as u32,
+            advance: 4,
+            bearing_x: 0,
+            bearing_y: 3,
+        }],
         data: vec![0xAAu8; 8],
     };
     let bytes = ed.encode(

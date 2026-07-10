@@ -27,7 +27,10 @@ impl OutlineCollector {
     }
 
     fn map(&self, x: f32, y: f32) -> Point {
-        Point::new(Fixed::from_raw((x * 256.0) as i32), Fixed::from_raw((y * 256.0) as i32))
+        Point::new(
+            Fixed::from_raw((x * 256.0) as i32),
+            Fixed::from_raw((y * 256.0) as i32),
+        )
     }
 }
 
@@ -274,7 +277,10 @@ mod tests {
         let ed = FreeType;
         let info = ed.info(&data);
         let other = &info.other_info;
-        assert_eq!(other.get("layout").and_then(|v| v.as_str()), Some("freetype"));
+        assert_eq!(
+            other.get("layout").and_then(|v| v.as_str()),
+            Some("freetype")
+        );
         let gc = other.get("glyph_count").and_then(|v| v.as_u64());
         assert!(gc.unwrap_or(0) > 0);
     }

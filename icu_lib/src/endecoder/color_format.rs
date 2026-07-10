@@ -56,9 +56,9 @@ impl From<ColorFormat> for crate::endecoder::lvgl::ColorFormat {
             ColorFormat::RGB888 => Self::RGB888,
             ColorFormat::XRGB8888 => Self::XRGB8888,
             ColorFormat::ARGB8888 => Self::ARGB8888,
-            ColorFormat::RGB565Swapped
-            | ColorFormat::RGBA8888
-            | ColorFormat::BGRA8888 => Self::UNKNOWN,
+            ColorFormat::RGB565Swapped | ColorFormat::RGBA8888 | ColorFormat::BGRA8888 => {
+                Self::UNKNOWN
+            }
         }
     }
 }

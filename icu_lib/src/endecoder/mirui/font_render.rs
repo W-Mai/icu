@@ -58,7 +58,12 @@ pub fn render_freetype_glyphs(font: &crate::midata::FreeTypeFontData) -> RgbaIma
     let h = grid_h.min(u16::MAX as u32) as u16;
     let texture = Texture::new(&mut buffer, w, h, ColorFormat::RGBA8888);
     let mut renderer = SwRenderer::new(texture);
-    let clip = Rect::new(Fixed::ZERO, Fixed::ZERO, Fixed::from_int(w as i32), Fixed::from_int(h as i32));
+    let clip = Rect::new(
+        Fixed::ZERO,
+        Fixed::ZERO,
+        Fixed::from_int(w as i32),
+        Fixed::from_int(h as i32),
+    );
     let units = font.units_per_em.max(1) as f32;
     let scale = cell as f32 * 0.7 / units;
     let baseline = cell as f32 * 0.8;
@@ -92,20 +97,19 @@ pub fn render_freetype_glyphs(font: &crate::midata::FreeTypeFontData) -> RgbaIma
                 }
             }
         }
-        let paint = Paint::Color(mirx::Color { r: 220, g: 220, b: 220, a: 255 });
+        let paint = Paint::Color(mirx::Color {
+            r: 220,
+            g: 220,
+            b: 220,
+            a: 255,
+        });
         renderer.fill_path(&path, &clip, &paint, 255, FillRule::NonZero);
     }
     renderer.flush();
     RgbaImage::from_raw(grid_w, grid_h, buffer).unwrap_or_else(|| RgbaImage::new(grid_w, grid_h))
 }
 
-fn map_freetype_cmd(
-    cmd: &PathCmd,
-    x0: u32,
-    y0: u32,
-    scale: f32,
-    baseline: f32,
-) -> PathCmd {
+fn map_freetype_cmd(cmd: &PathCmd, x0: u32, y0: u32, scale: f32, baseline: f32) -> PathCmd {
     let map_pt = |p: mirui::types::Point| -> mirui::types::Point {
         let raw_x = p.x.raw() as f32 / 256.0;
         let raw_y = p.y.raw() as f32 / 256.0;
@@ -136,7 +140,11 @@ fn sample_atlas_pixel(bytes: &[u8], source: u32, x: u32, y: u32, bit_depth: u8) 
         1 => {
             let byte = bytes[idx as usize / 8];
             let bit = 7 - (idx % 8) as u8;
-            if (byte >> bit) & 1 == 1 { 255 } else { 0 }
+            if (byte >> bit) & 1 == 1 {
+                255
+            } else {
+                0
+            }
         }
         2 => {
             let byte = bytes[idx as usize / 4];
@@ -155,12 +163,7 @@ fn sample_atlas_pixel(bytes: &[u8], source: u32, x: u32, y: u32, bit_depth: u8) 
     }
 }
 
-pub fn render_font_text(
-    font: &mirx::Font,
-    text: &str,
-    width: u32,
-    height: u32,
-) -> RgbaImage {
+pub fn render_font_text(font: &mirx::Font, text: &str, width: u32, height: u32) -> RgbaImage {
     if width == 0 || height == 0 || text.is_empty() {
         return RgbaImage::new(0, 0);
     }
@@ -187,20 +190,25 @@ fn leak_font_payload(font: &mirx::Font) -> &'static [u8] {
     Box::leak(payload.into_boxed_slice())
 }
 
-fn render_text_with_font(
-    font: &Font,
-    text: &str,
-    width: u32,
-    height: u32,
-) -> RgbaImage {
+fn render_text_with_font(font: &Font, text: &str, width: u32, height: u32) -> RgbaImage {
     let mut buffer = vec![0u8; (width * height * 4) as usize];
     let w = width.min(u16::MAX as u32) as u16;
     let h = height.min(u16::MAX as u32) as u16;
     let texture = Texture::new(&mut buffer, w, h, ColorFormat::RGBA8888);
     let mut renderer = SwRenderer::new(texture);
-    let clip = Rect::new(Fixed::ZERO, Fixed::ZERO, Fixed::from_int(w as i32), Fixed::from_int(h as i32));
+    let clip = Rect::new(
+        Fixed::ZERO,
+        Fixed::ZERO,
+        Fixed::from_int(w as i32),
+        Fixed::from_int(h as i32),
+    );
     let pos = Point::new(Fixed::ZERO, Fixed::ZERO);
-    let color = mirui::types::Color { r: 255, g: 255, b: 255, a: 255 };
+    let color = mirui::types::Color {
+        r: 255,
+        g: 255,
+        b: 255,
+        a: 255,
+    };
     renderer.draw_label(&pos, text, font, &clip, &color, 255);
     renderer.flush();
     RgbaImage::from_raw(width, height, buffer).unwrap_or_else(|| RgbaImage::new(width, height))

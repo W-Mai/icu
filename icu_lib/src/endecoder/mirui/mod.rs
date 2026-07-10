@@ -144,7 +144,8 @@ impl EnDecoder for Mirx {
                 };
                 let (w, h) = img.dimensions();
                 let stride = (w as usize * bpp_for(mirx_cf))
-                    .next_multiple_of(params.stride_align.max(1) as usize) as u32;
+                    .next_multiple_of(params.stride_align.max(1) as usize)
+                    as u32;
                 let main = match rgba_to_mirx_pixels(img, mirx_cf, stride) {
                     Some(v) => v,
                     None => return Vec::new(),
@@ -246,7 +247,8 @@ impl EnDecoder for Mirx {
                     match entry.chunk_type {
                         mirx::chunk_type::VECTOR => {
                             if let Ok(scene) = mirx::Scene::decode(payload) {
-                                chunks_info.insert("vector".into(), json!({"op_count": scene.ops.len()}));
+                                chunks_info
+                                    .insert("vector".into(), json!({"op_count": scene.ops.len()}));
                             }
                         }
                         mirx::chunk_type::FONT => {
@@ -374,20 +376,39 @@ mod tests {
             ops: vec![mirx::SceneOp::FillPath {
                 path: mirx::Path {
                     cmds: vec![
-                        mirx::PathCmd::MoveTo(mirx::Point::new(mirx::Fixed::from_int(0), mirx::Fixed::from_int(0))),
-                        mirx::PathCmd::LineTo(mirx::Point::new(mirx::Fixed::from_int(10), mirx::Fixed::from_int(0))),
-                        mirx::PathCmd::LineTo(mirx::Point::new(mirx::Fixed::from_int(10), mirx::Fixed::from_int(10))),
+                        mirx::PathCmd::MoveTo(mirx::Point::new(
+                            mirx::Fixed::from_int(0),
+                            mirx::Fixed::from_int(0),
+                        )),
+                        mirx::PathCmd::LineTo(mirx::Point::new(
+                            mirx::Fixed::from_int(10),
+                            mirx::Fixed::from_int(0),
+                        )),
+                        mirx::PathCmd::LineTo(mirx::Point::new(
+                            mirx::Fixed::from_int(10),
+                            mirx::Fixed::from_int(10),
+                        )),
                         mirx::PathCmd::Close,
                     ],
                 },
                 transform: mirx::Transform::IDENTITY,
-                paint: mirx::Paint::Color(mirx::Color { r: 255, g: 128, b: 0, a: 255 }),
+                paint: mirx::Paint::Color(mirx::Color {
+                    r: 255,
+                    g: 128,
+                    b: 0,
+                    a: 255,
+                }),
                 opa: 200,
                 fill_rule: mirx::FillRule::EvenOdd,
             }],
         };
         let ed = Mirx;
-        let bytes = ed.encode(&MiData::PATH(SceneData { scene: scene.clone() }), EncoderParams::default());
+        let bytes = ed.encode(
+            &MiData::PATH(SceneData {
+                scene: scene.clone(),
+            }),
+            EncoderParams::default(),
+        );
         assert!(ed.can_decode(&bytes));
         match ed.decode(bytes) {
             MiData::PATH(back) => assert_eq!(back.scene.ops.len(), 1),
@@ -419,13 +440,26 @@ mod tests {
                 _pad1: 0,
             },
             metrics: vec![
-                mirx::GlyphMetric { codepoint: 'A' as u32, advance: 4, bearing_x: 0, bearing_y: 3 },
-                mirx::GlyphMetric { codepoint: 'B' as u32, advance: 4, bearing_x: 0, bearing_y: 3 },
+                mirx::GlyphMetric {
+                    codepoint: 'A' as u32,
+                    advance: 4,
+                    bearing_x: 0,
+                    bearing_y: 3,
+                },
+                mirx::GlyphMetric {
+                    codepoint: 'B' as u32,
+                    advance: 4,
+                    bearing_x: 0,
+                    bearing_y: 3,
+                },
             ],
             data: vec![0u8; 16],
         };
         let ed = Mirx;
-        let bytes = ed.encode(&MiData::FONT(FontData::Mirx(font.clone())), EncoderParams::default());
+        let bytes = ed.encode(
+            &MiData::FONT(FontData::Mirx(font.clone())),
+            EncoderParams::default(),
+        );
         assert!(ed.can_decode(&bytes));
         match ed.decode(bytes) {
             MiData::FONT(FontData::Mirx(back)) => {
@@ -441,9 +475,16 @@ mod tests {
     fn info_reports_vector_chunk_op_count() {
         let scene = mirx::Scene {
             ops: vec![mirx::SceneOp::FillPath {
-                path: mirx::Path { cmds: vec![mirx::PathCmd::Close] },
+                path: mirx::Path {
+                    cmds: vec![mirx::PathCmd::Close],
+                },
                 transform: mirx::Transform::IDENTITY,
-                paint: mirx::Paint::Color(mirx::Color { r: 255, g: 255, b: 255, a: 255 }),
+                paint: mirx::Paint::Color(mirx::Color {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                    a: 255,
+                }),
                 opa: 255,
                 fill_rule: mirx::FillRule::EvenOdd,
             }],
@@ -451,7 +492,11 @@ mod tests {
         let ed = Mirx;
         let bytes = ed.encode(&MiData::PATH(SceneData { scene }), EncoderParams::default());
         let info = ed.info(&bytes);
-        let chunks = info.other_info.get("chunks").and_then(|c| c.as_object()).unwrap();
+        let chunks = info
+            .other_info
+            .get("chunks")
+            .and_then(|c| c.as_object())
+            .unwrap();
         let vector = chunks.get("vector").unwrap();
         assert_eq!(vector.get("op_count").and_then(|v| v.as_u64()), Some(1));
     }

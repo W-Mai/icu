@@ -82,10 +82,7 @@ pub fn requantize_indexed(
         .chunks(4)
         .map(|c| [c[0], c[1], c[2], c[3]])
         .collect();
-    let indexes: Vec<u8> = img
-        .pixels()
-        .map(|p| nq.index_of(&p.0) as u8)
-        .collect();
+    let indexes: Vec<u8> = img.pixels().map(|p| nq.index_of(&p.0) as u8).collect();
     Some(IndexedImageData {
         rgba: img,
         palette,

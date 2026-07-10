@@ -1,5 +1,5 @@
 use mirui::render::path::Path as MirPath;
-use mirui::render::raster::{FillRule, flatten_into, scanline_fill};
+use mirui::render::raster::{flatten_into, scanline_fill, FillRule};
 use mirui::types::{Fixed, Point};
 use mirx::{AtlasHeader, Font, FontChunkHeader, FontChunkKind, GlyphMetric};
 use ttf_parser::{Face, OutlineBuilder};
@@ -236,7 +236,8 @@ pub fn bake_font(ttf_bytes: &[u8], params: &FontBakeParams) -> Option<Font> {
         let coverage = rasterize_to_coverage(&path, params.source_size);
         let packed = match params.kind {
             FontChunkKind::Sdf => {
-                let signed = euclidean_distance_transform(&coverage, params.source_size, params.spread);
+                let signed =
+                    euclidean_distance_transform(&coverage, params.source_size, params.spread);
                 quantize(&signed, params.bit_depth, params.spread as f32)
             }
             FontChunkKind::Grayscale => pack_coverage(&coverage, params.bit_depth),
@@ -318,7 +319,12 @@ pub fn merge_font_chunks(inputs: &[Vec<u8>]) -> Vec<u8> {
             ));
         }
     }
-    mirx::encode_chunks(&chunks.iter().map(|(t, f, p)| (*t, *f, *p)).collect::<Vec<_>>())
+    mirx::encode_chunks(
+        &chunks
+            .iter()
+            .map(|(t, f, p)| (*t, *f, *p))
+            .collect::<Vec<_>>(),
+    )
 }
 
 pub fn sdf_to_gray_font(sdf_font: &mirx::Font, target_size: u16) -> Option<mirx::Font> {
@@ -487,10 +493,7 @@ mod tests {
         ] {
             if let Ok(data) = std::fs::read(path) {
                 if data.len() >= 4
-                    && matches!(
-                        &data[..4],
-                        [0x00, 0x01, 0x00, 0x00] | b"OTTO" | b"ttcf"
-                    )
+                    && matches!(&data[..4], [0x00, 0x01, 0x00, 0x00] | b"OTTO" | b"ttcf")
                 {
                     return Some(data);
                 }

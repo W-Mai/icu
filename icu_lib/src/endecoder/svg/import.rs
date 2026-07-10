@@ -225,7 +225,9 @@ fn walk_group(group: &usvg::Group, ops: &mut Vec<SceneOp>) {
 fn emit_image(img: &usvg::Image, ops: &mut Vec<SceneOp>) {
     let kind = img.kind();
     let raw_data: Option<Vec<u8>> = match kind {
-        usvg::ImageKind::PNG(data) | usvg::ImageKind::JPEG(data) | usvg::ImageKind::GIF(data)
+        usvg::ImageKind::PNG(data)
+        | usvg::ImageKind::JPEG(data)
+        | usvg::ImageKind::GIF(data)
         | usvg::ImageKind::WEBP(data) => Some(data.to_vec()),
         _ => None,
     };
@@ -405,13 +407,14 @@ mod tests {
     fn parse_rect_produces_fill() {
         let svg = b"<svg xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"5\" y=\"6\" width=\"20\" height=\"30\" fill=\"blue\"/></svg>";
         let scene = svg_to_scene(svg);
-        let has_fill = scene
-            .ops
-            .iter()
-            .any(|op| match op {
-                SceneOp::FillPath { paint: MirxPaint::Color(color), .. } | SceneOp::FillRect { color, .. } => color.b == 255,
-                _ => false,
-            });
+        let has_fill = scene.ops.iter().any(|op| match op {
+            SceneOp::FillPath {
+                paint: MirxPaint::Color(color),
+                ..
+            }
+            | SceneOp::FillRect { color, .. } => color.b == 255,
+            _ => false,
+        });
         assert!(has_fill, "expected a blue fill from <rect>");
     }
 
@@ -430,7 +433,10 @@ mod tests {
     fn parse_stroke_only_path_produces_stroke_op() {
         let svg = b"<svg><path d=\"M0 0 L10 10\" fill=\"none\" stroke=\"#3a4552\" stroke-width=\"5\"/></svg>";
         let scene = svg_to_scene(svg);
-        let has_stroke = scene.ops.iter().any(|op| matches!(op, SceneOp::StrokePath { .. }));
+        let has_stroke = scene
+            .ops
+            .iter()
+            .any(|op| matches!(op, SceneOp::StrokePath { .. }));
         assert!(has_stroke);
     }
 
@@ -443,7 +449,10 @@ mod tests {
             .iter()
             .filter(|op| matches!(op, SceneOp::FillPath { paint: MirxPaint::Color(color), .. } if color.r == 255))
             .count();
-        assert!(fill_count >= 1, "expected at least one red FillPath from <use>");
+        assert!(
+            fill_count >= 1,
+            "expected at least one red FillPath from <use>"
+        );
     }
 
     #[test]

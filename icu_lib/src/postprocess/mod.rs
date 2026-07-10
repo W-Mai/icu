@@ -302,7 +302,10 @@ mod tests {
         let _ = stack.composite();
         let ptr3 = stack.composite().as_ptr();
         let ptr4 = stack.composite().as_ptr();
-        assert_eq!(ptr3, ptr4, "after dirty re-composite, subsequent calls reuse");
+        assert_eq!(
+            ptr3, ptr4,
+            "after dirty re-composite, subsequent calls reuse"
+        );
     }
 
     #[test]
@@ -350,11 +353,8 @@ mod tests {
         use crate::midata::MiData;
         let img1 = rgba(2, 1, [10, 20, 30, 255]);
         let img2 = rgba(2, 1, [11, 21, 31, 255]);
-        let dr = diff_image(
-            &MiData::RGBA(img1),
-            &MiData::RGBA(img2),
-        )
-        .expect("diff_image should produce a result");
+        let dr = diff_image(&MiData::RGBA(img1), &MiData::RGBA(img2))
+            .expect("diff_image should produce a result");
         let overlay = DiffOverlay::new(dr, 5.0, 0.5);
         let base = rgba(2, 1, [0, 0, 0, 255]);
         assert!(overlay.pixel_at(0, 0, &base).is_none());

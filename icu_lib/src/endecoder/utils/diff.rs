@@ -171,4 +171,3 @@ pub fn diff_image(img1: &MiData, img2: &MiData) -> Option<ImageDiffResult> {
         _ => None,
     }
 }
-

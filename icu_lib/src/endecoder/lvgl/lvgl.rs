@@ -120,9 +120,7 @@ impl EnDecoder for LVGL {
         let h = header.h() as u32;
         let stride = header.stride() as u32;
 
-        if let Some((palette, indexes, bpp)) =
-            extract_indexed(&img_desc.data, cf, w, h, stride)
-        {
+        if let Some((palette, indexes, bpp)) = extract_indexed(&img_desc.data, cf, w, h, stride) {
             let rgba_buf = rgba8888_from(&img_desc.data, cf, w, h, stride);
             let rgba = RgbaImage::from_vec(w, h, rgba_buf).unwrap_or_else(|| RgbaImage::new(0, 0));
             return MiData::INDEXED(IndexedImageData {
@@ -135,12 +133,8 @@ impl EnDecoder for LVGL {
             });
         }
 
-        let img_buffer = RgbaImage::from_vec(
-            w,
-            h,
-            rgba8888_from(&img_desc.data, cf, w, h, stride),
-        )
-        .unwrap();
+        let img_buffer =
+            RgbaImage::from_vec(w, h, rgba8888_from(&img_desc.data, cf, w, h, stride)).unwrap();
 
         log::trace!("Converted image data to RGBA");
         log::trace!(

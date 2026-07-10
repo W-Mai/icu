@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use icu_lib::endecoder::{ColorFormat, common, lvgl};
+    use icu_lib::endecoder::{common, lvgl, ColorFormat};
     use icu_lib::midata::MiData;
     use icu_lib::EncoderParams;
     use std::fs;
