@@ -1,6 +1,8 @@
 use crate::image_viewer::plotter::ImagePlotter;
 use eframe::egui;
 use eframe::egui::Color32;
+use icu_lib::endecoder::EnDecoder;
+use icu_lib::endecoder::mirui::Mirx;
 use icu_lib::midata::{FontData, MiData};
 
 pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::model::ViewerState) {
@@ -35,7 +37,49 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                     state.font_rendered_preview = Some(img);
                 }
                 ui.separator();
-                ui.label("Merge fonts:");
+                ui.label("Glyph diff:");
+                if ui.button("Select font to diff...").clicked() {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Font", &["ttf", "otf", "ttc", "mirx"])
+                        .pick_file()
+                    {
+                        state.font_diff_path = Some(path.to_string_lossy().into());
+                    }
+                }
+                if let Some(diff_path) = &state.font_diff_path {
+                    ui.label(format!("vs: {}", diff_path));
+                    if ui.button("Render Diff").clicked() {
+                        let img_a = icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
+                        let raw_b = std::fs::read(diff_path).unwrap_or_default();
+                        let ed = icu_lib::endecoder::mirui::Mirx;
+                        if ed.can_decode(&raw_b) {
+                            match ed.decode(raw_b) {
+                                icu_lib::midata::MiData::FONT(icu_lib::midata::FontData::Mirx(font_b)) => {
+                                    let img_b = icu_lib::endecoder::mirui::font_render::render_font_atlas(&font_b);
+                                    let (wa, ha) = img_a.dimensions();
+                                    let (wb, hb) = img_b.dimensions();
+                                    let (w, h) = (wa.max(wb), ha.max(hb));
+                                    let mut canvas_a = icu_lib::image::RgbaImage::new(w, h);
+                                    icu_lib::image::imageops::overlay(&mut canvas_a, &img_a, 0, 0);
+                                    let mut canvas_b = icu_lib::image::RgbaImage::new(w, h);
+                                    icu_lib::image::imageops::overlay(&mut canvas_b, &img_b, 0, 0);
+                                    let dr = icu_lib::endecoder::utils::diff::diff_image(
+                                        &icu_lib::midata::MiData::RGBA(canvas_a.clone()),
+                                        &icu_lib::midata::MiData::RGBA(canvas_b),
+                                    );
+                                    if let Some(dr) = dr {
+                                        let mut stack = icu_lib::postprocess::OverlayStack::new(canvas_a);
+                                        stack.push(Box::new(icu_lib::postprocess::DiffOverlay::new(dr, 1.0, 0.5)));
+                                        let composited = stack.composite().clone();
+                                        state.font_rendered_preview = Some(composited);
+                                        state.font_view_mode = "rendered".into();
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
                 if ui.button("Add font file...").clicked() {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("mirx", &["mirx"])

@@ -128,6 +128,7 @@ pub struct ViewerState {
     pub indexed_requantized: Option<icu_lib::midata::IndexedImageData>,
     pub merge_font_paths: Vec<String>,
     pub font_view_mode: String,
+    pub font_diff_path: Option<String>,
 }
 
 impl Default for ViewerState {
@@ -158,6 +159,7 @@ impl Default for ViewerState {
             indexed_requantized: None,
             merge_font_paths: Vec::new(),
             font_view_mode: "atlas".to_string(),
+            font_diff_path: None,
         }
     }
 }
