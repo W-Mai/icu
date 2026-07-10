@@ -43,6 +43,52 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                 ui.label(format!("descender: {}", f.descender));
                 ui.label(format!("line_height: {}", f.line_height));
                 ui.label(format!("glyphs: {} / {}", f.glyphs.len(), f.glyph_count));
+                ui.separator();
+                ui.label("Bake to mirx:");
+                ui.horizontal(|ui| {
+                    ui.label("size:");
+                    ui.add(egui::DragValue::new(&mut state.font_bake_size).range(8..=64));
+                    ui.label("format:");
+                    egui::ComboBox::from_label("")
+                        .selected_text(&state.font_bake_format)
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut state.font_bake_format, "sdf".into(), "sdf");
+                            ui.selectable_value(&mut state.font_bake_format, "gray".into(), "gray");
+                        });
+                });
+                if ui.button("Bake & Save").clicked() {
+                    let kind = if state.font_bake_format == "gray" {
+                        icu_lib::mirx::FontChunkKind::Grayscale
+                    } else {
+                        icu_lib::mirx::FontChunkKind::Sdf
+                    };
+                    let charset: String = (0x20u32..=0x7Eu32)
+                        .filter_map(char::from_u32)
+                        .collect();
+                    let params = icu_lib::endecoder::mirui::font_bake::FontBakeParams {
+                        kind,
+                        source_size: state.font_bake_size,
+                        bit_depth: if kind == icu_lib::mirx::FontChunkKind::Sdf { 4 } else { 4 },
+                        spread: (state.font_bake_size / 4).max(1),
+                        charset: charset.chars().collect(),
+                    };
+                    let raw = std::fs::read(&image.path).unwrap_or_default();
+                    if let Some(font) = icu_lib::endecoder::mirui::font_bake::bake_font(&raw, &params) {
+                        let payload = font.encode();
+                        let bytes = icu_lib::mirx::encode_chunk_generic(
+                            icu_lib::mirx::chunk_type::FONT,
+                            icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
+                            &payload,
+                        );
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("mirx", &["mirx"])
+                            .set_file_name(format!("{}_{}.mirx", f.family, state.font_bake_format))
+                            .save_file()
+                        {
+                            let _ = std::fs::write(&path, bytes);
+                        }
+                    }
+                }
             }
         }
     });
@@ -82,6 +128,44 @@ pub fn draw_path_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
     egui::SidePanel::left("path_left").show(ctx, |ui| {
         ui.heading("Scene");
         ui.label(format!("ops: {}", scene_data.scene.ops.len()));
+        ui.separator();
+        if ui.button("Export PNG").clicked() {
+            let (w, h) = icu_lib::endecoder::mirui::scene_render::scene_dimensions(&scene_data.scene)
+                .unwrap_or((256, 256));
+            let img = icu_lib::endecoder::mirui::scene_render::render_scene(&scene_data.scene, w, h);
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("PNG", &["png"])
+                .set_file_name("scene.png")
+                .save_file()
+            {
+                let _ = img.save(&path);
+            }
+        }
+        if ui.button("Export SVG").clicked() {
+            let svg = icu_lib::endecoder::svg::export::scene_to_svg(&scene_data.scene, 0, 0);
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("SVG", &["svg"])
+                .set_file_name("scene.svg")
+                .save_file()
+            {
+                let _ = std::fs::write(&path, svg);
+            }
+        }
+        if ui.button("Export mirx").clicked() {
+            let payload = scene_data.scene.encode().unwrap_or_default();
+            let bytes = icu_lib::mirx::encode_chunk_generic(
+                icu_lib::mirx::chunk_type::VECTOR,
+                icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
+                &payload,
+            );
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("mirx", &["mirx"])
+                .set_file_name("scene.mirx")
+                .save_file()
+            {
+                let _ = std::fs::write(&path, bytes);
+            }
+        }
         ui.separator();
         egui::ScrollArea::vertical().show(ui, |ui| {
             for (i, op) in scene_data.scene.ops.iter().enumerate() {
@@ -132,6 +216,8 @@ pub fn draw_indexed_panel(ctx: &egui::Context, state: &mut crate::image_viewer::
         ui.label(format!("palette: {}", indexed.palette.len()));
         ui.label(format!("size: {}x{}", indexed.width, indexed.height));
         ui.separator();
+        ui.checkbox(&mut state.indexed_show_quality, "Quality view");
+        ui.separator();
         ui.label("Hover a palette entry:");
         let cols = match indexed.bpp {
             1 => 2,
@@ -162,36 +248,40 @@ pub fn draw_indexed_panel(ctx: &egui::Context, state: &mut crate::image_viewer::
     });
 
     egui::CentralPanel::default().show(ctx, |ui| {
-        if let Some(palette_idx) = state.indexed_hover_palette {
+        let composited = if state.indexed_show_quality {
+            let mut stack = icu_lib::postprocess::OverlayStack::new(indexed.rgba.clone());
+            stack.push(Box::new(icu_lib::postprocess::QualityOverlay::new(
+                &indexed,
+                indexed.rgba.clone(),
+            )));
+            stack.composite().clone()
+        } else if let Some(palette_idx) = state.indexed_hover_palette {
             let mut stack = icu_lib::postprocess::OverlayStack::new(indexed.rgba.clone());
             stack.push(Box::new(icu_lib::postprocess::IndexHoverOverlay::new(
                 &indexed,
                 palette_idx,
             )));
-            let composited = stack.composite().clone();
-            let w = composited.width();
-            let h = composited.height();
-            let image_data: Vec<Color32> = composited
-                .chunks(4)
-                .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
-                .collect();
-            let hover_item = crate::image_viewer::model::ImageItem {
-                path: image.path.clone(),
-                info: image.info.clone(),
-                width: w,
-                height: h,
-                image_data,
-                midata: None,
-            };
-            let mut plotter = ImagePlotter::new("indexed_hover")
-                .anti_alias(state.context.anti_alias)
-                .show_grid(state.context.show_grid);
-            plotter.show(ui, &Some(hover_item));
+            stack.composite().clone()
         } else {
-            let mut plotter = ImagePlotter::new("indexed_preview")
-                .anti_alias(state.context.anti_alias)
-                .show_grid(state.context.show_grid);
-            plotter.show(ui, &Some(image.clone()));
-        }
+            indexed.rgba.clone()
+        };
+        let w = composited.width();
+        let h = composited.height();
+        let image_data: Vec<Color32> = composited
+            .chunks(4)
+            .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
+            .collect();
+        let view_item = crate::image_viewer::model::ImageItem {
+            path: image.path.clone(),
+            info: image.info.clone(),
+            width: w,
+            height: h,
+            image_data,
+            midata: None,
+        };
+        let mut plotter = ImagePlotter::new("indexed_view")
+            .anti_alias(state.context.anti_alias)
+            .show_grid(state.context.show_grid);
+        plotter.show(ui, &Some(view_item));
     });
 }

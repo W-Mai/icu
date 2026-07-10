@@ -120,6 +120,9 @@ pub struct ViewerState {
     pub font_rendered_preview: Option<icu_lib::image::RgbaImage>,
     pub path_selected_op: Option<usize>,
     pub indexed_hover_palette: Option<u8>,
+    pub indexed_show_quality: bool,
+    pub font_bake_size: u16,
+    pub font_bake_format: String,
 }
 
 impl Default for ViewerState {
@@ -142,6 +145,9 @@ impl Default for ViewerState {
             font_rendered_preview: None,
             path_selected_op: None,
             indexed_hover_palette: None,
+            indexed_show_quality: false,
+            font_bake_size: 24,
+            font_bake_format: "sdf".to_string(),
         }
     }
 }
