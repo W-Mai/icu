@@ -206,7 +206,8 @@ fn walk_group(group: &usvg::Group, ops: &mut Vec<SceneOp>) {
         match node {
             usvg::Node::Group(g) => walk_group(g, ops),
             usvg::Node::Path(p) => emit_path(p, ops),
-            usvg::Node::Image(_) | usvg::Node::Text(_) => {}
+            usvg::Node::Image(_) => {}
+            usvg::Node::Text(t) => walk_group(t.flattened(), ops),
         }
     }
 
