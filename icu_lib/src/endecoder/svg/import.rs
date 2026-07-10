@@ -131,7 +131,7 @@ fn emit_path(p: &usvg::Path, ops: &mut Vec<SceneOp>) {
     if let Some(fill) = p.fill() {
         if let Some(color) = paint_to_color(fill.paint(), fill.opacity().to_u8()) {
             let fill_rule = match fill.rule() {
-                usvg::FillRule::NonZero => FillRule::EvenOdd,
+                usvg::FillRule::NonZero => FillRule::NonZero,
                 usvg::FillRule::EvenOdd => FillRule::EvenOdd,
             };
             ops.push(SceneOp::FillPath {
