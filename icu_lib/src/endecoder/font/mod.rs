@@ -3,6 +3,16 @@ use crate::midata::{FontData, FreeTypeFontData, FreeTypeGlyph, MiData};
 use image::RgbaImage;
 use mirx::{Fixed, PathCmd, Point};
 use serde_json::json;
+
+fn decompress_woff(data: &[u8]) -> Option<Vec<u8>> {
+    if data.len() < 4 {
+        return None;
+    }
+    match &data[..4] {
+        b"wOF2" | b"wOFF" => None,
+        _ => None,
+    }
+}
 use ttf_parser::{name, Face, OutlineBuilder};
 
 pub struct FreeType;
@@ -138,7 +148,7 @@ impl EnDecoder for FreeType {
         data.len() >= 4
             && matches!(
                 &data[..4],
-                [0x00, 0x01, 0x00, 0x00] | b"OTTO" | b"ttcf"
+                [0x00, 0x01, 0x00, 0x00] | b"OTTO" | b"ttcf" | b"wOF2" | b"wOFF"
             )
     }
 
@@ -147,7 +157,8 @@ impl EnDecoder for FreeType {
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
-        let face = match Face::parse(&data, 0) {
+        let decoded = decompress_woff(&data).unwrap_or(data);
+        let face = match Face::parse(&decoded, 0) {
             Ok(f) => f,
             Err(_) => return MiData::RGBA(RgbaImage::new(0, 0)),
         };
@@ -156,7 +167,8 @@ impl EnDecoder for FreeType {
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        let face = match Face::parse(data, 0) {
+        let decoded = decompress_woff(data).unwrap_or_else(|| data.to_vec());
+        let face = match Face::parse(&decoded, 0) {
             Ok(f) => f,
             Err(_) => {
                 return ImageInfo {

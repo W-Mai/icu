@@ -206,7 +206,9 @@ fn walk_group(group: &usvg::Group, ops: &mut Vec<SceneOp>) {
         match node {
             usvg::Node::Group(g) => walk_group(g, ops),
             usvg::Node::Path(p) => emit_path(p, ops),
-            usvg::Node::Image(_) => {}
+            usvg::Node::Image(img) => {
+                emit_image(img, ops);
+            }
             usvg::Node::Text(t) => walk_group(t.flattened(), ops),
         }
     }
@@ -218,6 +220,68 @@ fn walk_group(group: &usvg::Group, ops: &mut Vec<SceneOp>) {
     if push_group {
         ops.push(SceneOp::GroupEnd);
     }
+}
+
+fn emit_image(img: &usvg::Image, ops: &mut Vec<SceneOp>) {
+    let kind = img.kind();
+    let raw_data: Option<Vec<u8>> = match kind {
+        usvg::ImageKind::PNG(data) | usvg::ImageKind::JPEG(data) | usvg::ImageKind::GIF(data)
+        | usvg::ImageKind::WEBP(data) => Some(data.to_vec()),
+        _ => None,
+    };
+    let raw_data = match raw_data {
+        Some(d) => d,
+        None => return,
+    };
+
+    let rgba = match image::load_from_memory(&raw_data) {
+        Ok(dyn_img) => dyn_img.to_rgba8(),
+        Err(_) => return,
+    };
+    let (w, h) = rgba.dimensions();
+    if w == 0 || h == 0 {
+        return;
+    }
+
+    let mut r_sum: u64 = 0;
+    let mut g_sum: u64 = 0;
+    let mut b_sum: u64 = 0;
+    let count = (w as u64) * (h as u64);
+    for px in rgba.pixels() {
+        r_sum += px.0[0] as u64;
+        g_sum += px.0[1] as u64;
+        b_sum += px.0[2] as u64;
+    }
+    let avg = mirx::Color {
+        r: (r_sum / count).min(255) as u8,
+        g: (g_sum / count).min(255) as u8,
+        b: (b_sum / count).min(255) as u8,
+        a: 255,
+    };
+
+    let abs_tf = img.abs_transform();
+    let size = img.size();
+    let transform = if abs_tf.is_identity() {
+        Transform::IDENTITY
+    } else {
+        transform_from_usvg(abs_tf)
+    };
+
+    let area = mirx::Rect::new(
+        Fixed::ZERO,
+        Fixed::ZERO,
+        fixed_from_f32(size.width() as f32),
+        fixed_from_f32(size.height() as f32),
+    );
+
+    ops.push(SceneOp::FillRect {
+        area,
+        transform,
+        quad: None,
+        color: avg,
+        radius: Fixed::ZERO,
+        opa: 255,
+    });
 }
 
 fn collect_clip_ops(clip: &usvg::ClipPath) -> Vec<SceneOp> {
