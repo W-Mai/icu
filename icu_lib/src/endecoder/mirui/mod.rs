@@ -381,7 +381,7 @@ mod tests {
                     ],
                 },
                 transform: mirx::Transform::IDENTITY,
-                color: mirx::Color { r: 255, g: 128, b: 0, a: 255 },
+                paint: mirx::Paint::Color(mirx::Color { r: 255, g: 128, b: 0, a: 255 }),
                 opa: 200,
                 fill_rule: mirx::FillRule::EvenOdd,
             }],
@@ -443,7 +443,7 @@ mod tests {
             ops: vec![mirx::SceneOp::FillPath {
                 path: mirx::Path { cmds: vec![mirx::PathCmd::Close] },
                 transform: mirx::Transform::IDENTITY,
-                color: mirx::Color { r: 255, g: 255, b: 255, a: 255 },
+                paint: mirx::Paint::Color(mirx::Color { r: 255, g: 255, b: 255, a: 255 }),
                 opa: 255,
                 fill_rule: mirx::FillRule::EvenOdd,
             }],

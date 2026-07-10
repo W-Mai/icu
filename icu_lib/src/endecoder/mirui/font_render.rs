@@ -3,9 +3,10 @@ use mirui::render::backends::sw::SwRenderer;
 use mirui::render::canvas::Canvas;
 use mirui::render::font::Font;
 use mirui::render::path::{Path, PathCmd};
+use mirui::render::raster::FillRule;
 use mirui::render::texture::{ColorFormat, Texture};
 use mirui::types::{Fixed, Point, Rect};
-use mirx::FontChunkKind;
+use mirx::{FontChunkKind, Paint};
 
 pub fn render_font_atlas(font: &mirx::Font) -> RgbaImage {
     let atlas = &font.atlas;
@@ -91,8 +92,8 @@ pub fn render_freetype_glyphs(font: &crate::midata::FreeTypeFontData) -> RgbaIma
                 }
             }
         }
-        let color = mirui::types::Color { r: 220, g: 220, b: 220, a: 255 };
-        renderer.fill_path(&path, &clip, &color, 255);
+        let paint = Paint::Color(mirx::Color { r: 220, g: 220, b: 220, a: 255 });
+        renderer.fill_path(&path, &clip, &paint, 255, FillRule::NonZero);
     }
     renderer.flush();
     RgbaImage::from_raw(grid_w, grid_h, buffer).unwrap_or_else(|| RgbaImage::new(grid_w, grid_h))

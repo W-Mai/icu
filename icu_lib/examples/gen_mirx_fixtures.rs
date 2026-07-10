@@ -2,7 +2,7 @@ use icu_lib::endecoder::mirui::Mirx;
 use icu_lib::endecoder::EnDecoder;
 use icu_lib::midata::{MiData, SceneData};
 use icu_lib::EncoderParams;
-use mirx::{Color, FillRule, Fixed, Font, FontChunkHeader, FontChunkKind, AtlasHeader, GlyphMetric, Path, PathCmd, Point, Scene, SceneOp, Transform};
+use mirx::{Color, FillRule, Fixed, Font, FontChunkHeader, FontChunkKind, AtlasHeader, GlyphMetric, Paint as MirxPaint, Path, PathCmd, Point, Scene, SceneOp, Transform};
 
 fn main() {
     let cmds = vec![
@@ -16,7 +16,7 @@ fn main() {
         ops: vec![SceneOp::FillPath {
             path: Path { cmds },
             transform: Transform::IDENTITY,
-            color: Color { r: 255, g: 100, b: 50, a: 255 },
+            paint: MirxPaint::Color(Color { r: 255, g: 100, b: 50, a: 255 }),
             opa: 255,
             fill_rule: FillRule::EvenOdd,
         }],

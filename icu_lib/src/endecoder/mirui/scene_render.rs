@@ -65,7 +65,7 @@ pub fn render_scene_into(scene: &mirx::Scene, width: u32, height: u32, buffer: &
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mirx::{Color, FillRule, Fixed, Path, PathCmd, Point, SceneOp, Transform};
+    use mirx::{Color, FillRule, Fixed, Paint, Path, PathCmd, Point, SceneOp, Transform};
 
     #[test]
     fn render_empty_scene_is_transparent() {
@@ -90,7 +90,7 @@ mod tests {
             ops: vec![SceneOp::FillPath {
                 path,
                 transform: Transform::IDENTITY,
-                color: Color { r: 255, g: 0, b: 0, a: 255 },
+                paint: Paint::Color(Color { r: 255, g: 0, b: 0, a: 255 }),
                 opa: 255,
                 fill_rule: FillRule::EvenOdd,
             }],

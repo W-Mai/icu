@@ -1,4 +1,4 @@
-use mirx::{Color, FillRule, LineCap, LineJoin, Path, PathCmd, Scene, SceneOp, Transform};
+use mirx::{Color, FillRule, LineCap, LineJoin, Paint, Path, PathCmd, Scene, SceneOp, Transform};
 
 fn fixed_f(v: mirx::Fixed) -> f32 {
     v.to_f32()
@@ -6,6 +6,15 @@ fn fixed_f(v: mirx::Fixed) -> f32 {
 
 fn color_hex(c: &Color) -> String {
     format!("#{:02X}{:02X}{:02X}", c.r, c.g, c.b)
+}
+
+fn paint_color(paint: &Paint) -> Color {
+    let fallback = Color { r: 0, g: 0, b: 0, a: 255 };
+    match paint {
+        Paint::Color(color) => *color,
+        Paint::LinearGradient(gradient) => gradient.stops.first().map(|stop| stop.color).unwrap_or(fallback),
+        Paint::RadialGradient(gradient) => gradient.stops.first().map(|stop| stop.color).unwrap_or(fallback),
+    }
 }
 
 fn opacity_attr(opa: u8) -> String {
@@ -125,15 +134,16 @@ pub fn scene_to_svg(scene: &Scene, width: u32, height: u32) -> String {
             SceneOp::FillPath {
                 path,
                 transform,
-                color,
+                paint,
                 opa,
                 fill_rule,
             } => {
                 let d = path_to_d(path);
+                let color = paint_color(paint);
                 let mut attrs = format!(
                     " d=\"{}\" fill=\"{}\" fill-opacity=\"{:.3}\" fill-rule=\"{}\"",
                     d,
-                    color_hex(color),
+                    color_hex(&color),
                     *opa as f32 / 255.0,
                     fill_rule_str(*fill_rule)
                 );
@@ -145,18 +155,20 @@ pub fn scene_to_svg(scene: &Scene, width: u32, height: u32) -> String {
             SceneOp::StrokePath {
                 path,
                 transform,
-                color,
+                paint,
                 width,
                 opa,
                 line_cap,
                 line_join,
                 miter_limit,
+                dash: _,
             } => {
                 let d = path_to_d(path);
+                let color = paint_color(paint);
                 let mut attrs = format!(
                     " d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\" stroke-opacity=\"{:.3}\"",
                     d,
-                    color_hex(color),
+                    color_hex(&color),
                     fixed_f(*width),
                     *opa as f32 / 255.0
                 );
@@ -247,7 +259,8 @@ pub fn scene_to_svg(scene: &Scene, width: u32, height: u32) -> String {
                 }
                 svg.push_str(&format!("<line{}/>", attrs));
             }
-            SceneOp::Arc { .. } | SceneOp::Label { .. } | SceneOp::Blit { .. } => {}
+            SceneOp::Arc { .. } | SceneOp::Label { .. } | SceneOp::Blit { .. }
+            | SceneOp::PushClip { .. } | SceneOp::PopClip => {}
         }
     }
     svg.push_str("</svg>");
@@ -316,7 +329,7 @@ mod tests {
             ops: vec![SceneOp::FillPath {
                 path: Path { cmds },
                 transform: Transform::IDENTITY,
-                color: Color { r: 255, g: 0, b: 0, a: 255 },
+                paint: Paint::Color(Color { r: 255, g: 0, b: 0, a: 255 }),
                 opa: 255,
                 fill_rule: FillRule::NonZero,
             }],

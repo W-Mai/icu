@@ -1,7 +1,9 @@
 use mirx::{
-    Color, FillRule, Fixed, LineCap, LineJoin, Path as MirxPath, PathCmd, Point, Scene, SceneOp,
-    Transform,
+    Color, FillRule, Fixed, GradientStop, GradientUnits, LineCap, LineJoin, LinearGradient,
+    Paint as MirxPaint, Path as MirxPath, PathCmd, Point, RadialGradient, Scene, SceneOp,
+    SpreadMode, Transform,
 };
+use std::borrow::Cow;
 use usvg::tiny_skia_path::Path as SkPath;
 
 fn fixed_from_f32(v: f32) -> Fixed {
@@ -81,15 +83,61 @@ fn line_join_from_usvg(j: usvg::LineJoin) -> LineJoin {
     }
 }
 
-fn paint_to_color(paint: &usvg::Paint, opacity: u8) -> Option<Color> {
-    let base = match paint {
-        usvg::Paint::Color(c) => Some(color_from_usvg(*c)),
-        usvg::Paint::LinearGradient(_) | usvg::Paint::RadialGradient(_) | usvg::Paint::Pattern(_) => None,
-    }?;
-    Some(Color {
-        a: ((base.a as u32 * opacity as u32) / 255).min(255) as u8,
-        ..base
-    })
+fn paint_to_mirx(paint: &usvg::Paint, opacity: u8) -> Option<MirxPaint> {
+    match paint {
+        usvg::Paint::Color(c) => {
+            let mut color = color_from_usvg(*c);
+            color.a = ((color.a as u32 * opacity as u32) / 255).min(255) as u8;
+            Some(MirxPaint::Color(color))
+        }
+        usvg::Paint::LinearGradient(g) => {
+            let stops = gradient_stops_from_usvg(g.stops());
+            Some(MirxPaint::LinearGradient(LinearGradient {
+                start: point_from_usvg(g.x1(), g.y1()),
+                end: point_from_usvg(g.x2(), g.y2()),
+                stops: Cow::Owned(stops),
+                spread: spread_from_usvg(g.spread_method()),
+                units: GradientUnits::ObjectBoundingBox,
+                transform: transform_from_usvg(g.transform()),
+            }))
+        }
+        usvg::Paint::RadialGradient(g) => {
+            let stops = gradient_stops_from_usvg(g.stops());
+            Some(MirxPaint::RadialGradient(RadialGradient {
+                center: point_from_usvg(g.cx(), g.cy()),
+                radius: fixed_from_f32(g.r().get() as f32),
+                focal: point_from_usvg(g.fx(), g.fy()),
+                focal_radius: Fixed::ZERO,
+                stops: Cow::Owned(stops),
+                spread: spread_from_usvg(g.spread_method()),
+                units: GradientUnits::ObjectBoundingBox,
+                transform: transform_from_usvg(g.transform()),
+            }))
+        }
+        usvg::Paint::Pattern(_) => None,
+    }
+}
+
+fn point_from_usvg(x: f32, y: f32) -> Point {
+    Point::new(fixed_from_f32(x), fixed_from_f32(y))
+}
+
+fn gradient_stops_from_usvg(stops: &[usvg::Stop]) -> Vec<GradientStop> {
+    stops
+        .iter()
+        .map(|s| GradientStop {
+            offset: fixed_from_f32(s.offset().get() as f32),
+            color: color_from_usvg(s.color()),
+        })
+        .collect()
+}
+
+fn spread_from_usvg(s: usvg::SpreadMethod) -> SpreadMode {
+    match s {
+        usvg::SpreadMethod::Pad => SpreadMode::Pad,
+        usvg::SpreadMethod::Reflect => SpreadMode::Reflect,
+        usvg::SpreadMethod::Repeat => SpreadMode::Repeat,
+    }
 }
 
 fn walk_group(group: &usvg::Group, ops: &mut Vec<SceneOp>) {
@@ -129,33 +177,35 @@ fn emit_path(p: &usvg::Path, ops: &mut Vec<SceneOp>) {
         transform_from_usvg(abs_tf)
     };
     if let Some(fill) = p.fill() {
-        if let Some(color) = paint_to_color(fill.paint(), fill.opacity().to_u8()) {
+        if let Some(paint) = paint_to_mirx(fill.paint(), fill.opacity().to_u8()) {
             let fill_rule = match fill.rule() {
                 usvg::FillRule::NonZero => FillRule::NonZero,
                 usvg::FillRule::EvenOdd => FillRule::EvenOdd,
             };
+            let opa = fill.opacity().to_u8();
             ops.push(SceneOp::FillPath {
                 path: path.clone(),
                 transform,
-                color,
-                opa: color.a,
+                paint,
+                opa,
                 fill_rule,
             });
         }
     }
     if let Some(stroke) = p.stroke() {
-        if let Some(color) = paint_to_color(stroke.paint(), stroke.opacity().to_u8()) {
+        if let Some(paint) = paint_to_mirx(stroke.paint(), stroke.opacity().to_u8()) {
             let width = fixed_from_f32(stroke.width().get() as f32);
             if width > Fixed::ZERO {
                 ops.push(SceneOp::StrokePath {
                     path,
                     transform,
-                    color,
+                    paint,
                     width,
-                    opa: color.a,
+                    opa: stroke.opacity().to_u8(),
                     line_cap: line_cap_from_usvg(stroke.linecap()),
                     line_join: line_join_from_usvg(stroke.linejoin()),
                     miter_limit: fixed_from_f32(stroke.miterlimit().get() as f32),
+                    dash: Cow::Borrowed(&[]),
                 });
             }
         }
@@ -191,9 +241,9 @@ mod tests {
         let scene = svg_to_scene(svg);
         assert_eq!(scene.ops.len(), 1);
         match &scene.ops[0] {
-            SceneOp::FillPath { path, color, .. } => {
+            SceneOp::FillPath { path, paint, .. } => {
                 assert_eq!(path.cmds.len(), 3);
-                assert_eq!(color.r, 255);
+                assert!(matches!(paint, MirxPaint::Color(color) if color.r == 255));
             }
             _ => panic!("expected FillPath"),
         }
@@ -206,7 +256,10 @@ mod tests {
         let has_fill = scene
             .ops
             .iter()
-            .any(|op| matches!(op, SceneOp::FillPath { color, .. } | SceneOp::FillRect { color, .. } if color.b == 255));
+            .any(|op| match op {
+                SceneOp::FillPath { paint: MirxPaint::Color(color), .. } | SceneOp::FillRect { color, .. } => color.b == 255,
+                _ => false,
+            });
         assert!(has_fill, "expected a blue fill from <rect>");
     }
 
@@ -236,7 +289,7 @@ mod tests {
         let fill_count = scene
             .ops
             .iter()
-            .filter(|op| matches!(op, SceneOp::FillPath { color, .. } if color.r == 255))
+            .filter(|op| matches!(op, SceneOp::FillPath { paint: MirxPaint::Color(color), .. } if color.r == 255))
             .count();
         assert!(fill_count >= 1, "expected at least one red FillPath from <use>");
     }
