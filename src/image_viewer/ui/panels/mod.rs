@@ -126,25 +126,110 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
     });
 
     egui::CentralPanel::default().show(ctx, |ui| {
-        if let Some(preview) = &state.font_rendered_preview {
-            let w = preview.width();
-            let h = preview.height();
-            let color_image = egui::ColorImage::from_rgba_unmultiplied(
-                [w as usize, h as usize],
-                preview.as_raw(),
-            );
-            let texture = ui
-                .ctx()
-                .load_texture("font_rendered", color_image, egui::TextureOptions::LINEAR);
-            ui.image(egui::load::SizedTexture::new(
-                texture.id(),
-                [w as f32, h as f32],
-            ));
-        } else {
-            let mut plotter = ImagePlotter::new("font_atlas")
-                .anti_alias(state.context.anti_alias)
-                .show_grid(state.context.show_grid);
-            plotter.show(ui, &Some(image.clone()));
+        ui.horizontal(|ui| {
+            ui.radio_value(&mut state.font_view_mode, "atlas".into(), "Atlas");
+            ui.radio_value(&mut state.font_view_mode, "rendered".into(), "Rendered");
+            ui.radio_value(&mut state.font_view_mode, "grid".into(), "Glyph Grid");
+        });
+        ui.separator();
+
+        match state.font_view_mode.as_str() {
+            "rendered" => {
+                if let Some(preview) = &state.font_rendered_preview {
+                    let w = preview.width();
+                    let h = preview.height();
+                    let color_image = egui::ColorImage::from_rgba_unmultiplied(
+                        [w as usize, h as usize],
+                        preview.as_raw(),
+                    );
+                    let texture = ui
+                        .ctx()
+                        .load_texture("font_rendered", color_image, egui::TextureOptions::LINEAR);
+                    ui.image(egui::load::SizedTexture::new(
+                        texture.id(),
+                        [w as f32, h as f32],
+                    ));
+                }
+            }
+            "grid" => {
+                match font_data {
+                    FontData::Mirx(font) => {
+                        let cell = font.atlas.source_size as usize + 4;
+                        let cols = 16usize;
+                        egui::ScrollArea::both().show(ui, |ui| {
+                            egui::Grid::new("glyph_grid")
+                                .num_columns(cols)
+                                .spacing([2.0, 2.0])
+                                .show(ui, |ui| {
+                                    for (i, m) in font.metrics.iter().enumerate() {
+                                        let ch = char::from_u32(m.codepoint).unwrap_or('?');
+                                        let img = icu_lib::endecoder::mirui::font_render::render_font_text(
+                                            font,
+                                            &ch.to_string(),
+                                            cell as u32,
+                                            cell as u32,
+                                        );
+                                        let w = img.width();
+                                        let h = img.height();
+                                        let color_image = egui::ColorImage::from_rgba_unmultiplied(
+                                            [w as usize, h as usize],
+                                            img.as_raw(),
+                                        );
+                                        let tex_id = ui.ctx().load_texture(
+                                            format!("glyph_{}", i),
+                                            color_image,
+                                            egui::TextureOptions::LINEAR,
+                                        ).id();
+                                        ui.add(egui::Image::new(egui::load::SizedTexture::new(tex_id, [cell as f32; 2])));
+                                        if (i + 1) % cols == 0 {
+                                            ui.end_row();
+                                        }
+                                    }
+                                });
+                        });
+                    }
+                    FontData::FreeType(f) => {
+                        let cell = 48u32;
+                        let cols = 16usize;
+                        egui::ScrollArea::both().show(ui, |ui| {
+                            egui::Grid::new("glyph_grid_ft")
+                                .num_columns(cols)
+                                .spacing([2.0, 2.0])
+                                .show(ui, |ui| {
+                                    for (i, g) in f.glyphs.iter().enumerate() {
+                                        let ch = char::from_u32(g.codepoint).unwrap_or('?');
+                                        let img = icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
+                                            &f, ch, cell, cell,
+                                        );
+                                        if let Some(img) = img {
+                                            let color_image = egui::ColorImage::from_rgba_unmultiplied(
+                                                [cell as usize, cell as usize],
+                                                img.as_raw(),
+                                            );
+                                            let tex_id = ui.ctx().load_texture(
+                                                format!("ft_glyph_{}", i),
+                                                color_image,
+                                                egui::TextureOptions::LINEAR,
+                                            ).id();
+                                            ui.add(egui::Image::new(egui::load::SizedTexture::new(tex_id, [cell as f32; 2])));
+                                        } else {
+                                            ui.label(format!("{}", ch));
+                                        }
+                                        if (i + 1) % cols == 0 {
+                                            ui.end_row();
+                                        }
+                                    }
+                                });
+                        });
+                    }
+                }
+            }
+            _ => {
+                let mut plotter = ImagePlotter::new("font_atlas")
+                    .anti_alias(state.context.anti_alias)
+                    .show_grid(state.context.show_grid);
+                plotter.show(ui, &Some(image.clone()));
+            }
         }
     });
 }

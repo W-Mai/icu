@@ -42,6 +42,54 @@ pub fn render_font_atlas(font: &mirx::Font) -> RgbaImage {
     img
 }
 
+pub fn render_freetype_glyph_at(
+    font: &crate::midata::FreeTypeFontData,
+    ch: char,
+    width: u32,
+    height: u32,
+) -> Option<RgbaImage> {
+    let glyph = font.glyphs.iter().find(|g| g.codepoint == ch as u32)?;
+    if glyph.outline.is_empty() {
+        return None;
+    }
+    let mut buffer = vec![0u8; (width * height * 4) as usize];
+    let w = width.min(u16::MAX as u32) as u16;
+    let h = height.min(u16::MAX as u32) as u16;
+    let texture = Texture::new(&mut buffer, w, h, ColorFormat::RGBA8888);
+    let mut renderer = SwRenderer::new(texture);
+    let clip = Rect::new(Fixed::ZERO, Fixed::ZERO, Fixed::from_int(w as i32), Fixed::from_int(h as i32));
+    let units = font.units_per_em.max(1) as f32;
+    let scale = width as f32 * 0.7 / units;
+    let baseline = height as f32 * 0.8;
+    let mut path = Path::new();
+    for cmd in &glyph.outline {
+        let mirui_cmd: PathCmd = cmd.clone().into();
+        let mapped = map_freetype_cmd(&mirui_cmd, 0, 0, scale, baseline);
+        match mapped {
+            PathCmd::MoveTo(p) => {
+                path.move_to(p);
+            }
+            PathCmd::LineTo(p) => {
+                path.line_to(p);
+            }
+            PathCmd::QuadTo { ctrl, end } => {
+                path.quad_to(ctrl, end);
+            }
+            PathCmd::CubicTo { ctrl1, ctrl2, end } => {
+                path.cubic_to(ctrl1, ctrl2, end);
+            }
+            PathCmd::Close => {
+                path.close();
+            }
+        }
+    }
+    let color = mirui::types::Color { r: 220, g: 220, b: 220, a: 255 };
+    let paint = mirui::render::canvas::Paint::Color(color.into());
+    renderer.fill_path(&path, &clip, &paint, 255, mirui::render::raster::FillRule::NonZero);
+    renderer.flush();
+    RgbaImage::from_raw(width, height, buffer)
+}
+
 pub fn render_freetype_glyphs(font: &crate::midata::FreeTypeFontData) -> RgbaImage {
     if font.glyphs.is_empty() {
         return RgbaImage::new(0, 0);
