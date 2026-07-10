@@ -124,6 +124,8 @@ pub struct ViewerState {
     pub font_bake_size: u16,
     pub font_bake_format: String,
     pub indexed_dither: u32,
+    pub indexed_dither_cached: u32,
+    pub indexed_requantized: Option<icu_lib::midata::IndexedImageData>,
     pub merge_font_paths: Vec<String>,
 }
 
@@ -151,6 +153,8 @@ impl Default for ViewerState {
             font_bake_size: 24,
             font_bake_format: "sdf".to_string(),
             indexed_dither: 0,
+            indexed_dither_cached: u32::MAX,
+            indexed_requantized: None,
             merge_font_paths: Vec::new(),
         }
     }

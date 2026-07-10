@@ -325,6 +325,19 @@ pub fn draw_indexed_panel(ctx: &egui::Context, state: &mut crate::image_viewer::
     };
     let indexed = indexed.clone();
 
+    let indexed = if state.indexed_dither > 0 {
+        if state.indexed_dither != state.indexed_dither_cached {
+            state.indexed_dither_cached = state.indexed_dither;
+            state.indexed_requantized =
+                icu_lib::midata::requantize_indexed(&indexed, state.indexed_dither);
+        }
+        state.indexed_requantized.clone().unwrap_or(indexed)
+    } else {
+        state.indexed_requantized = None;
+        state.indexed_dither_cached = u32::MAX;
+        indexed
+    };
+
     egui::SidePanel::left("indexed_left").show(ctx, |ui| {
         ui.heading("Indexed");
         ui.label(format!("bpp: {}", indexed.bpp));

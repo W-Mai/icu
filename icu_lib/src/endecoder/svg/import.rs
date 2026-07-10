@@ -352,7 +352,12 @@ fn emit_path(p: &usvg::Path, ops: &mut Vec<SceneOp>) {
                     line_cap: line_cap_from_usvg(stroke.linecap()),
                     line_join: line_join_from_usvg(stroke.linejoin()),
                     miter_limit: fixed_from_f32(stroke.miterlimit().get() as f32),
-                    dash: Cow::Borrowed(&[]),
+                    dash: Cow::Owned(
+                        stroke
+                            .dasharray()
+                            .map(|d| d.iter().map(|&v| fixed_from_f32(v)).collect())
+                            .unwrap_or_default(),
+                    ),
                 });
             }
         }

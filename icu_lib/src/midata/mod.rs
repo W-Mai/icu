@@ -66,6 +66,36 @@ pub struct IndexedImageData {
     pub height: u32,
 }
 
+pub fn requantize_indexed(
+    indexed: &IndexedImageData,
+    dither_level: u32,
+) -> Option<IndexedImageData> {
+    use image::imageops;
+    let color_map_size = 1usize << indexed.bpp;
+    let nq = color_quant::NeuQuant::new(dither_level as i32, color_map_size, indexed.rgba.as_raw());
+    let mut img = indexed.rgba.clone();
+    if dither_level > 0 {
+        imageops::dither(&mut img, &nq);
+    }
+    let palette: Vec<[u8; 4]> = nq
+        .color_map_rgba()
+        .chunks(4)
+        .map(|c| [c[0], c[1], c[2], c[3]])
+        .collect();
+    let indexes: Vec<u8> = img
+        .pixels()
+        .map(|p| nq.index_of(&p.0) as u8)
+        .collect();
+    Some(IndexedImageData {
+        rgba: img,
+        palette,
+        indexes,
+        bpp: indexed.bpp,
+        width: indexed.width,
+        height: indexed.height,
+    })
+}
+
 impl MiData {
     pub fn decode_from(ed: &dyn EnDecoder, data: Vec<u8>) -> Self {
         ed.decode(data)
