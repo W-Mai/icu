@@ -96,6 +96,8 @@ pub fn draw_path_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                     icu_lib::mirx::SceneOp::Arc { .. } => "Arc",
                     icu_lib::mirx::SceneOp::Label { .. } => "Label",
                     icu_lib::mirx::SceneOp::Blit { .. } => "Blit",
+                    icu_lib::mirx::SceneOp::PushClip { .. } => "PushClip",
+                    icu_lib::mirx::SceneOp::PopClip => "PopClip",
                 };
                 if ui
                     .selectable_label(state.path_selected_op == Some(i), format!("{}. {}", i, label))

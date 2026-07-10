@@ -153,6 +153,16 @@ fn walk_group(group: &usvg::Group, ops: &mut Vec<SceneOp>) {
             disjoint_hint: false,
         });
     }
+
+    let clip_paths: Vec<Vec<SceneOp>> = group
+        .clip_path()
+        .map(|cp| collect_clip_ops(cp))
+        .into_iter()
+        .collect();
+    for clip_ops in &clip_paths {
+        ops.extend_from_slice(clip_ops);
+    }
+
     for node in group.children() {
         match node {
             usvg::Node::Group(g) => walk_group(g, ops),
@@ -160,9 +170,42 @@ fn walk_group(group: &usvg::Group, ops: &mut Vec<SceneOp>) {
             usvg::Node::Image(_) | usvg::Node::Text(_) => {}
         }
     }
+
+    for _ in &clip_paths {
+        ops.push(SceneOp::PopClip);
+    }
+
     if push_group {
         ops.push(SceneOp::GroupEnd);
     }
+}
+
+fn collect_clip_ops(clip: &usvg::ClipPath) -> Vec<SceneOp> {
+    let mut ops = Vec::new();
+    for node in clip.root().children() {
+        if let usvg::Node::Path(p) = node {
+            let path = convert_path(p.data());
+            if path.cmds.is_empty() {
+                continue;
+            }
+            let abs_tf = p.abs_transform();
+            let transform = if abs_tf.is_identity() {
+                Transform::IDENTITY
+            } else {
+                transform_from_usvg(abs_tf)
+            };
+            let fill_rule = match p.fill().map(|f| f.rule()) {
+                Some(usvg::FillRule::EvenOdd) => FillRule::EvenOdd,
+                _ => FillRule::NonZero,
+            };
+            ops.push(SceneOp::PushClip {
+                path,
+                transform,
+                fill_rule,
+            });
+        }
+    }
+    ops
 }
 
 fn emit_path(p: &usvg::Path, ops: &mut Vec<SceneOp>) {
