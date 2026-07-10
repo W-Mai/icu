@@ -156,6 +156,7 @@ pub fn draw_path_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
     let Some(MiData::PATH(scene_data)) = &image.midata else {
         return;
     };
+    let scene_data = scene_data.clone();
 
     egui::SidePanel::left("path_left").show(ctx, |ui| {
         ui.heading("Scene");
@@ -201,20 +202,7 @@ pub fn draw_path_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
         ui.separator();
         egui::ScrollArea::vertical().show(ui, |ui| {
             for (i, op) in scene_data.scene.ops.iter().enumerate() {
-                let label = match op {
-                    icu_lib::mirx::SceneOp::GroupBegin { .. } => "GroupBegin",
-                    icu_lib::mirx::SceneOp::GroupEnd => "GroupEnd",
-                    icu_lib::mirx::SceneOp::FillPath { .. } => "FillPath",
-                    icu_lib::mirx::SceneOp::StrokePath { .. } => "StrokePath",
-                    icu_lib::mirx::SceneOp::FillRect { .. } => "FillRect",
-                    icu_lib::mirx::SceneOp::Border { .. } => "Border",
-                    icu_lib::mirx::SceneOp::Line { .. } => "Line",
-                    icu_lib::mirx::SceneOp::Arc { .. } => "Arc",
-                    icu_lib::mirx::SceneOp::Label { .. } => "Label",
-                    icu_lib::mirx::SceneOp::Blit { .. } => "Blit",
-                    icu_lib::mirx::SceneOp::PushClip { .. } => "PushClip",
-                    icu_lib::mirx::SceneOp::PopClip => "PopClip",
-                };
+                let label = op_label(op);
                 if ui
                     .selectable_label(state.path_selected_op == Some(i), format!("{}. {}", i, label))
                     .clicked()
@@ -225,12 +213,107 @@ pub fn draw_path_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
         });
     });
 
+    egui::SidePanel::right("path_right").show(ctx, |ui| {
+        if let Some(idx) = state.path_selected_op {
+            if let Some(op) = scene_data.scene.ops.get(idx) {
+                ui.heading(format!("Op #{}: {}", idx, op_label(op)));
+                ui.separator();
+                op_inspector(ui, op);
+            }
+        }
+    });
+
     egui::CentralPanel::default().show(ctx, |ui| {
         let mut plotter = ImagePlotter::new("path_preview")
             .anti_alias(state.context.anti_alias)
             .show_grid(state.context.show_grid);
         plotter.show(ui, &Some(image.clone()));
     });
+}
+
+fn op_label(op: &icu_lib::mirx::SceneOp) -> &'static str {
+    match op {
+        icu_lib::mirx::SceneOp::GroupBegin { .. } => "GroupBegin",
+        icu_lib::mirx::SceneOp::GroupEnd => "GroupEnd",
+        icu_lib::mirx::SceneOp::FillPath { .. } => "FillPath",
+        icu_lib::mirx::SceneOp::StrokePath { .. } => "StrokePath",
+        icu_lib::mirx::SceneOp::FillRect { .. } => "FillRect",
+        icu_lib::mirx::SceneOp::Border { .. } => "Border",
+        icu_lib::mirx::SceneOp::Line { .. } => "Line",
+        icu_lib::mirx::SceneOp::Arc { .. } => "Arc",
+        icu_lib::mirx::SceneOp::Label { .. } => "Label",
+        icu_lib::mirx::SceneOp::Blit { .. } => "Blit",
+        icu_lib::mirx::SceneOp::PushClip { .. } => "PushClip",
+        icu_lib::mirx::SceneOp::PopClip => "PopClip",
+    }
+}
+
+fn op_inspector(ui: &mut egui::Ui, op: &icu_lib::mirx::SceneOp) {
+    use icu_lib::mirx::SceneOp;
+    match op {
+        SceneOp::FillPath { paint, opa, fill_rule, .. } => {
+            ui.label(format!("paint: {:?}", paint));
+            ui.label(format!("opa: {}", opa));
+            ui.label(format!("fill_rule: {:?}", fill_rule));
+        }
+        SceneOp::StrokePath { paint, width, opa, line_cap, line_join, miter_limit, dash, .. } => {
+            ui.label(format!("paint: {:?}", paint));
+            ui.label(format!("width: {}", width.to_f32()));
+            ui.label(format!("opa: {}", opa));
+            ui.label(format!("cap: {:?}", line_cap));
+            ui.label(format!("join: {:?}", line_join));
+            ui.label(format!("miter_limit: {}", miter_limit.to_f32()));
+            if !dash.is_empty() {
+                let s: Vec<String> = dash.iter().map(|d| d.to_f32().to_string()).collect();
+                ui.label(format!("dash: [{}]", s.join(", ")));
+            }
+        }
+        SceneOp::FillRect { area, color, radius, opa, .. } => {
+            ui.label(format!("area: ({},{},{},{})", area.x.to_f32(), area.y.to_f32(), area.w.to_f32(), area.h.to_f32()));
+            ui.label(format!("color: {:?}", color));
+            ui.label(format!("radius: {}", radius.to_f32()));
+            ui.label(format!("opa: {}", opa));
+        }
+        SceneOp::Border { area, color, width, radius, opa, .. } => {
+            ui.label(format!("area: ({},{},{},{})", area.x.to_f32(), area.y.to_f32(), area.w.to_f32(), area.h.to_f32()));
+            ui.label(format!("color: {:?}", color));
+            ui.label(format!("width: {}", width.to_f32()));
+            ui.label(format!("radius: {}", radius.to_f32()));
+            ui.label(format!("opa: {}", opa));
+        }
+        SceneOp::Line { p1, p2, color, width, opa, .. } => {
+            ui.label(format!("p1: ({},{})", p1.x.to_f32(), p1.y.to_f32()));
+            ui.label(format!("p2: ({},{})", p2.x.to_f32(), p2.y.to_f32()));
+            ui.label(format!("color: {:?}", color));
+            ui.label(format!("width: {}", width.to_f32()));
+            ui.label(format!("opa: {}", opa));
+        }
+        SceneOp::Arc { center, radius, start_angle, end_angle, color, width, opa, .. } => {
+            ui.label(format!("center: ({},{})", center.x.to_f32(), center.y.to_f32()));
+            ui.label(format!("radius: {}", radius.to_f32()));
+            ui.label(format!("angles: {}° - {}°", start_angle.to_f32(), end_angle.to_f32()));
+            ui.label(format!("color: {:?}", color));
+            ui.label(format!("width: {}", width.to_f32()));
+            ui.label(format!("opa: {}", opa));
+        }
+        SceneOp::GroupBegin { transform, opacity, .. } => {
+            if let Some(t) = transform {
+                ui.label(format!("transform: [{},{},{}/{},{},{}]", t.m00.to_f32(), t.m01.to_f32(), t.tx.to_f32(), t.m10.to_f32(), t.m11.to_f32(), t.ty.to_f32()));
+            } else {
+                ui.label("transform: identity");
+            }
+            ui.label(format!("opacity: {:?}", opacity));
+        }
+        SceneOp::Label { text, color, opa, .. } => {
+            ui.label(format!("text: {:?}", text));
+            ui.label(format!("color: {:?}", color));
+            ui.label(format!("opa: {}", opa));
+        }
+        SceneOp::PushClip { fill_rule, .. } => {
+            ui.label(format!("fill_rule: {:?}", fill_rule));
+        }
+        _ => {}
+    }
 }
 
 pub fn draw_indexed_panel(ctx: &egui::Context, state: &mut crate::image_viewer::model::ViewerState) {
