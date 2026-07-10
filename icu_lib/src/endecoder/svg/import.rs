@@ -1,7 +1,7 @@
 use mirx::{
     Color, FillRule, Fixed, GradientStop, GradientUnits, LineCap, LineJoin, LinearGradient,
-    Paint as MirxPaint, Path as MirxPath, PathCmd, Point, RadialGradient, Scene, SceneOp,
-    SpreadMode, Transform,
+    Paint as MirxPaint, Path as MirxPath, PathCmd, Point, RadialGradient, ResourceRef, Scene,
+    SceneOp, SpreadMode, Transform,
 };
 use std::borrow::Cow;
 use usvg::tiny_skia_path::Path as SkPath;
@@ -140,16 +140,55 @@ fn spread_from_usvg(s: usvg::SpreadMethod) -> SpreadMode {
     }
 }
 
+fn filter_token(filters: &[std::sync::Arc<usvg::filter::Filter>]) -> String {
+    let mut parts = Vec::new();
+    for f in filters {
+        for prim in f.primitives() {
+            match prim.kind() {
+                usvg::filter::Kind::GaussianBlur(gb) => {
+                    parts.push(format!(
+                        "blur:{}:{}",
+                        gb.std_dev_x().get(),
+                        gb.std_dev_y().get()
+                    ));
+                }
+                usvg::filter::Kind::ColorMatrix(cm) => {
+                    let kind = match cm.kind() {
+                        usvg::filter::ColorMatrixKind::Matrix(_) => "matrix",
+                        usvg::filter::ColorMatrixKind::Saturate(_) => "saturate",
+                        usvg::filter::ColorMatrixKind::HueRotate(_) => "hueRotate",
+                        usvg::filter::ColorMatrixKind::LuminanceToAlpha => "luminance",
+                    };
+                    parts.push(format!("cm:{}", kind));
+                }
+                _ => {}
+            }
+        }
+    }
+    parts.join(";")
+}
+
 fn walk_group(group: &usvg::Group, ops: &mut Vec<SceneOp>) {
     let group_opacity = group.opacity().get();
-    let push_group = group_opacity < 1.0 && group_opacity > 0.0;
+    let filters = group.filters();
+    let has_filter = !filters.is_empty();
+    let push_group = (group_opacity < 1.0 && group_opacity > 0.0) || has_filter;
+    let filter_ref = if has_filter {
+        Some(ResourceRef::Token(filter_token(filters)))
+    } else {
+        None
+    };
     if push_group {
         ops.push(SceneOp::GroupBegin {
             transform: None,
-            opacity: Some(group.opacity().to_u8()),
+            opacity: if group_opacity < 1.0 && group_opacity > 0.0 {
+                Some(group.opacity().to_u8())
+            } else {
+                None
+            },
             clip: None,
             mask: None,
-            filter: None,
+            filter: filter_ref,
             disjoint_hint: false,
         });
     }

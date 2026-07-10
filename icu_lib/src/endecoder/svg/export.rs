@@ -161,7 +161,7 @@ pub fn scene_to_svg(scene: &Scene, width: u32, height: u32) -> String {
                 line_cap,
                 line_join,
                 miter_limit,
-                dash: _,
+                dash,
             } => {
                 let d = path_to_d(path);
                 let color = paint_color(paint);
@@ -177,6 +177,10 @@ pub fn scene_to_svg(scene: &Scene, width: u32, height: u32) -> String {
                 let ml = fixed_f(*miter_limit);
                 if (ml - 4.0).abs() > 0.01 {
                     attrs.push_str(&format!(" stroke-miterlimit=\"{}\"", ml));
+                }
+                if !dash.is_empty() {
+                    let dash_str: Vec<String> = dash.iter().map(|d| fixed_f(*d).to_string()).collect();
+                    attrs.push_str(&format!(" stroke-dasharray=\"{}\"", dash_str.join(",")));
                 }
                 if *transform != Transform::IDENTITY {
                     attrs.push_str(&transform_attr(transform));
