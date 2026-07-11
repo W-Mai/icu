@@ -94,7 +94,7 @@ pub fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
                             icu_lib::endecoder::mirui::font_render::render_font_atlas(&f)
                         }
                         icu_lib::midata::FontData::FreeType(f) => {
-                            icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(&f)
+                            icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(&f, icu_lib::mirx::Color { r: 200, g: 200, b: 200, a: 255 })
                         }
                     };
                     let width = img.width();

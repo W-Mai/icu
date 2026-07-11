@@ -2,7 +2,6 @@ use crate::image_viewer::plotter::ImagePlotter;
 use eframe::egui;
 use eframe::egui::Color32;
 use icu_lib::endecoder::EnDecoder;
-use icu_lib::endecoder::mirui::Mirx;
 use icu_lib::midata::{FontData, MiData};
 
 pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::model::ViewerState) {
@@ -11,6 +10,14 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
     };
     let Some(MiData::FONT(font_data)) = &image.midata else {
         return;
+    };
+
+    let text_color_egui = ctx.style().visuals.text_color();
+    let text_color = icu_lib::mirx::Color {
+        r: text_color_egui.r(),
+        g: text_color_egui.g(),
+        b: text_color_egui.b(),
+        a: text_color_egui.a(),
     };
 
     egui::SidePanel::left("font_left").show(ctx, |ui| {
@@ -33,6 +40,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                         &state.font_preview_text,
                         400,
                         64,
+                        text_color,
                     );
                     state.font_rendered_preview = Some(img);
                 }
@@ -186,6 +194,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                             &state.font_preview_text,
                             400,
                             64,
+                            text_color,
                         );
                         state.font_rendered_preview = Some(img);
                     } else if let FontData::FreeType(_) = font_data {
@@ -222,7 +231,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                                     ui.label(format!("advance: {}", m.advance));
                                     ui.label(format!("bearing: ({}, {})", m.bearing_x, m.bearing_y));
                                     let big = icu_lib::endecoder::mirui::font_render::render_font_text(
-                                        font, &ch.to_string(), 128, 128,
+                                        font, &ch.to_string(), 128, 128, text_color,
                                     );
                                     let color_image = egui::ColorImage::from_rgba_unmultiplied(
                                         [128, 128], big.as_raw(),
@@ -245,7 +254,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                                     for (i, m) in font.metrics.iter().enumerate() {
                                         let ch = char::from_u32(m.codepoint).unwrap_or('?');
                                         let img = icu_lib::endecoder::mirui::font_render::render_font_text(
-                                            font, &ch.to_string(), cell as u32, cell as u32,
+                                            font, &ch.to_string(), cell as u32, cell as u32, text_color,
                                         );
                                         let color_image = egui::ColorImage::from_rgba_unmultiplied(
                                             [cell, cell], img.as_raw(),
@@ -254,9 +263,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                                             format!("glyph_{}", i),
                                             color_image, egui::TextureOptions::LINEAR,
                                         ).id();
-                                        let resp = ui.add(egui::ImageButton::new(
-                                            egui::load::SizedTexture::new(tex_id, [cell as f32; 2]),
-                                        ));
+                                        let resp = ui.add(egui::Button::image(egui::load::SizedTexture::new(tex_id, [cell as f32; 2])));
                                         if resp.clicked() {
                                             state.font_selected_glyph = Some(i);
                                         }
@@ -283,7 +290,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                                     ui.label(format!("bbox: {:?}", g.bbox));
                                     ui.label(format!("outline cmds: {}", g.outline.len()));
                                     if let Some(img) = icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
-                                        f, ch, 128, 128,
+                                        f, ch, 128, 128, text_color,
                                     ) {
                                         let color_image = egui::ColorImage::from_rgba_unmultiplied(
                                             [128, 128], img.as_raw(),
@@ -307,7 +314,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                                     for (i, g) in f.glyphs.iter().enumerate() {
                                         let ch = char::from_u32(g.codepoint).unwrap_or('?');
                                         if let Some(img) = icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
-                                            f, ch, cell, cell,
+                                            f, ch, cell, cell, text_color,
                                         ) {
                                             let color_image = egui::ColorImage::from_rgba_unmultiplied(
                                                 [cell as usize, cell as usize],
@@ -317,9 +324,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                                                 format!("ft_glyph_{}", i),
                                                 color_image, egui::TextureOptions::LINEAR,
                                             ).id();
-                                            let resp = ui.add(egui::ImageButton::new(
-                                                egui::load::SizedTexture::new(tex_id, [cell as f32; 2]),
-                                            ));
+                                            let resp = ui.add(egui::Button::image(egui::load::SizedTexture::new(tex_id, [cell as f32; 2])));
                                             if resp.clicked() {
                                                 state.font_selected_glyph = Some(i);
                                             }
