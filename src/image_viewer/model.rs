@@ -3,7 +3,7 @@ pub use crate::converter::{
     OutputColorFormats as LvglColorFormat, OutputCompressedMethod as LvglCompression,
 };
 use clap::ValueEnum;
-use eframe::egui::{Color32, DroppedFile};
+use eframe::egui::{Color32, DroppedFile, TextureHandle};
 use icu_lib::endecoder::ImageInfo;
 use icu_lib::endecoder::utils::diff::ImageDiffResult;
 use icu_lib::midata::MiData;
@@ -131,6 +131,8 @@ pub struct ViewerState {
     pub font_diff_path: Option<String>,
     pub font_selected_glyph: Option<usize>,
     pub font_atlas_cached: Option<(String, String, Vec<Color32>, u32, u32)>,
+    pub font_grid_cached: Option<(String, Vec<TextureHandle>, usize)>,
+    pub font_grid_big_cached: Option<(String, TextureHandle)>,
 }
 
 impl Default for ViewerState {
@@ -164,6 +166,8 @@ impl Default for ViewerState {
             font_diff_path: None,
             font_selected_glyph: None,
             font_atlas_cached: None,
+            font_grid_cached: None,
+            font_grid_big_cached: None,
         }
     }
 }
