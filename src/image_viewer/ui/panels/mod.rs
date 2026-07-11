@@ -505,21 +505,43 @@ pub fn draw_indexed_panel(ctx: &egui::Context, state: &mut crate::image_viewer::
                     if btn.clicked() {
                         let mut picked = egui::Rgba::from_rgb(color[0] as f32 / 255.0, color[1] as f32 / 255.0, color[2] as f32 / 255.0);
                         egui::color_picker::color_edit_button_rgba(ui, &mut picked, egui::color_picker::Alpha::Opaque);
-                        let mut idx = indexed.clone();
-                        idx.palette[i] = [(picked.r() * 255.0) as u8, (picked.g() * 255.0) as u8, (picked.b() * 255.0) as u8, (picked.a() * 255.0) as u8];
-                        for px in 0..idx.indexes.len() {
-                            if idx.indexes[px] == i as u8 {
-                                let p = idx.palette[i];
-                                let rgba = idx.rgba.get_pixel_mut(px as u32 % idx.width, px as u32 / idx.width);
-                                rgba.0 = [p[0], p[1], p[2], p[3]];
-                            }
-                        }
                     }
                     if (i + 1) % cols == 0 {
                         ui.end_row();
                     }
                 }
             });
+        ui.separator();
+        if ui.button("Export PNG").clicked() {
+            let img = indexed.rgba.clone();
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("PNG", &["png"])
+                .set_file_name("indexed.png")
+                .save_file()
+            {
+                let _ = img.save(&path);
+            }
+        }
+        if ui.button("Export LVGL").clicked() {
+            let cf = match indexed.bpp {
+                1 => icu_lib::endecoder::ColorFormat::I1,
+                2 => icu_lib::endecoder::ColorFormat::I2,
+                4 => icu_lib::endecoder::ColorFormat::I4,
+                _ => icu_lib::endecoder::ColorFormat::I8,
+            };
+            let params = icu_lib::EncoderParams::default().with_color_format(cf);
+            let midata = icu_lib::midata::MiData::INDEXED(indexed.clone());
+            let bytes = icu_lib::endecoder::lvgl::LVGL {}.encode(&midata, params);
+            if !bytes.is_empty() {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("bin", &["bin"])
+                    .set_file_name("indexed.bin")
+                    .save_file()
+                {
+                    let _ = std::fs::write(&path, bytes);
+                }
+            }
+        }
     });
 
     egui::CentralPanel::default().show(ctx, |ui| {
