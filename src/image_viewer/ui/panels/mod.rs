@@ -12,12 +12,25 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
         return;
     };
 
-    let text_color_egui = ctx.style().visuals.text_color();
+    let fg = ctx.style().visuals.text_color();
+    let bg = ctx.style().visuals.panel_fill;
     let text_color = icu_lib::mirx::Color {
-        r: text_color_egui.r(),
-        g: text_color_egui.g(),
-        b: text_color_egui.b(),
-        a: text_color_egui.a(),
+        r: fg.r(),
+        g: fg.g(),
+        b: fg.b(),
+        a: fg.a(),
+    };
+
+    let tint_image = |img: &icu_lib::image::RgbaImage| -> icu_lib::image::RgbaImage {
+        let mut out = img.clone();
+        for px in out.pixels_mut() {
+            let v = px.0[0] as f32 / 255.0;
+            px.0[0] = (bg.r() as f32 * (1.0 - v) + fg.r() as f32 * v) as u8;
+            px.0[1] = (bg.g() as f32 * (1.0 - v) + fg.g() as f32 * v) as u8;
+            px.0[2] = (bg.b() as f32 * (1.0 - v) + fg.b() as f32 * v) as u8;
+            px.0[3] = 255;
+        }
+        out
     };
 
     egui::SidePanel::left("font_left").show(ctx, |ui| {
@@ -344,10 +357,34 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                 }
             }
             _ => {
+                let tinted = match font_data {
+                    FontData::Mirx(font) => {
+                        let atlas_img = icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
+                        tint_image(&atlas_img)
+                    }
+                    FontData::FreeType(f) => {
+                        let grid_img = icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(f, text_color);
+                        grid_img
+                    }
+                };
+                let w = tinted.width();
+                let h = tinted.height();
+                let image_data: Vec<Color32> = tinted
+                    .chunks(4)
+                    .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
+                    .collect();
+                let tint_item = crate::image_viewer::model::ImageItem {
+                    path: image.path.clone(),
+                    info: image.info.clone(),
+                    width: w,
+                    height: h,
+                    image_data,
+                    midata: None,
+                };
                 let mut plotter = ImagePlotter::new("font_atlas")
                     .anti_alias(state.context.anti_alias)
                     .show_grid(state.context.show_grid);
-                plotter.show(ui, &Some(image.clone()));
+                plotter.show(ui, &Some(tint_item));
             }
         }
     });
