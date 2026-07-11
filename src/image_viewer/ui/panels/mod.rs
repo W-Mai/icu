@@ -357,22 +357,60 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                 }
             }
             _ => {
-                let tinted = match font_data {
-                    FontData::Mirx(font) => {
-                        let atlas_img = icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
-                        tint_image(&atlas_img)
+                let theme_key = format!(
+                    "{:?}_{:?}",
+                    fg,
+                    bg
+                );
+                let (image_data, w, h) = if let Some((ref cached_key, ref cached_data, cw, ch)) =
+                    state.font_atlas_cached
+                {
+                    if *cached_key == theme_key {
+                        (cached_data.clone(), cw, ch)
+                    } else {
+                        let rendered = match font_data {
+                            FontData::Mirx(font) => {
+                                let atlas_img =
+                                    icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
+                                tint_image(&atlas_img)
+                            }
+                            FontData::FreeType(f) => {
+                                icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(
+                                    f, text_color,
+                                )
+                            }
+                        };
+                        let w = rendered.width();
+                        let h = rendered.height();
+                        let data: Vec<Color32> = rendered
+                            .chunks(4)
+                            .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
+                            .collect();
+                        state.font_atlas_cached = Some((theme_key, data.clone(), w, h));
+                        (data, w, h)
                     }
-                    FontData::FreeType(f) => {
-                        let grid_img = icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(f, text_color);
-                        grid_img
-                    }
+                } else {
+                    let rendered = match font_data {
+                        FontData::Mirx(font) => {
+                            let atlas_img =
+                                icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
+                            tint_image(&atlas_img)
+                        }
+                        FontData::FreeType(f) => {
+                            icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(
+                                f, text_color,
+                            )
+                        }
+                    };
+                    let w = rendered.width();
+                    let h = rendered.height();
+                    let data: Vec<Color32> = rendered
+                        .chunks(4)
+                        .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
+                        .collect();
+                    state.font_atlas_cached = Some((theme_key, data.clone(), w, h));
+                    (data, w, h)
                 };
-                let w = tinted.width();
-                let h = tinted.height();
-                let image_data: Vec<Color32> = tinted
-                    .chunks(4)
-                    .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
-                    .collect();
                 let tint_item = crate::image_viewer::model::ImageItem {
                     path: image.path.clone(),
                     info: image.info.clone(),

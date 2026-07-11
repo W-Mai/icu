@@ -130,6 +130,7 @@ pub struct ViewerState {
     pub font_view_mode: String,
     pub font_diff_path: Option<String>,
     pub font_selected_glyph: Option<usize>,
+    pub font_atlas_cached: Option<(String, Vec<Color32>, u32, u32)>,
 }
 
 impl Default for ViewerState {
@@ -162,6 +163,7 @@ impl Default for ViewerState {
             font_view_mode: "atlas".to_string(),
             font_diff_path: None,
             font_selected_glyph: None,
+            font_atlas_cached: None,
         }
     }
 }
