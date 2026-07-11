@@ -358,11 +358,12 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
             }
             _ => {
                 let theme_key = format!(
-                    "{:?}_{:?}",
+                    "{:?}_{:?}_{}",
                     fg,
-                    bg
+                    bg,
+                    image.path,
                 );
-                let (image_data, w, h) = if let Some((ref cached_key, ref cached_data, cw, ch)) =
+                let (image_data, w, h) = if let Some((ref cached_key, _, ref cached_data, cw, ch)) =
                     state.font_atlas_cached
                 {
                     if *cached_key == theme_key {
@@ -374,10 +375,12 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                                     icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
                                 tint_image(&atlas_img)
                             }
-                            FontData::FreeType(f) => {
-                                icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(
-                                    f, text_color,
-                                )
+                            FontData::FreeType(_) => {
+                                let grid_img = icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(
+                                    match font_data { FontData::FreeType(f) => f, _ => unreachable!() },
+                                    text_color,
+                                );
+                                grid_img
                             }
                         };
                         let w = rendered.width();
@@ -386,7 +389,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                             .chunks(4)
                             .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
                             .collect();
-                        state.font_atlas_cached = Some((theme_key, data.clone(), w, h));
+                        state.font_atlas_cached = Some((theme_key.clone(), image.path.clone(), data.clone(), w, h));
                         (data, w, h)
                     }
                 } else {
@@ -408,7 +411,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                         .chunks(4)
                         .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
                         .collect();
-                    state.font_atlas_cached = Some((theme_key, data.clone(), w, h));
+                    state.font_atlas_cached = Some((theme_key.clone(), image.path.clone(), data.clone(), w, h));
                     (data, w, h)
                 };
                 let tint_item = crate::image_viewer::model::ImageItem {

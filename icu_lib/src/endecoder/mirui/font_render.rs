@@ -4,7 +4,7 @@ use mirui::render::canvas::Canvas;
 use mirui::render::font::Font;
 use mirui::render::path::{Path, PathCmd};
 use mirui::render::raster::FillRule;
-use mirui::render::texture::{ColorFormat, Texture};
+use mirui::render::texture::{AlphaMode, ColorFormat, Texture};
 use mirui::types::{Fixed, Point, Rect};
 use mirx::{FontChunkKind, Paint};
 
@@ -63,7 +63,7 @@ pub fn render_freetype_glyph_at(
     let w = width.min(u16::MAX as u32) as u16;
     let h = height.min(u16::MAX as u32) as u16;
     let texture = Texture::new(&mut buffer, w, h, ColorFormat::RGBA8888);
-    let mut renderer = SwRenderer::new(texture);
+    let mut renderer = SwRenderer::new(texture).with_alpha_mode(AlphaMode::Blend);
     let clip = Rect::new(Fixed::ZERO, Fixed::ZERO, Fixed::from_int(w as i32), Fixed::from_int(h as i32));
     let units = font.units_per_em.max(1) as f32;
     let scale = width as f32 * 0.7 / units;
@@ -98,7 +98,13 @@ pub fn render_freetype_glyph_at(
     }.into());
     renderer.fill_path(&path, &clip, &paint, 255, mirui::render::raster::FillRule::NonZero);
     renderer.flush();
-    RgbaImage::from_raw(width, height, buffer)
+    let mut img = RgbaImage::from_raw(width, height, buffer)?;
+    for px in img.pixels_mut() {
+        px.0[0] = color.r;
+        px.0[1] = color.g;
+        px.0[2] = color.b;
+    }
+    Some(img)
 }
 
 pub fn render_freetype_glyphs(
@@ -119,7 +125,7 @@ pub fn render_freetype_glyphs(
     let w = grid_w.min(u16::MAX as u32) as u16;
     let h = grid_h.min(u16::MAX as u32) as u16;
     let texture = Texture::new(&mut buffer, w, h, ColorFormat::RGBA8888);
-    let mut renderer = SwRenderer::new(texture);
+    let mut renderer = SwRenderer::new(texture).with_alpha_mode(AlphaMode::Blend);
     let clip = Rect::new(
         Fixed::ZERO,
         Fixed::ZERO,
@@ -163,7 +169,14 @@ pub fn render_freetype_glyphs(
         renderer.fill_path(&path, &clip, &paint, 255, FillRule::NonZero);
     }
     renderer.flush();
-    RgbaImage::from_raw(grid_w, grid_h, buffer).unwrap_or_else(|| RgbaImage::new(grid_w, grid_h))
+    let mut img = RgbaImage::from_raw(grid_w, grid_h, buffer)
+        .unwrap_or_else(|| RgbaImage::new(grid_w, grid_h));
+    for px in img.pixels_mut() {
+        px.0[0] = color.r;
+        px.0[1] = color.g;
+        px.0[2] = color.b;
+    }
+    img
 }
 
 fn map_freetype_cmd(cmd: &PathCmd, x0: u32, y0: u32, scale: f32, baseline: f32) -> PathCmd {
@@ -264,7 +277,7 @@ fn render_text_with_font(
     let w = width.min(u16::MAX as u32) as u16;
     let h = height.min(u16::MAX as u32) as u16;
     let texture = Texture::new(&mut buffer, w, h, ColorFormat::RGBA8888);
-    let mut renderer = SwRenderer::new(texture);
+    let mut renderer = SwRenderer::new(texture).with_alpha_mode(AlphaMode::Blend);
     let clip = Rect::new(
         Fixed::ZERO,
         Fixed::ZERO,
@@ -280,7 +293,14 @@ fn render_text_with_font(
     };
     renderer.draw_label(&pos, text, font, &clip, &render_color, 255);
     renderer.flush();
-    RgbaImage::from_raw(width, height, buffer).unwrap_or_else(|| RgbaImage::new(width, height))
+    let mut img = RgbaImage::from_raw(width, height, buffer)
+        .unwrap_or_else(|| RgbaImage::new(width, height));
+    for px in img.pixels_mut() {
+        px.0[0] = color.r;
+        px.0[1] = color.g;
+        px.0[2] = color.b;
+    }
+    img
 }
 
 #[cfg(test)]
