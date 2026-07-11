@@ -171,18 +171,34 @@ impl EnDecoder for Mirx {
                     &payload,
                 )
             }
-            MiData::FONT(font_data) => {
-                let font = match font_data {
-                    FontData::Mirx(f) => f,
-                    FontData::FreeType(_) => return Vec::new(),
-                };
-                let payload = font.encode();
-                mirx::encode_chunk_generic(
-                    mirx::chunk_type::FONT,
-                    mirx::ChunkEntry::FLAG_CRITICAL,
-                    &payload,
-                )
-            }
+            MiData::FONT(font_data) => match font_data {
+                FontData::Mirx(f) => {
+                    let payload = f.encode();
+                    mirx::encode_chunk_generic(
+                        mirx::chunk_type::FONT,
+                        mirx::ChunkEntry::FLAG_CRITICAL,
+                        &payload,
+                    )
+                }
+                FontData::MirxBundle(fonts) => {
+                    let chunks: Vec<(u16, u16, Vec<u8>)> = fonts
+                        .iter()
+                        .map(|f| {
+                            (
+                                mirx::chunk_type::FONT,
+                                mirx::ChunkEntry::FLAG_CRITICAL,
+                                f.encode(),
+                            )
+                        })
+                        .collect();
+                    let refs: Vec<(u16, u16, &[u8])> = chunks
+                        .iter()
+                        .map(|(t, f, p)| (*t, *f, p.as_slice()))
+                        .collect();
+                    mirx::encode_chunks(&refs)
+                }
+                FontData::FreeType(_) => Vec::new(),
+            },
             MiData::GRAY(_) => Vec::new(),
             MiData::INDEXED(_) => Vec::new(),
         }
@@ -204,9 +220,18 @@ impl EnDecoder for Mirx {
                         return MiData::PATH(SceneData { scene });
                     }
                 }
-                if let Some(payload) = file.chunk_payload(&data, mirx::chunk_type::FONT) {
-                    if let Ok(font) = mirx::Font::decode(payload) {
-                        return MiData::FONT(FontData::Mirx(font));
+                let font_payloads: Vec<_> =
+                    file.chunk_payloads(&data, mirx::chunk_type::FONT).collect();
+                if !font_payloads.is_empty() {
+                    let fonts: Vec<mirx::Font> = font_payloads
+                        .iter()
+                        .filter_map(|p| mirx::Font::decode(p).ok())
+                        .collect();
+                    if !fonts.is_empty() {
+                        if fonts.len() == 1 {
+                            return MiData::FONT(FontData::Mirx(fonts.into_iter().next().unwrap()));
+                        }
+                        return MiData::FONT(FontData::MirxBundle(fonts));
                     }
                 }
                 if let Some(primary) = file.primary_image {

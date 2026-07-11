@@ -31,6 +31,7 @@ pub struct SceneData {
 #[derive(Clone, PartialEq)]
 pub enum FontData {
     Mirx(mirx::Font),
+    MirxBundle(Vec<mirx::Font>),
     FreeType(FreeTypeFontData),
 }
 

@@ -133,6 +133,7 @@ pub struct ViewerState {
     pub font_atlas_cached: Option<(String, String, Vec<Color32>, u32, u32)>,
     pub font_grid_cached: Option<(String, Vec<TextureHandle>, usize)>,
     pub font_grid_big_cached: Option<(String, TextureHandle)>,
+    pub font_bundle_index: usize,
 }
 
 impl Default for ViewerState {
@@ -168,6 +169,7 @@ impl Default for ViewerState {
             font_atlas_cached: None,
             font_grid_cached: None,
             font_grid_big_cached: None,
+            font_bundle_index: 0,
         }
     }
 }

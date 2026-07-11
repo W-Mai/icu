@@ -1,7 +1,7 @@
 use crate::image_viewer::model::{ConvertParams, ImageItem};
 use eframe::egui::{Color32, DroppedFile};
-use icu_lib::midata::MiData;
 use icu_lib::EncoderParams;
+use icu_lib::midata::MiData;
 use std::path::Path;
 
 pub fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
@@ -93,8 +93,23 @@ pub fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
                         icu_lib::midata::FontData::Mirx(f) => {
                             icu_lib::endecoder::mirui::font_render::render_font_atlas(&f)
                         }
+                        icu_lib::midata::FontData::MirxBundle(fonts) => {
+                            if let Some(f) = fonts.first() {
+                                icu_lib::endecoder::mirui::font_render::render_font_atlas(f)
+                            } else {
+                                return None;
+                            }
+                        }
                         icu_lib::midata::FontData::FreeType(f) => {
-                            icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(&f, icu_lib::mirx::Color { r: 200, g: 200, b: 200, a: 255 })
+                            icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(
+                                &f,
+                                icu_lib::mirx::Color {
+                                    r: 200,
+                                    g: 200,
+                                    b: 200,
+                                    a: 255,
+                                },
+                            )
                         }
                     };
                     let width = img.width();
@@ -150,8 +165,13 @@ pub fn convert_image(
     let midata = MiData::from_rgba(
         image_item.width,
         image_item.height,
-        image_item.image_data.iter().flat_map(|x| x.to_array()).collect::<Vec<u8>>(),
-    ).ok_or("Failed to create MiData")?;
+        image_item
+            .image_data
+            .iter()
+            .flat_map(|x| x.to_array())
+            .collect::<Vec<u8>>(),
+    )
+    .ok_or("Failed to create MiData")?;
 
     let encoder_params = EncoderParams {
         lvgl_version: params.lvgl_version.into(),
@@ -211,11 +231,8 @@ pub fn save_images(items: &[ImageItem], params: &ConvertParams) {
             array.push(&uint8_array);
             let blob_options = web_sys::BlobPropertyBag::new();
             blob_options.set_type("application/octet-stream");
-            let blob = web_sys::Blob::new_with_u8_array_sequence_and_options(
-                &array,
-                &blob_options,
-            )
-            .expect("failed to create blob");
+            let blob = web_sys::Blob::new_with_u8_array_sequence_and_options(&array, &blob_options)
+                .expect("failed to create blob");
 
             let url = web_sys::Url::create_object_url_with_blob(&blob)
                 .expect("failed to create object url");
