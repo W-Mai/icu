@@ -14,38 +14,44 @@ pub fn render_font_atlas(font: &mirx::Font) -> RgbaImage {
     if source == 0 || font.metrics.is_empty() {
         return RgbaImage::new(0, 0);
     }
-    let bytes_per_glyph = atlas.bytes_per_glyph as usize;
+    let payload: &'static [u8] = leak_font_payload(font);
+    let mirui_font = match font.chunk_header.kind {
+        FontChunkKind::Sdf => match mirui::render::font::sdf::font_from_mirx_chunk("atlas", payload) {
+            Ok(f) => f,
+            Err(_) => return RgbaImage::new(0, 0),
+        },
+        FontChunkKind::Grayscale => match mirui::render::font::gray::font_from_mirx_chunk("atlas", payload) {
+            Ok(f) => f,
+            Err(_) => return RgbaImage::new(0, 0),
+        },
+    };
+
+    let cell = source;
+    let gap = 1u32;
     let cols = (font.metrics.len() as f64).sqrt().ceil() as u32;
     let cols = cols.max(1);
     let rows = (font.metrics.len() as u32 + cols - 1) / cols;
-    let cell = source;
-    let gap = 1u32;
     let grid_w = cols * cell + (cols + 1) * gap;
     let grid_h = rows * cell + (rows + 1) * gap;
-    let mut img = RgbaImage::new(grid_w, grid_h);
-    let is_sdf = font.chunk_header.kind == mirx::FontChunkKind::Sdf;
-    for (i, _m) in font.metrics.iter().enumerate() {
+    let mut buffer = vec![0u8; (grid_w * grid_h * 4) as usize];
+    let w = grid_w.min(u16::MAX as u32) as u16;
+    let h = grid_h.min(u16::MAX as u32) as u16;
+    let texture = Texture::new(&mut buffer, w, h, ColorFormat::RGBA8888);
+    let mut renderer = SwRenderer::new(texture).with_alpha_mode(AlphaMode::Blend);
+    let clip = Rect::new(Fixed::ZERO, Fixed::ZERO, Fixed::from_int(w as i32), Fixed::from_int(h as i32));
+    let color = mirui::types::Color { r: 255, g: 255, b: 255, a: 255 };
+
+    for (i, m) in font.metrics.iter().enumerate() {
         let row = i as u32 / cols;
         let col = i as u32 % cols;
         let x0 = gap + col * (cell + gap);
         let y0 = gap + row * (cell + gap);
-        let start = i * bytes_per_glyph;
-        let end = (start + bytes_per_glyph).min(font.data.len());
-        let glyph_bytes = &font.data[start..end];
-        for y in 0..cell {
-            for x in 0..cell {
-                let raw = sample_atlas_pixel(glyph_bytes, source, x, y, atlas.bit_depth);
-                let px = img.get_pixel_mut(x0 + x, y0 + y);
-                if is_sdf {
-                    let coverage = if raw >= 128 { 255 } else { 0 };
-                    px.0 = [0, 0, 0, coverage];
-                } else {
-                    px.0 = [0, 0, 0, raw];
-                }
-            }
-        }
+        let ch = char::from_u32(m.codepoint).unwrap_or('?');
+        let pos = Point::new(Fixed::from_int(x0 as i32), Fixed::from_int(y0 as i32));
+        renderer.draw_label(&pos, &ch.to_string(), &mirui_font, &clip, &color, 255);
     }
-    img
+    renderer.flush();
+    RgbaImage::from_raw(grid_w, grid_h, buffer).unwrap_or_else(|| RgbaImage::new(grid_w, grid_h))
 }
 
 pub fn render_freetype_glyph_at(
@@ -204,6 +210,7 @@ fn map_freetype_cmd(cmd: &PathCmd, x0: u32, y0: u32, scale: f32, baseline: f32) 
     }
 }
 
+#[allow(dead_code)]
 fn sample_atlas_pixel(bytes: &[u8], source: u32, x: u32, y: u32, bit_depth: u8) -> u8 {
     let idx = y * source + x;
     match bit_depth {
