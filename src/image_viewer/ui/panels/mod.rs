@@ -24,10 +24,10 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
     let tint_image = |img: &icu_lib::image::RgbaImage| -> icu_lib::image::RgbaImage {
         let mut out = img.clone();
         for px in out.pixels_mut() {
-            let v = px.0[0] as f32 / 255.0;
-            px.0[0] = (bg.r() as f32 * (1.0 - v) + fg.r() as f32 * v) as u8;
-            px.0[1] = (bg.g() as f32 * (1.0 - v) + fg.g() as f32 * v) as u8;
-            px.0[2] = (bg.b() as f32 * (1.0 - v) + fg.b() as f32 * v) as u8;
+            let a = px.0[3] as f32 / 255.0;
+            px.0[0] = (bg.r() as f32 * (1.0 - a) + fg.r() as f32 * a) as u8;
+            px.0[1] = (bg.g() as f32 * (1.0 - a) + fg.g() as f32 * a) as u8;
+            px.0[2] = (bg.b() as f32 * (1.0 - a) + fg.b() as f32 * a) as u8;
             px.0[3] = 255;
         }
         out

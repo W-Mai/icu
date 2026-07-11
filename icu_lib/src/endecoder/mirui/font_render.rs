@@ -23,6 +23,7 @@ pub fn render_font_atlas(font: &mirx::Font) -> RgbaImage {
     let grid_w = cols * cell + (cols + 1) * gap;
     let grid_h = rows * cell + (rows + 1) * gap;
     let mut img = RgbaImage::new(grid_w, grid_h);
+    let is_sdf = font.chunk_header.kind == mirx::FontChunkKind::Sdf;
     for (i, _m) in font.metrics.iter().enumerate() {
         let row = i as u32 / cols;
         let col = i as u32 % cols;
@@ -33,9 +34,14 @@ pub fn render_font_atlas(font: &mirx::Font) -> RgbaImage {
         let glyph_bytes = &font.data[start..end];
         for y in 0..cell {
             for x in 0..cell {
-                let alpha = sample_atlas_pixel(glyph_bytes, source, x, y, atlas.bit_depth);
+                let raw = sample_atlas_pixel(glyph_bytes, source, x, y, atlas.bit_depth);
                 let px = img.get_pixel_mut(x0 + x, y0 + y);
-                px.0 = [alpha, alpha, alpha, 255];
+                if is_sdf {
+                    let coverage = if raw >= 128 { 255 } else { 0 };
+                    px.0 = [0, 0, 0, coverage];
+                } else {
+                    px.0 = [0, 0, 0, raw];
+                }
             }
         }
     }
