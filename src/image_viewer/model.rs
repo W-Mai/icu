@@ -129,6 +129,7 @@ pub struct ViewerState {
     pub merge_font_paths: Vec<String>,
     pub font_view_mode: String,
     pub font_diff_path: Option<String>,
+    pub font_selected_glyph: Option<usize>,
 }
 
 impl Default for ViewerState {
@@ -160,6 +161,7 @@ impl Default for ViewerState {
             merge_font_paths: Vec::new(),
             font_view_mode: "atlas".to_string(),
             font_diff_path: None,
+            font_selected_glyph: None,
         }
     }
 }

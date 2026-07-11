@@ -179,6 +179,18 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
 
         match state.font_view_mode.as_str() {
             "rendered" => {
+                if state.font_rendered_preview.is_none() {
+                    if let FontData::Mirx(font) = font_data {
+                        let img = icu_lib::endecoder::mirui::font_render::render_font_text(
+                            font,
+                            &state.font_preview_text,
+                            400,
+                            64,
+                        );
+                        state.font_rendered_preview = Some(img);
+                    } else if let FontData::FreeType(_) = font_data {
+                    }
+                }
                 if let Some(preview) = &state.font_rendered_preview {
                     let w = preview.width();
                     let h = preview.height();
@@ -193,6 +205,8 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                         texture.id(),
                         [w as f32, h as f32],
                     ));
+                } else {
+                    ui.label("Rendering not available for this font type");
                 }
             }
             "grid" => {
@@ -200,6 +214,29 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                     FontData::Mirx(font) => {
                         let cell = font.atlas.source_size as usize + 4;
                         let cols = 16usize;
+                        egui::TopBottomPanel::bottom("glyph_detail").show_inside(ui, |ui| {
+                            if let Some(idx) = state.font_selected_glyph {
+                                if let Some(m) = font.metrics.get(idx) {
+                                    let ch = char::from_u32(m.codepoint).unwrap_or('?');
+                                    ui.heading(format!("Glyph #{}: '{}' (U+{:04X})", idx, ch, m.codepoint));
+                                    ui.label(format!("advance: {}", m.advance));
+                                    ui.label(format!("bearing: ({}, {})", m.bearing_x, m.bearing_y));
+                                    let big = icu_lib::endecoder::mirui::font_render::render_font_text(
+                                        font, &ch.to_string(), 128, 128,
+                                    );
+                                    let color_image = egui::ColorImage::from_rgba_unmultiplied(
+                                        [128, 128], big.as_raw(),
+                                    );
+                                    let tex = ui.ctx().load_texture(
+                                        format!("glyph_big_{}", idx),
+                                        color_image, egui::TextureOptions::LINEAR,
+                                    );
+                                    ui.image(egui::load::SizedTexture::new(tex.id(), [128.0, 128.0]));
+                                }
+                            } else {
+                                ui.label("Click a glyph to inspect");
+                            }
+                        });
                         egui::ScrollArea::both().show(ui, |ui| {
                             egui::Grid::new("glyph_grid")
                                 .num_columns(cols)
@@ -208,23 +245,24 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                                     for (i, m) in font.metrics.iter().enumerate() {
                                         let ch = char::from_u32(m.codepoint).unwrap_or('?');
                                         let img = icu_lib::endecoder::mirui::font_render::render_font_text(
-                                            font,
-                                            &ch.to_string(),
-                                            cell as u32,
-                                            cell as u32,
+                                            font, &ch.to_string(), cell as u32, cell as u32,
                                         );
-                                        let w = img.width();
-                                        let h = img.height();
                                         let color_image = egui::ColorImage::from_rgba_unmultiplied(
-                                            [w as usize, h as usize],
-                                            img.as_raw(),
+                                            [cell, cell], img.as_raw(),
                                         );
                                         let tex_id = ui.ctx().load_texture(
                                             format!("glyph_{}", i),
-                                            color_image,
-                                            egui::TextureOptions::LINEAR,
+                                            color_image, egui::TextureOptions::LINEAR,
                                         ).id();
-                                        ui.add(egui::Image::new(egui::load::SizedTexture::new(tex_id, [cell as f32; 2])));
+                                        let resp = ui.add(egui::ImageButton::new(
+                                            egui::load::SizedTexture::new(tex_id, [cell as f32; 2]),
+                                        ));
+                                        if resp.clicked() {
+                                            state.font_selected_glyph = Some(i);
+                                        }
+                                        if state.font_selected_glyph == Some(i) {
+                                            ui.painter().rect_stroke(resp.rect, 0.0, egui::Stroke::new(2.0, egui::Color32::CYAN), egui::StrokeKind::Outside);
+                                        }
                                         if (i + 1) % cols == 0 {
                                             ui.end_row();
                                         }
@@ -235,6 +273,32 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                     FontData::FreeType(f) => {
                         let cell = 48u32;
                         let cols = 16usize;
+                        egui::TopBottomPanel::bottom("glyph_detail_ft").show_inside(ui, |ui| {
+                            if let Some(idx) = state.font_selected_glyph {
+                                if let Some(g) = f.glyphs.get(idx) {
+                                    let ch = char::from_u32(g.codepoint).unwrap_or('?');
+                                    ui.heading(format!("Glyph #{}: '{}' (U+{:04X})", idx, ch, g.codepoint));
+                                    ui.label(format!("advance: {}", g.advance));
+                                    ui.label(format!("bearing: ({}, {})", g.bearing_x, g.bearing_y));
+                                    ui.label(format!("bbox: {:?}", g.bbox));
+                                    ui.label(format!("outline cmds: {}", g.outline.len()));
+                                    if let Some(img) = icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
+                                        f, ch, 128, 128,
+                                    ) {
+                                        let color_image = egui::ColorImage::from_rgba_unmultiplied(
+                                            [128, 128], img.as_raw(),
+                                        );
+                                        let tex = ui.ctx().load_texture(
+                                            format!("ft_glyph_big_{}", idx),
+                                            color_image, egui::TextureOptions::LINEAR,
+                                        );
+                                        ui.image(egui::load::SizedTexture::new(tex.id(), [128.0, 128.0]));
+                                    }
+                                }
+                            } else {
+                                ui.label("Click a glyph to inspect");
+                            }
+                        });
                         egui::ScrollArea::both().show(ui, |ui| {
                             egui::Grid::new("glyph_grid_ft")
                                 .num_columns(cols)
@@ -242,20 +306,26 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                                 .show(ui, |ui| {
                                     for (i, g) in f.glyphs.iter().enumerate() {
                                         let ch = char::from_u32(g.codepoint).unwrap_or('?');
-                                        let img = icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
-                                            &f, ch, cell, cell,
-                                        );
-                                        if let Some(img) = img {
+                                        if let Some(img) = icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
+                                            f, ch, cell, cell,
+                                        ) {
                                             let color_image = egui::ColorImage::from_rgba_unmultiplied(
                                                 [cell as usize, cell as usize],
                                                 img.as_raw(),
                                             );
                                             let tex_id = ui.ctx().load_texture(
                                                 format!("ft_glyph_{}", i),
-                                                color_image,
-                                                egui::TextureOptions::LINEAR,
+                                                color_image, egui::TextureOptions::LINEAR,
                                             ).id();
-                                            ui.add(egui::Image::new(egui::load::SizedTexture::new(tex_id, [cell as f32; 2])));
+                                            let resp = ui.add(egui::ImageButton::new(
+                                                egui::load::SizedTexture::new(tex_id, [cell as f32; 2]),
+                                            ));
+                                            if resp.clicked() {
+                                                state.font_selected_glyph = Some(i);
+                                            }
+                                            if state.font_selected_glyph == Some(i) {
+                                                ui.painter().rect_stroke(resp.rect, 0.0, egui::Stroke::new(2.0, egui::Color32::CYAN), egui::StrokeKind::Outside);
+                                            }
                                         } else {
                                             ui.label(format!("{}", ch));
                                         }
@@ -353,11 +423,64 @@ pub fn draw_path_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
     });
 
     egui::CentralPanel::default().show(ctx, |ui| {
+        let highlight = if let Some(idx) = state.path_selected_op {
+            if let Some(op) = scene_data.scene.ops.get(idx) {
+                op_center(op)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
         let mut plotter = ImagePlotter::new("path_preview")
             .anti_alias(state.context.anti_alias)
-            .show_grid(state.context.show_grid);
+            .show_grid(state.context.show_grid)
+            .highlight(highlight);
         plotter.show(ui, &Some(image.clone()));
     });
+}
+
+fn op_center(op: &icu_lib::mirx::SceneOp) -> Option<[u32; 2]> {
+    use icu_lib::mirx::SceneOp;
+    match op {
+        SceneOp::FillPath { path, .. } | SceneOp::StrokePath { path, .. } => {
+            let mut min_x = i32::MAX;
+            let mut min_y = i32::MAX;
+            let mut max_x = i32::MIN;
+            let mut max_y = i32::MIN;
+            for cmd in &path.cmds {
+                let p = match cmd {
+                    icu_lib::mirx::PathCmd::MoveTo(p) | icu_lib::mirx::PathCmd::LineTo(p) => *p,
+                    icu_lib::mirx::PathCmd::QuadTo { end, .. } => *end,
+                    icu_lib::mirx::PathCmd::CubicTo { end, .. } => *end,
+                    icu_lib::mirx::PathCmd::Close => continue,
+                };
+                let x = p.x.to_int();
+                let y = p.y.to_int();
+                min_x = min_x.min(x);
+                min_y = min_y.min(y);
+                max_x = max_x.max(x);
+                max_y = max_y.max(y);
+            }
+            if min_x <= max_x && min_y <= max_y {
+                Some([((min_x + max_x) / 2) as u32, ((min_y + max_y) / 2) as u32])
+            } else {
+                None
+            }
+        }
+        SceneOp::FillRect { area, .. } | SceneOp::Border { area, .. } => {
+            let cx = (area.x.to_int() + area.w.to_int()) / 2;
+            let cy = (area.y.to_int() + area.h.to_int()) / 2;
+            Some([cx as u32, cy as u32])
+        }
+        SceneOp::Line { p1, p2, .. } => {
+            let cx = (p1.x.to_int() + p2.x.to_int()) / 2;
+            let cy = (p1.y.to_int() + p2.y.to_int()) / 2;
+            Some([cx as u32, cy as u32])
+        }
+        SceneOp::Arc { center, .. } => Some([center.x.to_int() as u32, center.y.to_int() as u32]),
+        _ => None,
+    }
 }
 
 fn op_label(op: &icu_lib::mirx::SceneOp) -> &'static str {
@@ -446,6 +569,9 @@ fn op_inspector(ui: &mut egui::Ui, op: &icu_lib::mirx::SceneOp) {
 }
 
 pub fn draw_indexed_panel(ctx: &egui::Context, state: &mut crate::image_viewer::model::ViewerState) {
+    if state.context.image_diff {
+        return;
+    }
     let Some(image) = state.current_image.clone() else {
         return;
     };
@@ -467,27 +593,33 @@ pub fn draw_indexed_panel(ctx: &egui::Context, state: &mut crate::image_viewer::
         indexed
     };
 
+    let mut hovered_palette: Option<u8> = None;
+
     egui::SidePanel::left("indexed_left").show(ctx, |ui| {
         ui.heading("Indexed");
         ui.label(format!("bpp: {}", indexed.bpp));
         ui.label(format!("palette: {}", indexed.palette.len()));
         ui.label(format!("size: {}x{}", indexed.width, indexed.height));
         ui.separator();
+        let prev_quality = state.indexed_show_quality;
         ui.checkbox(&mut state.indexed_show_quality, "Quality view");
+        if state.indexed_show_quality != prev_quality {
+            state.indexed_hover_palette = None;
+        }
         ui.separator();
         ui.horizontal(|ui| {
             ui.label("Dither:");
             ui.add(egui::Slider::new(&mut state.indexed_dither, 0..=30).text("level"));
         });
         ui.separator();
-        ui.label("Palette (click to edit):");
+        ui.label("Palette (hover to highlight, click to edit):");
         let cols = match indexed.bpp {
             1 => 2,
             2 => 4,
             4 => 8,
             _ => 16,
         };
-        egui::Grid::new("palette_grid")
+        let grid_resp = egui::Grid::new("palette_grid")
             .num_columns(cols)
             .spacing([2.0, 2.0])
             .show(ui, |ui| {
@@ -500,17 +632,30 @@ pub fn draw_indexed_panel(ctx: &egui::Context, state: &mut crate::image_viewer::
                             .selected(selected),
                     );
                     if btn.hovered() {
-                        state.indexed_hover_palette = Some(i as u8);
+                        hovered_palette = Some(i as u8);
                     }
                     if btn.clicked() {
-                        let mut picked = egui::Rgba::from_rgb(color[0] as f32 / 255.0, color[1] as f32 / 255.0, color[2] as f32 / 255.0);
-                        egui::color_picker::color_edit_button_rgba(ui, &mut picked, egui::color_picker::Alpha::Opaque);
+                        let mut picked = egui::Rgba::from_rgb(
+                            color[0] as f32 / 255.0,
+                            color[1] as f32 / 255.0,
+                            color[2] as f32 / 255.0,
+                        );
+                        egui::color_picker::color_edit_button_rgba(
+                            ui,
+                            &mut picked,
+                            egui::color_picker::Alpha::Opaque,
+                        );
                     }
                     if (i + 1) % cols == 0 {
                         ui.end_row();
                     }
                 }
             });
+        if !grid_resp.response.hovered() {
+            state.indexed_hover_palette = None;
+        } else {
+            state.indexed_hover_palette = hovered_palette;
+        }
         ui.separator();
         if ui.button("Export PNG").clicked() {
             let img = indexed.rgba.clone();
