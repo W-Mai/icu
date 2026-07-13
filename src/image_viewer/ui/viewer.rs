@@ -60,49 +60,52 @@ pub fn draw_central_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
         } else {
             let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
             let avail = ui.available_size();
-            let (rect, response) = ui.allocate_exact_size(avail, egui::Sense::click());
-            let hovered = response.hovered();
+            let (rect, click_response) = ui.allocate_exact_size(avail, egui::Sense::click());
+            let hovered = click_response.hovered();
             if ui.is_rect_visible(rect) {
                 let stroke_color = if hovered { p.accent() } else { p.surface1 };
-                let dash_len = 8.0;
-                let gap = 6.0;
-                paint_dashed_rect(ui.painter(), rect, egui::CornerRadius::same(12), stroke_color, dash_len, gap);
-                ui.painter().text(
-                    rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    t!("drag_here"),
-                    egui::FontId::proportional(16.0),
-                    if hovered { p.accent() } else { p.overlay0 },
-                );
+                paint_dashed_rect(ui.painter(), rect, egui::CornerRadius::same(12), stroke_color, 8.0, 6.0);
             }
-            if response.clicked() {
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    let files: Vec<eframe::egui::DroppedFile> = rfd::FileDialog::new()
-                        .pick_files()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|p| eframe::egui::DroppedFile {
-                            path: Some(p),
-                            ..Default::default()
-                        })
-                        .collect();
-                    if !files.is_empty() {
-                        let new_items: Vec<crate::image_viewer::model::SidebarItem> =
-                            crate::image_viewer::utils::process_images(&files)
-                                .into_iter()
-                                .map(crate::image_viewer::model::SidebarItem::Image)
-                                .collect();
-                        state.items.extend(new_items);
-                        if let Some(crate::image_viewer::model::SidebarItem::Image(img)) =
-                            state.items.first().cloned()
-                        {
-                            state.current_image = Some(img);
-                            state.selected_index = Some(0);
+            let text_color = if hovered { p.accent() } else { p.overlay0 };
+            let galley = ui.painter().layout(
+                t!("drag_here").to_string(),
+                egui::FontId::proportional(72.0),
+                text_color,
+                f32::INFINITY,
+            );
+            let text_pos = egui::pos2(
+                rect.center().x - galley.size().x / 2.0,
+                rect.center().y - galley.size().y / 2.0,
+            );
+            ui.painter().galley(text_pos, galley, text_color);
+            if click_response.clicked() {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        let files: Vec<eframe::egui::DroppedFile> = rfd::FileDialog::new()
+                            .pick_files()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|p| eframe::egui::DroppedFile {
+                                path: Some(p),
+                                ..Default::default()
+                            })
+                            .collect();
+                        if !files.is_empty() {
+                            let new_items: Vec<crate::image_viewer::model::SidebarItem> =
+                                crate::image_viewer::utils::process_images(&files)
+                                    .into_iter()
+                                    .map(crate::image_viewer::model::SidebarItem::Image)
+                                    .collect();
+                            state.items.extend(new_items);
+                            if let Some(crate::image_viewer::model::SidebarItem::Image(img)) =
+                                state.items.first().cloned()
+                            {
+                                state.current_image = Some(img);
+                                state.selected_index = Some(0);
+                            }
                         }
                     }
                 }
-            }
         }
     });
 }
@@ -249,3 +252,5 @@ fn paint_dashed_rect(
     }
     let _ = corner;
 }
+
+
