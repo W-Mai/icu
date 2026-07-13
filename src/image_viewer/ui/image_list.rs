@@ -128,6 +128,35 @@ fn handle_item_interaction(
         state.hovered_index = Some(index);
     }
 
+    response.context_menu(|ui| {
+        if ui.button("Open").clicked() {
+            state.selected_index = Some(index);
+            if let SidebarItem::Image(image_item) = item {
+                state.current_image = Some(image_item.clone());
+            }
+            ui.close();
+        }
+        if ui.button("Info").clicked() {
+            state.context.right_tab = crate::image_viewer::model::RightTab::Info;
+            state.selected_index = Some(index);
+            ui.close();
+        }
+        if ui.button("Export…").clicked() {
+            state.context.right_tab = crate::image_viewer::model::RightTab::Convert;
+            state.selected_index = Some(index);
+            ui.close();
+        }
+        ui.separator();
+        if ui.button("Remove").clicked() {
+            if state.selected_index == Some(index) {
+                state.selected_index = None;
+                state.current_image = None;
+            }
+            state.items.remove(index);
+            ui.close();
+        }
+    });
+
     if is_selected || response.hovered() || response.highlighted() || response.has_focus() {
         let rect = rect.expand(10.0);
         let painter = ui.painter_at(rect);

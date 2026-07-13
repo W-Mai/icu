@@ -175,6 +175,41 @@ impl eframe::App for MyEguiApp {
             ctx.request_repaint();
         }
 
+        let mod_down = ctx.input(|i| i.modifiers.mac_cmd || i.modifiers.ctrl || i.modifiers.command);
+        if mod_down {
+            if ctx.input(|i| i.key_pressed(egui::Key::O)) {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    let files: Vec<DroppedFile> = rfd::FileDialog::new()
+                        .pick_files()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|p| DroppedFile {
+                            path: Some(p),
+                            ..Default::default()
+                        })
+                        .collect();
+                    if !files.is_empty() {
+                        let new_items: Vec<SidebarItem> = process_images(&files)
+                            .into_iter()
+                            .map(SidebarItem::Image)
+                            .collect();
+                        self.state.items.extend(new_items);
+                        if let Some(SidebarItem::Image(img)) = self.state.items.first().cloned() {
+                            self.state.current_image = Some(img);
+                            self.state.selected_index = Some(0);
+                        }
+                    }
+                }
+            }
+            if ctx.input(|i| i.key_pressed(egui::Key::D)) {
+                self.state.context.diff_active = !self.state.context.diff_active;
+                if self.state.context.diff_active {
+                    self.state.context.right_tab = crate::image_viewer::model::RightTab::Diff;
+                }
+            }
+        }
+
         self.ui_file_drag_and_drop(ctx);
     }
 

@@ -6,6 +6,35 @@ pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
     egui::Panel::top("top_panel").show(ui, |ui| {
         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.set_height(30.0);
+
+            if ui.button("📂 Open").clicked() {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    let files: Vec<eframe::egui::DroppedFile> = rfd::FileDialog::new()
+                        .pick_files()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|p| eframe::egui::DroppedFile {
+                            path: Some(p),
+                            ..Default::default()
+                        })
+                        .collect();
+                    if !files.is_empty() {
+                        use crate::image_viewer::model::SidebarItem;
+                        let new_items: Vec<SidebarItem> =
+                            crate::image_viewer::utils::process_images(&files)
+                                .into_iter()
+                                .map(SidebarItem::Image)
+                                .collect();
+                        state.items.extend(new_items);
+                        if let Some(SidebarItem::Image(img)) = state.items.first().cloned() {
+                            state.current_image = Some(img);
+                            state.selected_index = Some(0);
+                        }
+                    }
+                }
+            }
+
             egui::widgets::global_theme_preference_switch(ui);
 
             ui.separator();
@@ -58,31 +87,50 @@ pub fn draw_bottom_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
         use egui::special_emojis::GITHUB;
 
         ui.horizontal_wrapped(|ui| {
-            if show_lesser {
-                ui.heading("ICU");
-            } else {
-                ui.heading("Image Converter Ultra");
-            }
-
+            ui.label(format!("v{VERSION}"));
             ui.separator();
-
-            egui::ComboBox::from_id_salt("Language")
-                .selected_text(t!("language"))
-                .show_ui(ui, |ui| {
-                    let lang_choices = [("en-US", "English"), ("zh-CN", "简体中文")];
-                    for (code, label) in lang_choices {
-                        if ui
-                            .selectable_value(&mut state.context.language, code.to_owned(), label)
-                            .clicked()
-                        {
-                            rust_i18n::set_locale(code);
+            ui.label(format!(
+                "{} files",
+                state.items.iter().filter(|i| matches!(i, crate::image_viewer::model::SidebarItem::Image(_))).count()
+            ));
+            if let Some(idx) = state.selected_index {
+                if let Some(item) = state.items.get(idx) {
+                    let name = match item {
+                        crate::image_viewer::model::SidebarItem::Image(i) => {
+                            std::path::Path::new(&i.path)
+                                .file_name()
+                                .map(|n| n.to_string_lossy().into_owned())
+                                .unwrap_or_else(|| i.path.clone())
                         }
-                    }
-                });
-
+                        crate::image_viewer::model::SidebarItem::Glyph(g) => g.name.clone(),
+                    };
+                    ui.separator();
+                    ui.label(name);
+                }
+            }
             ui.separator();
+            crate::image_viewer::ui::widgets::kbd(ui, "⌘O");
+            ui.label("Open");
+            crate::image_viewer::ui::widgets::kbd(ui, "⌘D");
+            ui.label("Diff");
+            crate::image_viewer::ui::widgets::kbd(ui, "⌘E");
+            ui.label("Export");
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                egui::ComboBox::from_id_salt("Language")
+                    .selected_text(t!("language"))
+                    .show_ui(ui, |ui| {
+                        let lang_choices = [("en-US", "English"), ("zh-CN", "简体中文")];
+                        for (code, label) in lang_choices {
+                            if ui
+                                .selectable_value(&mut state.context.language, code.to_owned(), label)
+                                .clicked()
+                            {
+                                rust_i18n::set_locale(code);
+                            }
+                        }
+                    });
+                ui.separator();
                 draw_footer_links(ui, VERSION, show_lesser, GITHUB);
             });
         });

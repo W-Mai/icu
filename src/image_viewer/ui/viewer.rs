@@ -49,14 +49,43 @@ pub fn draw_central_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
         } else if let Some(image) = &state.current_image {
             image_plotter.show(ui, &Some(image.clone()));
         } else {
-            ui.centered_and_justified(|ui| {
+            let resp = ui.centered_and_justified(|ui| {
                 ui.heading(
                     egui::RichText::new(t!("drag_here"))
                         .size(50.0)
                         .line_height(Some(60.0))
                         .color(ui.style().visuals.weak_text_color()),
                 );
-            });
+            })
+            .response;
+            if resp.clicked() {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    let files: Vec<eframe::egui::DroppedFile> = rfd::FileDialog::new()
+                        .pick_files()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|p| eframe::egui::DroppedFile {
+                            path: Some(p),
+                            ..Default::default()
+                        })
+                        .collect();
+                    if !files.is_empty() {
+                        let new_items: Vec<crate::image_viewer::model::SidebarItem> =
+                            crate::image_viewer::utils::process_images(&files)
+                                .into_iter()
+                                .map(crate::image_viewer::model::SidebarItem::Image)
+                                .collect();
+                        state.items.extend(new_items);
+                        if let Some(crate::image_viewer::model::SidebarItem::Image(img)) =
+                            state.items.first().cloned()
+                        {
+                            state.current_image = Some(img);
+                            state.selected_index = Some(0);
+                        }
+                    }
+                }
+            }
         }
     });
 }
