@@ -14,6 +14,7 @@ pub struct ImagePlotter<'a> {
     background_color: Color32,
     highlight_pixel: Option<[u32; 2]>,
     on_hover: Option<&'a mut Option<[u32; 2]>>,
+    badge: Option<String>,
 }
 
 impl<'a> ImagePlotter<'a> {
@@ -26,11 +27,17 @@ impl<'a> ImagePlotter<'a> {
             background_color: Default::default(),
             highlight_pixel: None,
             on_hover: None,
+            badge: None,
         }
     }
 
     pub fn on_hover(mut self, on_hover: &'a mut Option<[u32; 2]>) -> Self {
         self.on_hover = Some(on_hover);
+        self
+    }
+
+    pub fn badge(mut self, text: impl ToString) -> Self {
+        self.badge = Some(text.to_string());
         self
     }
 
@@ -309,6 +316,31 @@ impl<'a> ImagePlotter<'a> {
                         coord_rect.center() - 0.5 * galley.size(),
                         galley,
                         p.subtext0,
+                    );
+                }
+
+                if let Some(badge_text) = &self.badge {
+                    let galley = ui.painter().layout_no_wrap(
+                        badge_text.clone(),
+                        egui::FontId::monospace(11.0),
+                        p.overlay0,
+                    );
+                    let pad = egui::vec2(10.0, 4.0);
+                    let badge_rect = egui::Rect::from_min_size(
+                        egui::pos2(plot_rect.right() - galley.size().x - pad.x - 8.0, plot_rect.top() + 8.0),
+                        galley.size() + pad * 2.0,
+                    );
+                    ui.painter().rect(
+                        badge_rect,
+                        egui::CornerRadius::same(4),
+                        p.mantle,
+                        egui::Stroke::new(1.0, p.surface1),
+                        egui::StrokeKind::Inside,
+                    );
+                    ui.painter().galley(
+                        badge_rect.center() - 0.5 * galley.size(),
+                        galley,
+                        p.overlay0,
                     );
                 }
 

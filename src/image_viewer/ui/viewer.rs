@@ -36,7 +36,7 @@ pub fn draw_central_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
     }
 
     egui::CentralPanel::default().show(ui, |ui| {
-        let mut image_plotter = ImagePlotter::new("viewer")
+        let image_plotter = ImagePlotter::new("viewer")
             .anti_alias(state.context.anti_alias)
             .show_grid(state.context.show_grid)
             .background_color(state.context.background_color)
@@ -49,14 +49,14 @@ pub fn draw_central_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
 
         if state.context.only_show_diff {
             if let Some((diff_img, _)) = &state.diff_result {
-                image_plotter.show(ui, &Some(diff_img.clone()));
+                image_plotter.badge(format!("{}×{} · diff", diff_img.width, diff_img.height)).show(ui, &Some(diff_img.clone()));
             }
         } else if let Some((diff_img, _)) = &state.diff_result
             && state.context.diff_active
         {
-            image_plotter.show(ui, &Some(diff_img.clone()));
+            image_plotter.badge(format!("{}×{} · diff", diff_img.width, diff_img.height)).show(ui, &Some(diff_img.clone()));
         } else if let Some(image) = &state.current_image {
-            image_plotter.show(ui, &Some(image.clone()));
+            image_plotter.badge(format!("{}×{} · {}", image.width, image.height, image.info.format)).show(ui, &Some(image.clone()));
         } else {
             let resp = ui.centered_and_justified(|ui| {
                 ui.heading(
