@@ -212,22 +212,22 @@ fn apply_theme(ctx: &egui::Context, t: &palette::Theme, is_dark: bool) {
         v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, t.text);
         v.widgets.noninteractive.corner_radius = RADIUS;
 
-        v.widgets.inactive.bg_fill = t.surface0;
-        v.widgets.inactive.weak_bg_fill = t.surface0;
-        v.widgets.inactive.bg_stroke = Stroke::new(1.0, t.overlay1);
-        v.widgets.inactive.fg_stroke = Stroke::new(1.0, t.text);
+        v.widgets.inactive.bg_fill = Color32::TRANSPARENT;
+        v.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
+        v.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::TRANSPARENT);
+        v.widgets.inactive.fg_stroke = Stroke::new(1.0, t.subtext0);
         v.widgets.inactive.corner_radius = RADIUS;
 
-        v.widgets.hovered.bg_fill = t.surface2;
-        v.widgets.hovered.weak_bg_fill = t.surface2;
-        v.widgets.hovered.bg_stroke = Stroke::new(1.0, t.overlay1);
+        v.widgets.hovered.bg_fill = t.surface1;
+        v.widgets.hovered.weak_bg_fill = t.surface1;
+        v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::TRANSPARENT);
         v.widgets.hovered.fg_stroke = Stroke::new(1.0, t.text);
         v.widgets.hovered.corner_radius = RADIUS;
 
-        v.widgets.active.bg_fill = t.surface1;
-        v.widgets.active.weak_bg_fill = t.surface1;
-        v.widgets.active.bg_stroke = Stroke::new(1.0, t.overlay1);
-        v.widgets.active.fg_stroke = Stroke::new(1.0, t.text);
+        v.widgets.active.bg_fill = t.accent_dim();
+        v.widgets.active.weak_bg_fill = t.accent_dim();
+        v.widgets.active.bg_stroke = Stroke::new(1.0, t.blue);
+        v.widgets.active.fg_stroke = Stroke::new(1.0, t.blue);
         v.widgets.active.corner_radius = RADIUS;
 
         v.widgets.open.bg_fill = t.surface0;
