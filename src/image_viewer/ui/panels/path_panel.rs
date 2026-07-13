@@ -70,6 +70,15 @@ pub fn draw_path_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
     });
 
     egui::CentralPanel::default().show(ui, |ui| {
+        ui.horizontal(|ui| {
+            crate::image_viewer::ui::widgets::mode_tabs(
+                ui,
+                &mut state.path_mode,
+                &[(crate::image_viewer::model::PathMode::Preview, "Preview")],
+            );
+        });
+        ui.separator();
+
         let highlight = if let Some(idx) = state.selected_op {
             if let Some(op) = scene_data.scene.ops.get(idx) {
                 op_center(op)

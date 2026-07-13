@@ -121,6 +121,18 @@ pub fn draw_indexed_panel(
     });
 
     egui::CentralPanel::default().show(ui, |ui| {
+        ui.horizontal(|ui| {
+            crate::image_viewer::ui::widgets::mode_tabs(
+                ui,
+                &mut state.indexed_view_mode,
+                &[
+                    (crate::image_viewer::model::IndexedViewMode::RGBA, "RGBA"),
+                    (crate::image_viewer::model::IndexedViewMode::IndexMap, "Index Map"),
+                ],
+            );
+        });
+        ui.separator();
+
         let composited = if state.indexed_show_quality {
             let mut stack = icu_lib::postprocess::OverlayStack::new(indexed.rgba.clone());
             stack.push(Box::new(icu_lib::postprocess::QualityOverlay::new(
@@ -155,6 +167,19 @@ pub fn draw_indexed_panel(
         let mut plotter = ImagePlotter::new("indexed_view")
             .anti_alias(state.context.anti_alias)
             .show_grid(state.context.show_grid);
-        plotter.show(ui, &Some(view_item));
+
+        match state.indexed_view_mode {
+            crate::image_viewer::model::IndexedViewMode::RGBA => {
+                plotter.show(ui, &Some(view_item));
+            }
+            crate::image_viewer::model::IndexedViewMode::IndexMap => {
+                ui.centered_and_justified(|ui| {
+                    ui.label(
+                        egui::RichText::new("Index Map view — coming in P8")
+                            .color(ui.style().visuals.weak_text_color()),
+                    );
+                });
+            }
+        }
     });
 }

@@ -344,9 +344,16 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
 
     egui::CentralPanel::default().show(ui, |ui| {
         ui.horizontal(|ui| {
-            ui.radio_value(&mut state.font_mode, FontMode::Atlas, "Atlas");
-            ui.radio_value(&mut state.font_mode, FontMode::Rendered, "Rendered");
-            ui.radio_value(&mut state.font_mode, FontMode::Grid, "Glyph Grid");
+            crate::image_viewer::ui::widgets::mode_tabs(
+                ui,
+                &mut state.font_mode,
+                &[
+                    (FontMode::Atlas, "Atlas"),
+                    (FontMode::Rendered, "Rendered"),
+                    (FontMode::Grid, "Grid"),
+                    (FontMode::Vector, "Vector"),
+                ],
+            );
         });
         ui.separator();
 
