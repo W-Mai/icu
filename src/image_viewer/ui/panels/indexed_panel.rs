@@ -173,12 +173,44 @@ pub fn draw_indexed_panel(
                 plotter.show(ui, &Some(view_item));
             }
             crate::image_viewer::model::IndexedViewMode::IndexMap => {
-                ui.centered_and_justified(|ui| {
-                    ui.label(
-                        egui::RichText::new("Index Map view — coming in P8")
-                            .color(ui.style().visuals.weak_text_color()),
-                    );
-                });
+                let palette_count = indexed.palette.len().max(1) as u32;
+                let max_index = (1u32 << indexed.bpp) - 1;
+                let (iw, ih) = (indexed.width, indexed.height);
+                let map_data: Vec<Color32> = indexed
+                    .indexes
+                    .iter()
+                    .map(|&idx| {
+                        let normalized = if max_index > 0 {
+                            idx as u32 * 255 / max_index
+                        } else {
+                            0
+                        };
+                        let c = normalized as u8;
+                        let pal_color = indexed
+                            .palette
+                            .get(idx as usize)
+                            .copied()
+                            .unwrap_or([0, 0, 0, 255]);
+                        let pal_fade = 0.4;
+                        let r = (c as f32 * pal_fade
+                            + pal_color[0] as f32 * (1.0 - pal_fade)) as u8;
+                        let g = (c as f32 * pal_fade
+                            + pal_color[1] as f32 * (1.0 - pal_fade)) as u8;
+                        let b = (c as f32 * pal_fade
+                            + pal_color[2] as f32 * (1.0 - pal_fade)) as u8;
+                        Color32::from_rgb(r, g, b)
+                    })
+                    .collect();
+                let map_item = crate::image_viewer::model::ImageItem {
+                    path: image.path.clone(),
+                    info: image.info.clone(),
+                    width: iw,
+                    height: ih,
+                    image_data: map_data,
+                    midata: None,
+                };
+                let _ = palette_count;
+                plotter.show(ui, &Some(map_item));
             }
         }
     });
