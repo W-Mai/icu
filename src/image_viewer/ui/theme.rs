@@ -91,10 +91,26 @@ pub mod palette {
         mantle: Color32::from_rgb(230, 233, 239),
         crust: Color32::from_rgb(220, 224, 232),
     };
+
+    #[allow(dead_code)]
+    impl Theme {
+        pub fn accent(self) -> Color32 {
+            self.blue
+        }
+        pub fn accent_2(self) -> Color32 {
+            self.lavender
+        }
+        pub fn accent_dim(self) -> Color32 {
+            let a = self.blue;
+            Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 38)
+        }
+        pub fn accent_dim_of(self, accent: Color32) -> Color32 {
+            Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 38)
+        }
+    }
 }
 
 pub mod tokens {
-    use super::Color32;
     use super::palette::{LATTE, MOCHA};
 
     #[allow(dead_code)]
@@ -102,18 +118,12 @@ pub mod tokens {
         ctx.global_style().visuals.dark_mode
     }
 
-    #[allow(dead_code)]
     pub fn palette(ctx: &eframe::egui::Context) -> super::palette::Theme {
         if is_dark(ctx) {
             MOCHA
         } else {
             LATTE
         }
-    }
-
-    #[allow(dead_code)]
-    pub fn accent_dim(accent: Color32) -> Color32 {
-        Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 38)
     }
 }
 

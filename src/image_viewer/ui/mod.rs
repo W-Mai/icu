@@ -5,6 +5,8 @@ pub mod layout;
 pub mod panels;
 pub mod theme;
 pub mod viewer;
+#[allow(dead_code)]
+pub mod widgets;
 
 pub use convert_panel::draw_convert_panel;
 pub use diff_panel::draw_right_panel;
