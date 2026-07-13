@@ -4,6 +4,34 @@ use eframe::egui::Color32;
 use icu_lib::endecoder::EnDecoder;
 use icu_lib::midata::{FontData, MiData};
 
+#[cfg(not(target_arch = "wasm32"))]
+fn pick_file(filters: &[(&str, &[&str])]) -> Option<std::path::PathBuf> {
+    let mut fd = rfd::FileDialog::new();
+    for (name, exts) in filters {
+        fd = fd.add_filter(*name, exts);
+    }
+    fd.pick_file()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn pick_file(_filters: &[(&str, &[&str])]) -> Option<std::path::PathBuf> {
+    None
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn pick_save_file(filters: &[(&str, &[&str])], file_name: &str) -> Option<std::path::PathBuf> {
+    let mut fd = rfd::FileDialog::new();
+    for (name, exts) in filters {
+        fd = fd.add_filter(*name, exts);
+    }
+    fd.set_file_name(file_name).save_file()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn pick_save_file(_filters: &[(&str, &[&str])], _file_name: &str) -> Option<std::path::PathBuf> {
+    None
+}
+
 fn selected_mirx_font<'a>(
     font_data: &'a FontData,
     index: usize,
@@ -83,9 +111,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                 ui.separator();
                 ui.label("Glyph diff:");
                 if ui.button("Select font to diff...").clicked() {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Font", &["ttf", "otf", "ttc", "mirx"])
-                        .pick_file()
+                    if let Some(path) = pick_file(&[("Font", &["ttf", "otf", "ttc", "mirx"])])
                     {
                         state.font_diff_path = Some(path.to_string_lossy().into());
                     }
@@ -149,9 +175,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                     }
                 }
                 if ui.button("Add font file...").clicked() {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("mirx", &["mirx"])
-                        .pick_file()
+                    if let Some(path) = pick_file(&[("mirx", &["mirx"])])
                     {
                         state.merge_font_paths.push(path.to_string_lossy().into());
                     }
@@ -170,10 +194,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                         .filter_map(|p| std::fs::read(p).ok())
                         .collect();
                     let merged = icu_lib::endecoder::mirui::font_bake::merge_font_chunks(&inputs);
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("mirx", &["mirx"])
-                        .set_file_name("bundle.mirx")
-                        .save_file()
+                    if let Some(path) = pick_save_file(&[("mirx", &["mirx"])], "bundle.mirx")
                     {
                         let _ = std::fs::write(&path, merged);
                     }
@@ -224,9 +245,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                     ui.separator();
                     ui.label("Glyph diff:");
                     if ui.button("Select font to diff...").clicked() {
-                        if let Some(path) = rfd::FileDialog::new()
-                            .add_filter("Font", &["ttf", "otf", "ttc", "mirx"])
-                            .pick_file()
+                        if let Some(path) = pick_file(&[("Font", &["ttf", "otf", "ttc", "mirx"])])
                         {
                             state.font_diff_path = Some(path.to_string_lossy().into());
                         }
@@ -336,10 +355,10 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                             icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
                             &payload,
                         );
-                        if let Some(path) = rfd::FileDialog::new()
-                            .add_filter("mirx", &["mirx"])
-                            .set_file_name(format!("{}_{}.mirx", f.family, state.font_bake_format))
-                            .save_file()
+                        if let Some(path) = pick_save_file(
+                            &[("mirx", &["mirx"])],
+                            &format!("{}_{}.mirx", f.family, state.font_bake_format),
+                        )
                         {
                             let _ = std::fs::write(&path, bytes);
                         }
@@ -685,21 +704,13 @@ pub fn draw_path_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                     .unwrap_or((256, 256));
             let img =
                 icu_lib::endecoder::mirui::scene_render::render_scene(&scene_data.scene, w, h);
-            if let Some(path) = rfd::FileDialog::new()
-                .add_filter("PNG", &["png"])
-                .set_file_name("scene.png")
-                .save_file()
-            {
+            if let Some(path) = pick_save_file(&[("PNG", &["png"])], "scene.png") {
                 let _ = img.save(&path);
             }
         }
         if ui.button("Export SVG").clicked() {
             let svg = icu_lib::endecoder::svg::export::scene_to_svg(&scene_data.scene, 0, 0);
-            if let Some(path) = rfd::FileDialog::new()
-                .add_filter("SVG", &["svg"])
-                .set_file_name("scene.svg")
-                .save_file()
-            {
+            if let Some(path) = pick_save_file(&[("SVG", &["svg"])], &"scene.svg") {
                 let _ = std::fs::write(&path, svg);
             }
         }
@@ -710,11 +721,7 @@ pub fn draw_path_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                 icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
                 &payload,
             );
-            if let Some(path) = rfd::FileDialog::new()
-                .add_filter("mirx", &["mirx"])
-                .set_file_name("scene.mirx")
-                .save_file()
-            {
+            if let Some(path) = pick_save_file(&[("mirx", &["mirx"])], &"scene.mirx") {
                 let _ = std::fs::write(&path, bytes);
             }
         }
@@ -1060,11 +1067,7 @@ pub fn draw_indexed_panel(
         ui.separator();
         if ui.button("Export PNG").clicked() {
             let img = indexed.rgba.clone();
-            if let Some(path) = rfd::FileDialog::new()
-                .add_filter("PNG", &["png"])
-                .set_file_name("indexed.png")
-                .save_file()
-            {
+            if let Some(path) = pick_save_file(&[("PNG", &["png"])], &"indexed.png") {
                 let _ = img.save(&path);
             }
         }
@@ -1079,11 +1082,7 @@ pub fn draw_indexed_panel(
             let midata = icu_lib::midata::MiData::INDEXED(indexed.clone());
             let bytes = icu_lib::endecoder::lvgl::LVGL {}.encode(&midata, params);
             if !bytes.is_empty() {
-                if let Some(path) = rfd::FileDialog::new()
-                    .add_filter("bin", &["bin"])
-                    .set_file_name("indexed.bin")
-                    .save_file()
-                {
+                if let Some(path) = pick_save_file(&[("bin", &["bin"])], &"indexed.bin") {
                     let _ = std::fs::write(&path, bytes);
                 }
             }

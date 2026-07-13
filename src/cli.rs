@@ -1,7 +1,5 @@
 use crate::arguments::{SubCommands, parse_args};
-use crate::converter::{
-    ImageFormatCategory, ImageFormats, OutputFileFormatCategory,
-};
+use crate::converter::{ImageFormatCategory, ImageFormats, OutputFileFormatCategory};
 use crate::image_viewer::show_image;
 use eframe::egui::DroppedFile;
 use icu_lib::endecoder::{EnDecoder, common, find_endecoder, lvgl};
@@ -438,10 +436,7 @@ fn bake_font_command(
     Ok(())
 }
 
-fn merge_fonts_command(
-    inputs: &[String],
-    output: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn merge_fonts_command(inputs: &[String], output: &str) -> Result<(), Box<dyn std::error::Error>> {
     use icu_lib::endecoder::mirui::font_bake::merge_font_chunks;
     let mut input_bytes: Vec<Vec<u8>> = Vec::with_capacity(inputs.len());
     for path in inputs {

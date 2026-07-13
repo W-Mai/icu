@@ -170,5 +170,3 @@ impl From<OutputCompressedMethod> for icu_lib::endecoder::lvgl::Compress {
         }
     }
 }
-
-

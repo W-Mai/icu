@@ -16,14 +16,18 @@ pub fn render_font_atlas(font: &mirx::Font) -> RgbaImage {
     }
     let payload: &'static [u8] = leak_font_payload(font);
     let mirui_font = match font.chunk_header.kind {
-        FontChunkKind::Sdf => match mirui::render::font::sdf::font_from_mirx_chunk("atlas", payload) {
-            Ok(f) => f,
-            Err(_) => return RgbaImage::new(0, 0),
-        },
-        FontChunkKind::Grayscale => match mirui::render::font::gray::font_from_mirx_chunk("atlas", payload) {
-            Ok(f) => f,
-            Err(_) => return RgbaImage::new(0, 0),
-        },
+        FontChunkKind::Sdf => {
+            match mirui::render::font::sdf::font_from_mirx_chunk("atlas", payload) {
+                Ok(f) => f,
+                Err(_) => return RgbaImage::new(0, 0),
+            }
+        }
+        FontChunkKind::Grayscale => {
+            match mirui::render::font::gray::font_from_mirx_chunk("atlas", payload) {
+                Ok(f) => f,
+                Err(_) => return RgbaImage::new(0, 0),
+            }
+        }
     };
 
     let cell = source;
@@ -38,8 +42,18 @@ pub fn render_font_atlas(font: &mirx::Font) -> RgbaImage {
     let h = grid_h.min(u16::MAX as u32) as u16;
     let texture = Texture::new(&mut buffer, w, h, ColorFormat::RGBA8888);
     let mut renderer = SwRenderer::new(texture).with_alpha_mode(AlphaMode::Blend);
-    let clip = Rect::new(Fixed::ZERO, Fixed::ZERO, Fixed::from_int(w as i32), Fixed::from_int(h as i32));
-    let color = mirui::types::Color { r: 255, g: 255, b: 255, a: 255 };
+    let clip = Rect::new(
+        Fixed::ZERO,
+        Fixed::ZERO,
+        Fixed::from_int(w as i32),
+        Fixed::from_int(h as i32),
+    );
+    let color = mirui::types::Color {
+        r: 255,
+        g: 255,
+        b: 255,
+        a: 255,
+    };
 
     for (i, m) in font.metrics.iter().enumerate() {
         let row = i as u32 / cols;
@@ -70,7 +84,12 @@ pub fn render_freetype_glyph_at(
     let h = height.min(u16::MAX as u32) as u16;
     let texture = Texture::new(&mut buffer, w, h, ColorFormat::RGBA8888);
     let mut renderer = SwRenderer::new(texture).with_alpha_mode(AlphaMode::Blend);
-    let clip = Rect::new(Fixed::ZERO, Fixed::ZERO, Fixed::from_int(w as i32), Fixed::from_int(h as i32));
+    let clip = Rect::new(
+        Fixed::ZERO,
+        Fixed::ZERO,
+        Fixed::from_int(w as i32),
+        Fixed::from_int(h as i32),
+    );
     let units = font.units_per_em.max(1) as f32;
     let scale = width as f32 * 0.7 / units;
     let baseline = height as f32 * 0.8;
@@ -96,13 +115,22 @@ pub fn render_freetype_glyph_at(
             }
         }
     }
-    let paint = mirui::render::canvas::Paint::Color(mirui::types::Color {
-        r: color.r,
-        g: color.g,
-        b: color.b,
-        a: color.a,
-    }.into());
-    renderer.fill_path(&path, &clip, &paint, 255, mirui::render::raster::FillRule::NonZero);
+    let paint = mirui::render::canvas::Paint::Color(
+        mirui::types::Color {
+            r: color.r,
+            g: color.g,
+            b: color.b,
+            a: color.a,
+        }
+        .into(),
+    );
+    renderer.fill_path(
+        &path,
+        &clip,
+        &paint,
+        255,
+        mirui::render::raster::FillRule::NonZero,
+    );
     renderer.flush();
     let mut img = RgbaImage::from_raw(width, height, buffer)?;
     for px in img.pixels_mut() {
@@ -300,8 +328,8 @@ fn render_text_with_font(
     };
     renderer.draw_label(&pos, text, font, &clip, &render_color, 255);
     renderer.flush();
-    let mut img = RgbaImage::from_raw(width, height, buffer)
-        .unwrap_or_else(|| RgbaImage::new(width, height));
+    let mut img =
+        RgbaImage::from_raw(width, height, buffer).unwrap_or_else(|| RgbaImage::new(width, height));
     for px in img.pixels_mut() {
         px.0[0] = color.r;
         px.0[1] = color.g;
@@ -360,7 +388,18 @@ mod tests {
     fn render_text_returns_image() {
         let payload = build_sdf_payload();
         let font = mirx::Font::decode(&payload).unwrap();
-        let img = render_font_text(&font, "A", 32, 16, mirx::Color { r: 255, g: 255, b: 255, a: 255 });
+        let img = render_font_text(
+            &font,
+            "A",
+            32,
+            16,
+            mirx::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+        );
         assert_eq!(img.dimensions(), (32, 16));
     }
 }

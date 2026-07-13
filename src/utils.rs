@@ -45,7 +45,11 @@ pub fn diff_image(
             _ => return None,
         };
         let mut blended = RgbaImage::new(w, h);
-        for ((p1, p2), out) in m1_img.pixels().zip(m2_img.pixels()).zip(blended.pixels_mut()) {
+        for ((p1, p2), out) in m1_img
+            .pixels()
+            .zip(m2_img.pixels())
+            .zip(blended.pixels_mut())
+        {
             *out = blend_color32(p1, p2, diff_blend).to_rgba();
         }
         blended
@@ -61,9 +65,7 @@ pub fn diff_image(
 
     let image_data: Vec<Color32> = composited
         .chunks(4)
-        .map(|pixel| {
-            Color32::from_rgba_unmultiplied(pixel[0], pixel[1], pixel[2], pixel[3])
-        })
+        .map(|pixel| Color32::from_rgba_unmultiplied(pixel[0], pixel[1], pixel[2], pixel[3]))
         .collect();
 
     Some((

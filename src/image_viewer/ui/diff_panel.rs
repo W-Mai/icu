@@ -153,9 +153,7 @@ fn get_sorted_diff_pixels<'a>(
     context: &crate::image_viewer::model::AppContext,
     diff_result: &'a icu_lib::endecoder::utils::diff::ImageDiffResult,
 ) -> Vec<&'a ImageDiffPixel> {
-    let mut diff_pixels: Vec<_> = diff_result
-        .diff_filter(context.diff_tolerance)
-        .collect();
+    let mut diff_pixels: Vec<_> = diff_result.diff_filter(context.diff_tolerance).collect();
 
     match context.diff_sorting {
         DiffSorting::Z => {
@@ -174,14 +172,18 @@ fn get_sorted_diff_pixels<'a>(
             diff_pixels.sort_by(|a, b| {
                 let diff_a = a.diff.iter().cloned().reduce(f32::max).unwrap_or(0.0);
                 let diff_b = b.diff.iter().cloned().reduce(f32::max).unwrap_or(0.0);
-                diff_a.partial_cmp(&diff_b).unwrap_or(std::cmp::Ordering::Equal)
+                diff_a
+                    .partial_cmp(&diff_b)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             });
         }
         DiffSorting::DiffDesc => {
             diff_pixels.sort_by(|a, b| {
                 let diff_a = a.diff.iter().cloned().reduce(f32::max).unwrap_or(0.0);
                 let diff_b = b.diff.iter().cloned().reduce(f32::max).unwrap_or(0.0);
-                diff_b.partial_cmp(&diff_a).unwrap_or(std::cmp::Ordering::Equal)
+                diff_b
+                    .partial_cmp(&diff_a)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             });
         }
     }
@@ -211,8 +213,7 @@ fn draw_diff_list_row(
     diff_pixel: &ImageDiffPixel,
 ) -> Option<egui::Rect> {
     let is_selected = *selected_diff_pixel == Some([diff_pixel.pos.0, diff_pixel.pos.1]);
-    let is_hovered =
-        hovered_diff_pixel_from_plot == Some([diff_pixel.pos.0, diff_pixel.pos.1]);
+    let is_hovered = hovered_diff_pixel_from_plot == Some([diff_pixel.pos.0, diff_pixel.pos.1]);
     let mut target_rect = None;
 
     egui::containers::Frame::default()
@@ -228,7 +229,10 @@ fn draw_diff_list_row(
                 .spacing([8.0, 4.0])
                 .min_col_width(60.0)
                 .show(ui, |ui| {
-                    ui.add(egui::Label::new(format!("({}, {})", diff_pixel.pos.0, diff_pixel.pos.1)).wrap());
+                    ui.add(
+                        egui::Label::new(format!("({}, {})", diff_pixel.pos.0, diff_pixel.pos.1))
+                            .wrap(),
+                    );
                     ui.color_edit_button_srgba_unmultiplied(&mut color1);
                     ui.color_edit_button_srgba_unmultiplied(&mut color2);
                     let diff = diff_pixel.diff.into_iter().reduce(f32::max).unwrap_or(0.0);
@@ -251,7 +255,12 @@ fn draw_diff_list_row(
                 *hovered_diff_pixel = Some([diff_pixel.pos.0, diff_pixel.pos.1]);
             }
 
-            if is_selected || response.hovered() || response.highlighted() || response.has_focus() || is_hovered {
+            if is_selected
+                || response.hovered()
+                || response.highlighted()
+                || response.has_focus()
+                || is_hovered
+            {
                 let rect = rect.expand(4.0);
                 let painter = ui.painter_at(rect);
                 let rect = rect.expand(-2.0);
@@ -351,11 +360,7 @@ fn draw_diff_pagination_controls(
         if ui.button("<").clicked() && context.diff_page_index > 0 {
             context.diff_page_index -= 1;
         }
-        ui.label(format!(
-            "{}/{}",
-            context.diff_page_index + 1,
-            total_pages
-        ));
+        ui.label(format!("{}/{}", context.diff_page_index + 1, total_pages));
         if ui.button(">").clicked() && context.diff_page_index + 1 < total_pages {
             context.diff_page_index += 1;
         }
@@ -388,11 +393,7 @@ fn draw_diff_list_scroll_area(
         }
 
         if let Some(target_rect) = target_rect {
-            ui.scroll_to_rect_animation(
-                target_rect,
-                None,
-                egui::style::ScrollAnimation::default(),
-            );
+            ui.scroll_to_rect_animation(target_rect, None, egui::style::ScrollAnimation::default());
         }
     });
 }
