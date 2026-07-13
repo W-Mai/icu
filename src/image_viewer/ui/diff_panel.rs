@@ -6,35 +6,28 @@ use eframe::egui::{Color32, Sense};
 use icu_lib::endecoder::utils::diff::ImageDiffPixel;
 
 /// Draws the right panel containing difference settings and pixel details.
-pub fn draw_right_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
-    if state.context.diff_active {
-        egui::Panel::right("DiffPanel")
-            .exact_size(280.0)
-            .show(ui, |ui| {
-                ui.add_space(8.0);
-                ui.spacing_mut().item_spacing.y = 6.0;
+pub fn draw_diff_panel_contents(ui: &mut egui::Ui, state: &mut ViewerState) {
+    ui.add_space(8.0);
+    ui.spacing_mut().item_spacing.y = 6.0;
 
-                draw_diff_panel_controls(ui, state);
+    draw_diff_panel_controls(ui, state);
 
-                ui.separator();
+    ui.separator();
 
-                state.hovered_diff_pixel = None;
-                if let Some((_, diff_result)) = &state.diff_result {
-                    if let (Some(i1), Some(i2)) = (state.diff_image1_index, state.diff_image2_index)
-                    {
-                        if i1 != i2 {
-                            draw_diff_pixel_list(
-                                ui,
-                                &mut state.context,
-                                &mut state.selected_diff_pixel,
-                                &mut state.hovered_diff_pixel,
-                                state.hovered_diff_pixel_from_plot,
-                                diff_result,
-                            );
-                        }
-                    }
-                }
-            });
+    state.hovered_diff_pixel = None;
+    if let Some((_, diff_result)) = &state.diff_result {
+        if let (Some(i1), Some(i2)) = (state.diff_image1_index, state.diff_image2_index) {
+            if i1 != i2 {
+                draw_diff_pixel_list(
+                    ui,
+                    &mut state.context,
+                    &mut state.selected_diff_pixel,
+                    &mut state.hovered_diff_pixel,
+                    state.hovered_diff_pixel_from_plot,
+                    diff_result,
+                );
+            }
+        }
     }
 }
 

@@ -221,8 +221,7 @@ impl eframe::App for MyEguiApp {
             Self::reset_state(s);
         });
 
-        ui::draw_right_panel(ui, &mut self.state);
-        ui::draw_convert_panel(ui, &mut self.state);
+        ui::draw_right_panel_container(ui, &mut self.state);
 
         ui::draw_central_panel(ui, &mut self.state);
         ui::draw_image_info(ui.ctx(), &mut self.state);

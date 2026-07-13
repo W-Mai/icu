@@ -5,32 +5,7 @@ use crate::image_viewer::model::{
 use clap::ValueEnum;
 use eframe::egui;
 
-/// Draws the convert panel.
-pub fn draw_convert_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
-    use crate::image_viewer::model::RightTab;
-    if state.context.right_tab == RightTab::Convert {
-        egui::Panel::right("ConvertPanel")
-            .exact_size(280.0)
-            .resizable(false)
-            .show(ui, |ui| {
-                ui.add_space(12.0);
-                ui.vertical_centered(|ui| {
-                    ui.heading(t!("convert_panel"));
-                });
-                ui.add_space(12.0);
-                ui.separator();
-
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.add_space(12.0);
-                    draw_convert_options(ui, state);
-                    ui.add_space(20.0);
-                });
-            });
-    }
-}
-
-/// Draws the options for image conversion.
-fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
+pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
     // General Settings Group
     draw_section_frame(ui, &t!("output_format"), |ui| {
         egui::Grid::new("general_settings_grid")
