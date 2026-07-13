@@ -59,6 +59,7 @@ impl<'a> ImagePlotter<'a> {
         s
     }
 
+    #[allow(dead_code)]
     pub fn show_only(self, only: bool) -> Self {
         let mut s = self;
         s.show_only = only;
@@ -107,7 +108,7 @@ impl<'a> ImagePlotter<'a> {
                 let cursor_pos_2 = cursor_pos.clone();
 
                 let mut plot = egui_plot::Plot::new(format!("plot{}", self.id))
-                    .data_aspect(1.0)
+                    .set_margin_fraction(egui::Vec2::ZERO)
                     .y_axis_formatter(move |y, _| format!("{:.0}", -y.value))
                     .label_formatter(move |hover| {
                         let pos = match hover {
