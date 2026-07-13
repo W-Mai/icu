@@ -166,6 +166,25 @@ fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                     ui.add(toggle("", &mut state.context.convert_params.dither));
                     ui.end_row();
                 });
+
+            if state.context.convert_params.dither {
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label("Level");
+                    ui.add(
+                        egui::Slider::new(
+                            &mut state.context.convert_params.dither_level,
+                            1..=30,
+                        )
+                        .text(""),
+                    );
+                });
+                ui.label(
+                    egui::RichText::new("NeuQuant sample factor (1=best quality, 30=fastest)")
+                        .size(9.0)
+                        .color(ui.style().visuals.weak_text_color()),
+                );
+            }
         });
     }
 

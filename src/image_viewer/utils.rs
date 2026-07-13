@@ -177,7 +177,11 @@ pub fn convert_image(
         lvgl_version: params.lvgl_version.into(),
         color_format: params.color_format.into(),
         stride_align: params.stride_align as u32,
-        dither: if params.dither { Some(1) } else { None },
+        dither: if params.dither {
+            Some(params.dither_level)
+        } else {
+            None
+        },
         compress: params.compression.into(),
         ..Default::default()
     };

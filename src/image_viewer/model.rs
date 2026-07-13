@@ -153,6 +153,7 @@ pub struct ConvertParams {
     pub compression: LvglCompression,
     pub stride_align: u8,
     pub dither: bool,
+    pub dither_level: u32,
 }
 
 impl Default for ConvertParams {
@@ -164,6 +165,7 @@ impl Default for ConvertParams {
             compression: LvglCompression::None,
             stride_align: 1,
             dither: false,
+            dither_level: 10,
         }
     }
 }
