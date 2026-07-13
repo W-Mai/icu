@@ -238,13 +238,30 @@ fn apply_theme(ctx: &egui::Context, t: &palette::Theme, is_dark: bool) {
     });
 }
 
-#[allow(dead_code)]
-pub fn panel_frame(ctx: &egui::Context) -> egui::Frame {
+pub fn side_panel_frame(ctx: &egui::Context) -> egui::Frame {
     let p = tokens::palette(ctx);
     egui::Frame::new()
         .fill(p.mantle)
         .stroke(Stroke::new(1.0, p.surface1))
         .inner_margin(Margin::same(8))
+}
+
+pub fn top_panel_frame(ctx: &egui::Context) -> egui::Frame {
+    let p = tokens::palette(ctx);
+    egui::Frame::new()
+        .fill(p.mantle)
+        .stroke(Stroke::new(1.0, p.surface1))
+        .inner_margin(Margin {
+            left: 12,
+            right: 12,
+            top: 4,
+            bottom: 4,
+        })
+}
+
+#[allow(dead_code)]
+pub fn panel_frame(ctx: &egui::Context) -> egui::Frame {
+    side_panel_frame(ctx)
 }
 
 #[allow(dead_code)]

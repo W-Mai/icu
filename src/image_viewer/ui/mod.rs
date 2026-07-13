@@ -16,9 +16,11 @@ use crate::image_viewer::model::{RightTab, ViewerState};
 use eframe::egui;
 
 pub fn draw_right_panel_container(ui: &mut egui::Ui, state: &mut ViewerState) {
+    let frame = theme::side_panel_frame(ui.ctx());
     egui::Panel::right("RightPanel")
         .exact_size(300.0)
         .resizable(true)
+        .frame(frame)
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 let tabs = [(RightTab::Info, "Info"), (RightTab::Convert, "Convert"), (RightTab::Diff, "Diff")];

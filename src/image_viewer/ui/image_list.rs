@@ -9,7 +9,8 @@ pub fn draw_left_panel(
     reset_callback: impl FnOnce(&mut ViewerState),
 ) {
     if state.items.len() > 1 {
-        egui::Panel::left("ImagePicker").show(ui, |ui| {
+        let frame = crate::image_viewer::ui::theme::side_panel_frame(ui.ctx());
+        egui::Panel::left("ImagePicker").frame(frame).show(ui, |ui| {
             ui.separator();
             ui.horizontal_wrapped(|ui| {
                 if ui

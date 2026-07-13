@@ -3,7 +3,8 @@ use eframe::egui;
 use eframe::egui::color_picker::Alpha;
 
 pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
-    egui::Panel::top("top_panel").show(ui, |ui| {
+    let frame = crate::image_viewer::ui::theme::top_panel_frame(ui.ctx());
+    egui::Panel::top("top_panel").frame(frame).show(ui, |ui| {
         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.set_height(30.0);
 
@@ -81,7 +82,8 @@ pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
 }
 
 pub fn draw_bottom_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
-    egui::Panel::bottom("bottom_panel").show(ui, |ui| {
+    let frame = crate::image_viewer::ui::theme::top_panel_frame(ui.ctx());
+    egui::Panel::bottom("bottom_panel").frame(frame).show(ui, |ui| {
         const VERSION: &str = env!("CARGO_PKG_VERSION");
         let show_lesser = ui.ctx().viewport_rect().width() <= 450.0;
         use egui::special_emojis::GITHUB;
