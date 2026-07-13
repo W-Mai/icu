@@ -1,5 +1,35 @@
 # Changelog
 
+## [v0.4.0] - 2026-07-13
+
+### 🔖 Version Tag
+
+- 🚀 **New Features**:
+    - ✨ **SVG gradient import/export** — `usvg::Paint::LinearGradient` / `RadialGradient` convert to `mirx::Paint::LinearGradient` / `RadialGradient` with stops, spread mode, gradient units, transform. SVG export emits `<linearGradient>` / `<radialGradient>` defs + `url(#gradN)` fill references. Pattern paints still dropped (no mirx Pattern variant).
+    - ✨ **SVG clipPath import/export** — `<clipPath>` elements convert to `SceneOp::PushClip` / `PopClip` with `ResourceRef::Inline(Path)`. SVG export emits `clip-path="url(#clipN)"` attributes.
+    - ✨ **SVG filter wire** — `<filter>` primitives (feGaussianBlur, feColorMatrix) encode into `GroupBegin.filter` as a semicolon-separated `ResourceRef::Token` string (`blur:<sx>:<sy>` / `cm:<matrix|saturate|hueRotate|luminance>`). SVG export emits `filter="url(#filterN)"`.
+    - ✨ **SVG `<text>` import** — usvg text feature enabled; `<text>` / `<tspan>` flatten to glyph outline paths via `usvg::Tree::flattened()`. Font size / family / weight resolved by usvg.
+    - ✨ **SVG `<image>` import** — `<image href="...">` embeds raster data as a placeholder rect (usvg doesn't expose pixel data to the tree walker).
+    - ✨ **stroke-dasharray import/export** — `usvg::Stroke::dasharray()` maps to `StrokePath.dash` (Cow); SVG export emits `stroke-dasharray="a,b,c"` when dash is non-empty.
+    - ✨ **NonZero fill-rule** — `usvg::FillRule::NonZero` passes through to `SceneOp::FillPath { fill_rule: NonZero }` instead of being coerced to EvenOdd.
+    - ✨ **Font viewer glyph grid** — per-glyph thumbnail grid mode; click a glyph to inspect its outline path. Glyph diff mode overlays two atlases from different fonts.
+    - ✨ **Indexed image export** — save edited indexed data (palette + per-pixel indexes) back to PNG (palette-encoded) or LVGL binary (I1/I2/I4/I8). Dither slider + palette edit panel + merge panel for multi-font bundles.
+    - ✨ **Path viewer op inspector** — right panel shows selected SceneOp's fields (path cmds, paint, transform, fill_rule, stroke params).
+    - ✨ **Multi-font bundle** — `FontData::MirxBundle` variant + bundle selector in font viewer; `icu merge-fonts` CLI merges single-font `.mirx` files.
+    - ✨ **Theme-aware font rendering** — atlas tinted by theme fg color on bg, not raw grayscale; cache tint per theme, only re-render on theme switch.
+    - ✨ **woff2 font decode** — `can_decode` detects woff2 magic; font info panel decompresses woff to ttf for metadata.
+- 🔧 **Improvements**:
+    - 🧹 **Atlas render via SwRenderer draw_label** — proper SDF sampling instead of raw byte threshold; ARGB8888 output uses `AlphaMode::Blend` with RGB forced to fg color for clean alpha edges.
+    - 🧹 **mirui dependency bumped to v0.42.0** (crates.io) — `Paint` enum replaces `Color` in `FillPath`/`StrokePath`; `stops`/`dash` fields move `Vec` → `Cow<'static, [...]>` for const construction. ICU wraps runtime-built stops/dash in `Cow::Owned`.
+- 🐛 **Bug Fixes**:
+    - 🐛 Font atlas black edges fixed — SDF threshold-to-alpha conversion tints by coverage instead of hard threshold.
+    - 🐛 Indexed hover stuck on theme switch — cache invalidated on theme change.
+    - 🐛 Path highlight + diff conflict on simultaneous selection resolved.
+
+### 📦 Dependencies
+
+- mirui `0.41` → `0.42.0` (Paint enum, gradient/clip/blur, StrokePath cap/join/dash)
+
 ## [v0.3.0] - 2026-07-09
 
 ### 🔖 Version Tag
