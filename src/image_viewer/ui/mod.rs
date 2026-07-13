@@ -5,6 +5,7 @@ pub mod layout;
 pub mod panels;
 pub mod theme;
 pub mod viewer;
+#[allow(dead_code)]
 pub mod widgets;
 
 pub use image_list::draw_left_panel;

@@ -5,6 +5,7 @@ use crate::image_viewer::model::{
 use clap::ValueEnum;
 use eframe::egui;
 
+#[allow(unused_assignments)]
 pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
     // General Settings Group
     draw_section_frame(ui, &t!("output_format"), |ui| {
