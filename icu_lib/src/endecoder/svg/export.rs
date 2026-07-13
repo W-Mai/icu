@@ -557,7 +557,7 @@ mod tests {
                                 a: 128,
                             },
                         },
-                    ],
+                    ].into(),
                     spread: SpreadMode::Pad,
                     units: GradientUnits::UserSpaceOnUse,
                     transform: Transform::IDENTITY,
