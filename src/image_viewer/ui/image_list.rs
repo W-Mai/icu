@@ -3,14 +3,13 @@ use crate::image_viewer::plotter::ImagePlotter;
 use eframe::egui;
 use eframe::egui::{Color32, Sense};
 
-/// Draws the left panel for image selection and list management.
 pub fn draw_left_panel(
-    ctx: &egui::Context,
+    ui: &mut egui::Ui,
     state: &mut ViewerState,
     reset_callback: impl FnOnce(&mut ViewerState),
 ) {
     if state.image_items.len() > 1 {
-        egui::SidePanel::left("ImagePicker").show(ctx, |ui| {
+        egui::Panel::left("ImagePicker").show(ui, |ui| {
             ui.separator();
             ui.horizontal_wrapped(|ui| {
                 if ui
@@ -128,14 +127,14 @@ fn handle_item_interaction(
         let rect = rect.expand(-2.0);
         painter.rect(
             rect,
-            10.0,
+            egui::CornerRadius::same(10),
             Color32::TRANSPARENT,
             egui::Stroke::new(2.0, ui.style().visuals.hyperlink_color),
             egui::StrokeKind::Inside,
         );
         painter.rect(
             rect,
-            10.0,
+            egui::CornerRadius::same(10),
             visuals.text_color().linear_multiply(0.3),
             egui::Stroke::NONE,
             egui::StrokeKind::Inside,

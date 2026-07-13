@@ -30,18 +30,9 @@ impl MyEguiApp {
         }
         rust_i18n::set_locale(&state.context.language);
 
-        Self::init_theme(&cc.egui_ctx);
+        ui::theme::apply(&cc.egui_ctx);
 
         Self { state }
-    }
-
-    fn init_theme(ctx: &egui::Context) {
-        let curr_theme = ctx.theme();
-        ctx.set_theme(egui::Theme::Dark);
-        catppuccin_egui::set_theme(ctx, catppuccin_egui::MOCHA);
-        ctx.set_theme(egui::Theme::Light);
-        catppuccin_egui::set_theme(ctx, catppuccin_egui::LATTE);
-        ctx.set_theme(curr_theme);
     }
 
     fn reset_state(state: &mut ViewerState) {
@@ -84,19 +75,17 @@ impl MyEguiApp {
                 screen_rect.center(),
                 egui::Align2::CENTER_CENTER,
                 text,
-                egui::TextStyle::Heading.resolve(&ctx.style()),
+                egui::TextStyle::Heading.resolve(&ctx.global_style()),
                 Color32::WHITE,
             );
         }
 
-        // Collect dropped files:
         ctx.input(|i| {
             if !i.raw.dropped_files.is_empty() {
                 self.state.dropped_files = i.raw.dropped_files.clone();
             }
         });
 
-        // Show dropped files (if any):
         if !self.state.dropped_files.is_empty() {
             self.state
                 .image_items
@@ -116,10 +105,7 @@ impl MyEguiApp {
 }
 
 impl eframe::App for MyEguiApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        ui::draw_top_panel(ctx, &mut self.state);
-        ui::draw_bottom_panel(ctx, &mut self.state);
-
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if self.state.context.image_diff
             && self.state.image_items.len() == 2
             && (self.state.diff_image1_index.is_none() && self.state.diff_image2_index.is_none())
@@ -128,14 +114,6 @@ impl eframe::App for MyEguiApp {
             self.state.diff_image2_index = Some(1);
         }
 
-        ui::draw_left_panel(ctx, &mut self.state, |s| {
-            Self::reset_state(s);
-        });
-
-        ui::draw_right_panel(ctx, &mut self.state);
-        ui::draw_convert_panel(ctx, &mut self.state);
-
-        // diff algorithm
         if let (Some(i1), Some(i2)) = (self.state.diff_image1_index, self.state.diff_image2_index)
             && i1 != i2
         {
@@ -157,7 +135,6 @@ impl eframe::App for MyEguiApp {
             self.state.diff_result = None;
         }
 
-        // Fast switch logic: update diff_blend if enabled
         if self.state.context.image_diff
             && self.state.context.fast_switch
             && !self.state.context.only_show_diff
@@ -167,22 +144,30 @@ impl eframe::App for MyEguiApp {
             if self.state.context.fast_switch_phase > 1.0 {
                 self.state.context.fast_switch_phase -= 1.0;
             }
-            // Use a square wave: only 0 or 1
             let phase = self.state.context.fast_switch_phase;
             self.state.context.diff_blend = if phase < 0.5 { 0.0 } else { 1.0 };
         }
 
-        ui::draw_central_panel(ctx, &mut self.state);
-        ui::draw_image_info(ctx, &mut self.state);
-
-        self.ui_file_drag_and_drop(ctx);
-
-        // When fast_switch is enabled, force continues mode for rendering
-        let render_continues = self.state.context.fast_switch && !self.state.context.only_show_diff;
-
-        if render_continues {
+        if self.state.context.fast_switch && !self.state.context.only_show_diff {
             ctx.request_repaint();
         }
+
+        self.ui_file_drag_and_drop(ctx);
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        ui::draw_top_panel(ui, &mut self.state);
+        ui::draw_bottom_panel(ui, &mut self.state);
+
+        ui::draw_left_panel(ui, &mut self.state, |s| {
+            Self::reset_state(s);
+        });
+
+        ui::draw_right_panel(ui, &mut self.state);
+        ui::draw_convert_panel(ui, &mut self.state);
+
+        ui::draw_central_panel(ui, &mut self.state);
+        ui::draw_image_info(ui.ctx(), &mut self.state);
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {

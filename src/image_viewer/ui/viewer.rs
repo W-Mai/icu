@@ -5,20 +5,20 @@ use eframe::egui;
 use icu_lib::midata::MiData;
 use serde::Serialize;
 
-pub fn draw_central_panel(ctx: &egui::Context, state: &mut ViewerState) {
+pub fn draw_central_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
     if let Some(image) = &state.current_image {
         if let Some(midata) = &image.midata {
             match midata {
                 MiData::FONT(_) => {
-                    panels::draw_font_panel(ctx, state);
+                    panels::draw_font_panel(ui, state);
                     return;
                 }
                 MiData::PATH(_) => {
-                    panels::draw_path_panel(ctx, state);
+                    panels::draw_path_panel(ui, state);
                     return;
                 }
                 MiData::INDEXED(_) => {
-                    panels::draw_indexed_panel(ctx, state);
+                    panels::draw_indexed_panel(ui, state);
                     return;
                 }
                 _ => {}
@@ -26,7 +26,7 @@ pub fn draw_central_panel(ctx: &egui::Context, state: &mut ViewerState) {
         }
     }
 
-    egui::CentralPanel::default().show(ctx, |ui| {
+    egui::CentralPanel::default().show(ui, |ui| {
         let mut image_plotter = ImagePlotter::new("viewer")
             .anti_alias(state.context.anti_alias)
             .show_grid(state.context.show_grid)

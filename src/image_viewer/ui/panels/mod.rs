@@ -61,7 +61,8 @@ fn reset_font_caches(state: &mut crate::image_viewer::model::ViewerState) {
     state.font_selected_glyph = None;
 }
 
-pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::model::ViewerState) {
+pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
+    let ctx = ui.ctx().clone();
     let Some(image) = state.current_image.clone() else {
         return;
     };
@@ -69,8 +70,8 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
         return;
     };
 
-    let fg = ctx.style().visuals.text_color();
-    let bg = ctx.style().visuals.panel_fill;
+    let fg = ctx.global_style().visuals.text_color();
+    let bg = ctx.global_style().visuals.panel_fill;
     let text_color = icu_lib::mirx::Color {
         r: fg.r(),
         g: fg.g(),
@@ -90,7 +91,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
         out
     };
 
-    egui::SidePanel::left("font_left").show(ctx, |ui| {
+    egui::Panel::left("font_left").show(ui, |ui| {
         ui.heading("Font");
         match font_data {
             FontData::Mirx(font) => {
@@ -368,7 +369,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
         }
     });
 
-    egui::CentralPanel::default().show(ctx, |ui| {
+    egui::CentralPanel::default().show(ui, |ui| {
         ui.horizontal(|ui| {
             ui.radio_value(&mut state.font_view_mode, "atlas".into(), "Atlas");
             ui.radio_value(&mut state.font_view_mode, "rendered".into(), "Rendered");
@@ -481,7 +482,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
 
                 match font_data {
                     FontData::Mirx(font) => {
-                        egui::TopBottomPanel::bottom("glyph_detail").show_inside(ui, |ui| {
+                        egui::Panel::bottom("glyph_detail").show(ui, |ui| {
                             if let Some(idx) = state.font_selected_glyph {
                                 if let Some(m) = font.metrics.get(idx) {
                                     let ch = char::from_u32(m.codepoint).unwrap_or('?');
@@ -511,7 +512,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                     }
                     FontData::MirxBundle(fonts) => {
                         if let Some(font) = fonts.get(state.font_bundle_index).or_else(|| fonts.first()) {
-                            egui::TopBottomPanel::bottom("glyph_detail_bundle").show_inside(ui, |ui| {
+                            egui::Panel::bottom("glyph_detail_bundle").show(ui, |ui| {
                                 if let Some(idx) = state.font_selected_glyph {
                                     if let Some(m) = font.metrics.get(idx) {
                                         let ch = char::from_u32(m.codepoint).unwrap_or('?');
@@ -541,7 +542,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                         }
                     }
                     FontData::FreeType(f) => {
-                        egui::TopBottomPanel::bottom("glyph_detail_ft").show_inside(ui, |ui| {
+                        egui::Panel::bottom("glyph_detail_ft").show(ui, |ui| {
                             if let Some(idx) = state.font_selected_glyph {
                                 if let Some(g) = f.glyphs.get(idx) {
                                     let ch = char::from_u32(g.codepoint).unwrap_or('?');
@@ -584,7 +585,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
                                     state.font_selected_glyph = Some(i);
                                 }
                                 if state.font_selected_glyph == Some(i) {
-                                    ui.painter().rect_stroke(resp.rect, 0.0, egui::Stroke::new(2.0, egui::Color32::CYAN), egui::StrokeKind::Outside);
+                                    ui.painter().rect_stroke(resp.rect, egui::CornerRadius::same(0), egui::Stroke::new(2.0, egui::Color32::CYAN), egui::StrokeKind::Outside);
                                 }
                                 if (i + 1) % cols == 0 {
                                     ui.end_row();
@@ -685,7 +686,7 @@ pub fn draw_font_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
     });
 }
 
-pub fn draw_path_panel(ctx: &egui::Context, state: &mut crate::image_viewer::model::ViewerState) {
+pub fn draw_path_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
     let Some(image) = state.current_image.clone() else {
         return;
     };
@@ -694,7 +695,7 @@ pub fn draw_path_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
     };
     let scene_data = scene_data.clone();
 
-    egui::SidePanel::left("path_left").show(ctx, |ui| {
+    egui::Panel::left("path_left").show(ui, |ui| {
         ui.heading("Scene");
         ui.label(format!("ops: {}", scene_data.scene.ops.len()));
         ui.separator();
@@ -742,7 +743,7 @@ pub fn draw_path_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
         });
     });
 
-    egui::SidePanel::right("path_right").show(ctx, |ui| {
+    egui::Panel::right("path_right").show(ui, |ui| {
         if let Some(idx) = state.path_selected_op {
             if let Some(op) = scene_data.scene.ops.get(idx) {
                 ui.heading(format!("Op #{}: {}", idx, op_label(op)));
@@ -752,7 +753,7 @@ pub fn draw_path_panel(ctx: &egui::Context, state: &mut crate::image_viewer::mod
         }
     });
 
-    egui::CentralPanel::default().show(ctx, |ui| {
+    egui::CentralPanel::default().show(ui, |ui| {
         let highlight = if let Some(idx) = state.path_selected_op {
             if let Some(op) = scene_data.scene.ops.get(idx) {
                 op_center(op)
@@ -974,7 +975,7 @@ fn op_inspector(ui: &mut egui::Ui, op: &icu_lib::mirx::SceneOp) {
 }
 
 pub fn draw_indexed_panel(
-    ctx: &egui::Context,
+    ui: &mut egui::Ui,
     state: &mut crate::image_viewer::model::ViewerState,
 ) {
     if state.context.image_diff {
@@ -1003,7 +1004,7 @@ pub fn draw_indexed_panel(
 
     let mut hovered_palette: Option<u8> = None;
 
-    egui::SidePanel::left("indexed_left").show(ctx, |ui| {
+    egui::Panel::left("indexed_left").show(ui, |ui| {
         ui.heading("Indexed");
         ui.label(format!("bpp: {}", indexed.bpp));
         ui.label(format!("palette: {}", indexed.palette.len()));
@@ -1089,7 +1090,7 @@ pub fn draw_indexed_panel(
         }
     });
 
-    egui::CentralPanel::default().show(ctx, |ui| {
+    egui::CentralPanel::default().show(ui, |ui| {
         let composited = if state.indexed_show_quality {
             let mut stack = icu_lib::postprocess::OverlayStack::new(indexed.rgba.clone());
             stack.push(Box::new(icu_lib::postprocess::QualityOverlay::new(

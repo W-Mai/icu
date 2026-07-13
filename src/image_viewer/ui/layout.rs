@@ -2,9 +2,8 @@ use crate::image_viewer::model::ViewerState;
 use eframe::egui;
 use eframe::egui::color_picker::Alpha;
 
-/// Draws the top panel containing global settings like theme, grid, anti-aliasing, and background color.
-pub fn draw_top_panel(ctx: &egui::Context, state: &mut ViewerState) {
-    egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
+    egui::Panel::top("top_panel").show(ui, |ui| {
         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.set_height(30.0);
             egui::widgets::global_theme_preference_switch(ui);
@@ -48,9 +47,8 @@ pub fn draw_top_panel(ctx: &egui::Context, state: &mut ViewerState) {
     });
 }
 
-/// Draws the bottom panel containing version info, language selection, and links.
-pub fn draw_bottom_panel(ctx: &egui::Context, state: &mut ViewerState) {
-    egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+pub fn draw_bottom_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
+    egui::Panel::bottom("bottom_panel").show(ui, |ui| {
         const VERSION: &str = env!("CARGO_PKG_VERSION");
         let show_lesser = ui.ctx().viewport_rect().width() <= 450.0;
         use egui::special_emojis::GITHUB;
@@ -87,7 +85,6 @@ pub fn draw_bottom_panel(ctx: &egui::Context, state: &mut ViewerState) {
     });
 }
 
-/// Helper to draw footer links
 fn draw_footer_links(ui: &mut egui::Ui, version: &str, show_lesser: bool, github_icon: char) {
     ui.horizontal_wrapped(|ui| {
         ui.hyperlink_to(

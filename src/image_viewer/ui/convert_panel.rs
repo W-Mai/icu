@@ -6,12 +6,12 @@ use clap::ValueEnum;
 use eframe::egui;
 
 /// Draws the convert panel.
-pub fn draw_convert_panel(ctx: &egui::Context, state: &mut ViewerState) {
+pub fn draw_convert_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
     if state.context.show_convert_panel {
-        egui::SidePanel::right("ConvertPanel")
-            .exact_width(280.0)
+        egui::Panel::right("ConvertPanel")
+            .exact_size(280.0)
             .resizable(false)
-            .show(ctx, |ui| {
+            .show(ui, |ui| {
                 ui.add_space(12.0);
                 ui.vertical_centered(|ui| {
                     ui.heading(t!("convert_panel"));

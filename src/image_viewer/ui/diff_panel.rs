@@ -6,11 +6,11 @@ use eframe::egui::{Color32, Sense};
 use icu_lib::endecoder::utils::diff::ImageDiffPixel;
 
 /// Draws the right panel containing difference settings and pixel details.
-pub fn draw_right_panel(ctx: &egui::Context, state: &mut ViewerState) {
+pub fn draw_right_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
     if state.context.image_diff {
-        egui::SidePanel::right("DiffPanel")
-            .exact_width(280.0)
-            .show(ctx, |ui| {
+        egui::Panel::right("DiffPanel")
+            .exact_size(280.0)
+            .show(ui, |ui| {
                 ui.add_space(8.0);
                 ui.spacing_mut().item_spacing.y = 6.0;
 
@@ -266,14 +266,14 @@ fn draw_diff_list_row(
                 let rect = rect.expand(-2.0);
                 painter.rect(
                     rect,
-                    4.0,
+                    egui::CornerRadius::same(4),
                     Color32::TRANSPARENT,
                     egui::Stroke::new(2.0, ui.style().visuals.hyperlink_color),
                     egui::StrokeKind::Inside,
                 );
                 painter.rect(
                     rect,
-                    4.0,
+                    egui::CornerRadius::same(4),
                     ui.style().visuals.hyperlink_color.linear_multiply(0.1),
                     egui::Stroke::NONE,
                     egui::StrokeKind::Inside,

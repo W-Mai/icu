@@ -102,7 +102,11 @@ impl<'a> ImagePlotter<'a> {
                 let mut plot = egui_plot::Plot::new(format!("plot{}", self.id))
                     .data_aspect(1.0)
                     .y_axis_formatter(move |y, _| format!("{:.0}", -y.value))
-                    .label_formatter(move |_text, pos| {
+                    .label_formatter(move |hover| {
+                        let pos = match hover {
+                            egui_plot::HoverPosition::NearDataPoint { position, .. }
+                            | egui_plot::HoverPosition::Elsewhere { position } => *position,
+                        };
                         if pos.x > 0.0 && pos.x < img_w && pos.y < 0.0 && pos.y > -img_h {
                             let row = -pos.y as usize;
                             let col = pos.x as usize;
@@ -111,11 +115,15 @@ impl<'a> ImagePlotter<'a> {
                             color_data_2.borrow_mut().replace(*pixel);
                             cursor_pos_2.borrow_mut().replace([pos.x, pos.y]);
 
-                            format!("Pos: {:.0} {:.0}", pos.x.floor(), -pos.y.floor() - 1.0)
+                            Some(format!(
+                                "Pos: {:.0} {:.0}",
+                                pos.x.floor(),
+                                -pos.y.floor() - 1.0
+                            ))
                         } else {
                             color_data_2.take();
                             cursor_pos_2.take();
-                            "".into()
+                            None
                         }
                     })
                     .boxed_zoom_pointer_button(PointerButton::Extra2)
