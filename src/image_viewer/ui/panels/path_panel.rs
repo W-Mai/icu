@@ -48,19 +48,19 @@ pub fn draw_path_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                 let label = op_label(op);
                 if ui
                     .selectable_label(
-                        state.path_selected_op == Some(i),
+                        state.selected_op == Some(i),
                         format!("{}. {}", i, label),
                     )
                     .clicked()
                 {
-                    state.path_selected_op = Some(i);
+                    state.selected_op = Some(i);
                 }
             }
         });
     });
 
     egui::Panel::right("path_right").show(ui, |ui| {
-        if let Some(idx) = state.path_selected_op {
+        if let Some(idx) = state.selected_op {
             if let Some(op) = scene_data.scene.ops.get(idx) {
                 ui.heading(format!("Op #{}: {}", idx, op_label(op)));
                 ui.separator();
@@ -70,7 +70,7 @@ pub fn draw_path_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
     });
 
     egui::CentralPanel::default().show(ui, |ui| {
-        let highlight = if let Some(idx) = state.path_selected_op {
+        let highlight = if let Some(idx) = state.selected_op {
             if let Some(op) = scene_data.scene.ops.get(idx) {
                 op_center(op)
             } else {

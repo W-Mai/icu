@@ -7,7 +7,8 @@ use eframe::egui;
 
 /// Draws the convert panel.
 pub fn draw_convert_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
-    if state.context.show_convert_panel {
+    use crate::image_viewer::model::RightTab;
+    if state.context.right_tab == RightTab::Convert {
         egui::Panel::right("ConvertPanel")
             .exact_size(280.0)
             .resizable(false)
@@ -177,13 +178,20 @@ fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
             ui.add_space(4.0);
             ui.label(t!("converting"));
         } else {
-            let btn_text = if state.image_items.len() > 1 {
+            let image_items: Vec<crate::image_viewer::model::ImageItem> = state
+                .items
+                .iter()
+                .filter_map(|i| match i {
+                    crate::image_viewer::model::SidebarItem::Image(img) => Some(img.clone()),
+                    _ => None,
+                })
+                .collect();
+            let btn_text = if image_items.len() > 1 {
                 t!("convert_all")
             } else {
                 t!("convert")
             };
 
-            // Slightly larger button than default, but not huge
             if ui
                 .add_sized(
                     [200.0, 32.0],
@@ -193,7 +201,7 @@ fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
             {
                 state.is_converting = true;
                 crate::image_viewer::utils::save_images(
-                    &state.image_items,
+                    &image_items,
                     &state.context.convert_params,
                 );
                 state.is_converting = false;

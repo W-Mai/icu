@@ -43,7 +43,7 @@ pub fn draw_central_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
                 image_plotter.show(ui, &Some(diff_img.clone()));
             }
         } else if let Some((diff_img, _)) = &state.diff_result
-            && state.context.image_diff
+            && state.context.diff_active
         {
             image_plotter.show(ui, &Some(diff_img.clone()));
         } else if let Some(image) = &state.current_image {

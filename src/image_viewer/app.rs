@@ -1,4 +1,4 @@
-use crate::image_viewer::model::ViewerState;
+use crate::image_viewer::model::{SidebarItem, ViewerState};
 use crate::image_viewer::ui;
 use crate::image_viewer::utils::process_images;
 use crate::utils;
@@ -16,7 +16,10 @@ impl MyEguiApp {
             crate::image_viewer::utils::get_system_locale()
         );
         let mut state = ViewerState {
-            image_items: process_images(&files),
+            items: process_images(&files)
+                .into_iter()
+                .map(SidebarItem::Image)
+                .collect(),
             context: cc
                 .storage
                 .and_then(|storage| eframe::get_value(storage, eframe::APP_KEY))
@@ -24,9 +27,9 @@ impl MyEguiApp {
             ..Default::default()
         };
 
-        if let Some(first) = state.image_items.first() {
+        if let Some(SidebarItem::Image(first)) = state.items.first().cloned() {
             state.current_image = Some(first.clone());
-            state.selected_image_item_index = Some(0);
+            state.selected_index = Some(0);
         }
         rust_i18n::set_locale(&state.context.language);
 
@@ -37,8 +40,8 @@ impl MyEguiApp {
 
     fn reset_state(state: &mut ViewerState) {
         state.current_image = None;
-        state.selected_image_item_index = None;
-        state.hovered_image_item_index = None;
+        state.selected_index = None;
+        state.hovered_index = None;
         state.diff_image1_index = None;
         state.diff_image2_index = None;
         state.diff_result = None;
@@ -87,17 +90,19 @@ impl MyEguiApp {
         });
 
         if !self.state.dropped_files.is_empty() {
-            self.state
-                .image_items
-                .append(&mut process_images(&self.state.dropped_files));
+            let new_items: Vec<SidebarItem> = process_images(&self.state.dropped_files)
+                .into_iter()
+                .map(SidebarItem::Image)
+                .collect();
+            self.state.items.extend(new_items);
 
-            if self.state.image_items.len() == 1 {
-                self.state.context.show_convert_panel = true;
+            if self.state.items.len() == 1 {
+                self.state.context.right_tab = crate::image_viewer::model::RightTab::Convert;
             }
 
-            if let Some(image) = self.state.image_items.first() {
-                self.state.current_image = Some(image.clone());
-                self.state.selected_image_item_index = Some(0);
+            if let Some(SidebarItem::Image(image)) = self.state.items.first().cloned() {
+                self.state.current_image = Some(image);
+                self.state.selected_index = Some(0);
             }
             self.state.dropped_files.clear();
         }
@@ -106,8 +111,14 @@ impl MyEguiApp {
 
 impl eframe::App for MyEguiApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if self.state.context.image_diff
-            && self.state.image_items.len() == 2
+        let image_count = self
+            .state
+            .items
+            .iter()
+            .filter(|i| matches!(i, SidebarItem::Image(_)))
+            .count();
+        if self.state.context.diff_active
+            && image_count == 2
             && (self.state.diff_image1_index.is_none() && self.state.diff_image2_index.is_none())
         {
             self.state.diff_image1_index = Some(0);
@@ -117,11 +128,23 @@ impl eframe::App for MyEguiApp {
         if let (Some(i1), Some(i2)) = (self.state.diff_image1_index, self.state.diff_image2_index)
             && i1 != i2
         {
-            let img1 = &self.state.image_items[i1];
-            let img2 = &self.state.image_items[i2];
+            let img1 = match self.state.items.get(i1) {
+                Some(SidebarItem::Image(i)) => i.clone(),
+                _ => {
+                    self.state.diff_result = None;
+                    return;
+                }
+            };
+            let img2 = match self.state.items.get(i2) {
+                Some(SidebarItem::Image(i)) => i.clone(),
+                _ => {
+                    self.state.diff_result = None;
+                    return;
+                }
+            };
             let diff_result = utils::diff_image(
-                img1,
-                img2,
+                &img1,
+                &img2,
                 self.state.context.diff_blend,
                 self.state.context.diff_tolerance,
                 self.state.context.only_show_diff,
@@ -135,7 +158,7 @@ impl eframe::App for MyEguiApp {
             self.state.diff_result = None;
         }
 
-        if self.state.context.image_diff
+        if self.state.context.diff_active
             && self.state.context.fast_switch
             && !self.state.context.only_show_diff
         {

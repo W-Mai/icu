@@ -27,20 +27,24 @@ pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
                 ui.available_size(),
                 egui::Layout::right_to_left(egui::Align::Center),
                 |ui| {
+                    use crate::image_viewer::model::RightTab;
+                    let diff_active = state.context.diff_active;
                     if ui
-                        .toggle_value(&mut state.context.image_diff, t!("image_diff"))
+                        .toggle_value(&mut state.context.diff_active, t!("image_diff"))
                         .clicked()
-                        && state.context.image_diff
+                        && state.context.diff_active
                     {
-                        state.context.show_convert_panel = false;
+                        state.context.right_tab = RightTab::Diff;
                     }
+                    let mut convert_active = state.context.right_tab == RightTab::Convert;
                     if ui
-                        .toggle_value(&mut state.context.show_convert_panel, t!("convert_panel"))
+                        .toggle_value(&mut convert_active, t!("convert_panel"))
                         .clicked()
-                        && state.context.show_convert_panel
+                        && convert_active
                     {
-                        state.context.image_diff = false;
+                        state.context.right_tab = RightTab::Convert;
                     }
+                    let _ = diff_active;
                 },
             );
         });

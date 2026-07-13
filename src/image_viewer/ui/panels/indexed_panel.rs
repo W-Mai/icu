@@ -8,7 +8,7 @@ pub fn draw_indexed_panel(
     ui: &mut egui::Ui,
     state: &mut crate::image_viewer::model::ViewerState,
 ) {
-    if state.context.image_diff {
+    if state.context.diff_active {
         return;
     }
     let Some(image) = state.current_image.clone() else {

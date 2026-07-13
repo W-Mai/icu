@@ -7,7 +7,7 @@ use icu_lib::endecoder::utils::diff::ImageDiffPixel;
 
 /// Draws the right panel containing difference settings and pixel details.
 pub fn draw_right_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
-    if state.context.image_diff {
+    if state.context.diff_active {
         egui::Panel::right("DiffPanel")
             .exact_size(280.0)
             .show(ui, |ui| {

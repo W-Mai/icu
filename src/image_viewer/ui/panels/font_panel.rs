@@ -1,3 +1,4 @@
+use crate::image_viewer::model::FontMode;
 use crate::image_viewer::plotter::ImagePlotter;
 use eframe::egui;
 use eframe::egui::Color32;
@@ -30,7 +31,7 @@ fn reset_font_caches(state: &mut crate::image_viewer::model::ViewerState) {
     state.font_atlas_cached = None;
     state.font_grid_cached = None;
     state.font_grid_big_cached = None;
-    state.font_selected_glyph = None;
+    state.selected_glyph = None;
 }
 
 pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
@@ -115,7 +116,7 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                                         stack.push(Box::new(icu_lib::postprocess::DiffOverlay::new(dr, 1.0, 0.5)));
                                         let composited = stack.composite().clone();
                                         state.font_rendered_preview = Some(composited);
-                                        state.font_view_mode = "rendered".into();
+                                        state.font_mode = FontMode::Rendered;
                                     }
                                 }
                                 icu_lib::midata::MiData::FONT(icu_lib::midata::FontData::MirxBundle(fonts_b)) => {
@@ -137,7 +138,7 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                                             stack.push(Box::new(icu_lib::postprocess::DiffOverlay::new(dr, 1.0, 0.5)));
                                             let composited = stack.composite().clone();
                                             state.font_rendered_preview = Some(composited);
-                                            state.font_view_mode = "rendered".into();
+                                            state.font_mode = FontMode::Rendered;
                                         }
                                     }
                                 }
@@ -249,7 +250,7 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                                             stack.push(Box::new(icu_lib::postprocess::DiffOverlay::new(dr, 1.0, 0.5)));
                                             let composited = stack.composite().clone();
                                             state.font_rendered_preview = Some(composited);
-                                            state.font_view_mode = "rendered".into();
+                                            state.font_mode = FontMode::Rendered;
                                         }
                                     }
                                     icu_lib::midata::MiData::FONT(icu_lib::midata::FontData::MirxBundle(fonts_b)) => {
@@ -271,7 +272,7 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                                                 stack.push(Box::new(icu_lib::postprocess::DiffOverlay::new(dr, 1.0, 0.5)));
                                                 let composited = stack.composite().clone();
                                                 state.font_rendered_preview = Some(composited);
-                                                state.font_view_mode = "rendered".into();
+                                                state.font_mode = FontMode::Rendered;
                                             }
                                         }
                                     }
@@ -343,14 +344,14 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
 
     egui::CentralPanel::default().show(ui, |ui| {
         ui.horizontal(|ui| {
-            ui.radio_value(&mut state.font_view_mode, "atlas".into(), "Atlas");
-            ui.radio_value(&mut state.font_view_mode, "rendered".into(), "Rendered");
-            ui.radio_value(&mut state.font_view_mode, "grid".into(), "Glyph Grid");
+            ui.radio_value(&mut state.font_mode, FontMode::Atlas, "Atlas");
+            ui.radio_value(&mut state.font_mode, FontMode::Rendered, "Rendered");
+            ui.radio_value(&mut state.font_mode, FontMode::Grid, "Glyph Grid");
         });
         ui.separator();
 
-        match state.font_view_mode.as_str() {
-            "rendered" => {
+        match state.font_mode {
+            FontMode::Rendered => {
                 if state.font_rendered_preview.is_none() {
                     if let Some(font) = selected_mirx_font(font_data, state.font_bundle_index) {
                         let img = icu_lib::endecoder::mirui::font_render::render_font_text(
@@ -382,7 +383,7 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                     ui.label("Rendering not available for this font type");
                 }
             }
-            "grid" => {
+            FontMode::Grid => {
                 let grid_key = format!("{}_{:?}_{}", image.path, fg, state.font_bundle_index);
                 let grid_key_clone = grid_key.clone();
                 let need_rebuild = match &state.font_grid_cached {
@@ -455,7 +456,7 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                 match font_data {
                     FontData::Mirx(font) => {
                         egui::Panel::bottom("glyph_detail").show(ui, |ui| {
-                            if let Some(idx) = state.font_selected_glyph {
+                            if let Some(idx) = state.selected_glyph {
                                 if let Some(m) = font.metrics.get(idx) {
                                     let ch = char::from_u32(m.codepoint).unwrap_or('?');
                                     ui.heading(format!("Glyph #{}: '{}' (U+{:04X})", idx, ch, m.codepoint));
@@ -485,7 +486,7 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                     FontData::MirxBundle(fonts) => {
                         if let Some(font) = fonts.get(state.font_bundle_index).or_else(|| fonts.first()) {
                             egui::Panel::bottom("glyph_detail_bundle").show(ui, |ui| {
-                                if let Some(idx) = state.font_selected_glyph {
+                                if let Some(idx) = state.selected_glyph {
                                     if let Some(m) = font.metrics.get(idx) {
                                         let ch = char::from_u32(m.codepoint).unwrap_or('?');
                                         ui.heading(format!("Glyph #{}: '{}' (U+{:04X})", idx, ch, m.codepoint));
@@ -515,7 +516,7 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                     }
                     FontData::FreeType(f) => {
                         egui::Panel::bottom("glyph_detail_ft").show(ui, |ui| {
-                            if let Some(idx) = state.font_selected_glyph {
+                            if let Some(idx) = state.selected_glyph {
                                 if let Some(g) = f.glyphs.get(idx) {
                                     let ch = char::from_u32(g.codepoint).unwrap_or('?');
                                     ui.heading(format!("Glyph #{}: '{}' (U+{:04X})", idx, ch, g.codepoint));
@@ -554,9 +555,9 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                             for (i, tex) in handles.iter().enumerate() {
                                 let resp = ui.add(egui::Button::image(egui::load::SizedTexture::new(tex.id(), [cell; 2])));
                                 if resp.clicked() {
-                                    state.font_selected_glyph = Some(i);
+                                    state.selected_glyph = Some(i);
                                 }
-                                if state.font_selected_glyph == Some(i) {
+                                if state.selected_glyph == Some(i) {
                                     ui.painter().rect_stroke(resp.rect, egui::CornerRadius::same(0), egui::Stroke::new(2.0, egui::Color32::CYAN), egui::StrokeKind::Outside);
                                 }
                                 if (i + 1) % cols == 0 {
@@ -566,7 +567,7 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                         });
                 });
             }
-            _ => {
+            FontMode::Atlas | FontMode::Vector => {
                 let theme_key = format!(
                     "{:?}_{:?}_{}_{}",
                     fg,
