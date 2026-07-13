@@ -1,4 +1,5 @@
 use eframe::egui::{self, Color32, CornerRadius, FontFamily, FontId, Margin, Stroke, TextStyle};
+use std::sync::Arc;
 
 pub mod palette {
     use super::Color32;
@@ -134,108 +135,103 @@ pub const RADIUS_SM: CornerRadius = CornerRadius::same(3);
 pub const RADIUS_LG: CornerRadius = CornerRadius::same(8);
 
 pub fn apply(ctx: &egui::Context) {
-    let is_dark = ctx.global_style().visuals.dark_mode;
-    let theme = if is_dark {
-        palette::MOCHA
-    } else {
-        palette::LATTE
-    };
-    apply_theme(ctx, &theme, is_dark);
+    ctx.options_mut(|opt| {
+        apply_theme_to_style(Arc::make_mut(&mut opt.dark_style), &palette::MOCHA, true);
+        apply_theme_to_style(Arc::make_mut(&mut opt.light_style), &palette::LATTE, false);
+    });
 }
 
-fn apply_theme(ctx: &egui::Context, t: &palette::Theme, is_dark: bool) {
+fn apply_theme_to_style(style: &mut egui::Style, t: &palette::Theme, is_dark: bool) {
     let shadow_color = if is_dark {
         Color32::from_black_alpha(96)
     } else {
         Color32::from_black_alpha(25)
     };
 
-    ctx.all_styles_mut(|style| {
-        style.text_styles.insert(
-            TextStyle::Heading,
-            FontId::new(13.0, FontFamily::Proportional),
-        );
-        style.text_styles.insert(
-            TextStyle::Body,
-            FontId::new(12.0, FontFamily::Proportional),
-        );
-        style.text_styles.insert(
-            TextStyle::Button,
-            FontId::new(12.0, FontFamily::Proportional),
-        );
-        style.text_styles.insert(
-            TextStyle::Small,
-            FontId::new(10.0, FontFamily::Proportional),
-        );
-        style
-            .text_styles
-            .insert(TextStyle::Monospace, FontId::new(11.0, FontFamily::Monospace));
+    style.text_styles.insert(
+        TextStyle::Heading,
+        FontId::new(13.0, FontFamily::Proportional),
+    );
+    style.text_styles.insert(
+        TextStyle::Body,
+        FontId::new(12.0, FontFamily::Proportional),
+    );
+    style.text_styles.insert(
+        TextStyle::Button,
+        FontId::new(12.0, FontFamily::Proportional),
+    );
+    style.text_styles.insert(
+        TextStyle::Small,
+        FontId::new(10.0, FontFamily::Proportional),
+    );
+    style
+        .text_styles
+        .insert(TextStyle::Monospace, FontId::new(11.0, FontFamily::Monospace));
 
-        style.spacing.item_spacing = egui::vec2(6.0, 4.0);
-        style.spacing.button_padding = egui::vec2(8.0, 3.0);
-        style.spacing.indent = 12.0;
-        style.spacing.interact_size = egui::vec2(28.0, 22.0);
-        style.spacing.icon_width = 14.0;
-        style.spacing.icon_width_inner = 10.0;
-        style.spacing.icon_spacing = 6.0;
-        style.spacing.slider_rail_height = 4.0;
-        style.spacing.scroll.bar_width = 8.0;
-        style.spacing.scroll.floating_width = 4.0;
+    style.spacing.item_spacing = egui::vec2(6.0, 4.0);
+    style.spacing.button_padding = egui::vec2(8.0, 3.0);
+    style.spacing.indent = 12.0;
+    style.spacing.interact_size = egui::vec2(28.0, 22.0);
+    style.spacing.icon_width = 14.0;
+    style.spacing.icon_width_inner = 10.0;
+    style.spacing.icon_spacing = 6.0;
+    style.spacing.slider_rail_height = 4.0;
+    style.spacing.scroll.bar_width = 8.0;
+    style.spacing.scroll.floating_width = 4.0;
 
-        let v = &mut style.visuals;
-        v.dark_mode = is_dark;
-        v.hyperlink_color = t.rosewater;
-        v.faint_bg_color = t.surface0;
-        v.extreme_bg_color = t.crust;
-        v.code_bg_color = t.mantle;
-        v.warn_fg_color = t.peach;
-        v.error_fg_color = t.maroon;
-        v.window_fill = t.base;
-        v.panel_fill = t.base;
-        v.window_stroke = Stroke::new(1.0, t.overlay1);
-        v.window_corner_radius = RADIUS;
-        v.menu_corner_radius = RADIUS;
-        v.window_shadow = egui::Shadow {
-            color: shadow_color,
-            ..v.window_shadow
-        };
-        v.popup_shadow = egui::Shadow {
-            color: shadow_color,
-            ..v.popup_shadow
-        };
-        v.selection.bg_fill = t.blue.linear_multiply(if is_dark { 0.2 } else { 0.4 });
-        v.selection.stroke = Stroke::new(1.0, t.text);
+    let v = &mut style.visuals;
+    v.dark_mode = is_dark;
+    v.hyperlink_color = t.rosewater;
+    v.faint_bg_color = t.surface0;
+    v.extreme_bg_color = t.crust;
+    v.code_bg_color = t.mantle;
+    v.warn_fg_color = t.peach;
+    v.error_fg_color = t.maroon;
+    v.window_fill = t.base;
+    v.panel_fill = t.base;
+    v.window_stroke = Stroke::new(1.0, t.overlay1);
+    v.window_corner_radius = RADIUS;
+    v.menu_corner_radius = RADIUS;
+    v.window_shadow = egui::Shadow {
+        color: shadow_color,
+        ..v.window_shadow
+    };
+    v.popup_shadow = egui::Shadow {
+        color: shadow_color,
+        ..v.popup_shadow
+    };
+    v.selection.bg_fill = t.blue.linear_multiply(if is_dark { 0.2 } else { 0.4 });
+    v.selection.stroke = Stroke::new(1.0, t.text);
 
-        v.widgets.noninteractive.bg_fill = t.base;
-        v.widgets.noninteractive.weak_bg_fill = t.base;
-        v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, t.overlay1);
-        v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, t.text);
-        v.widgets.noninteractive.corner_radius = RADIUS;
+    v.widgets.noninteractive.bg_fill = t.base;
+    v.widgets.noninteractive.weak_bg_fill = t.base;
+    v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, t.overlay1);
+    v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, t.text);
+    v.widgets.noninteractive.corner_radius = RADIUS;
 
-        v.widgets.inactive.bg_fill = Color32::TRANSPARENT;
-        v.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
-        v.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::TRANSPARENT);
-        v.widgets.inactive.fg_stroke = Stroke::new(1.0, t.subtext0);
-        v.widgets.inactive.corner_radius = RADIUS;
+    v.widgets.inactive.bg_fill = Color32::TRANSPARENT;
+    v.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
+    v.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::TRANSPARENT);
+    v.widgets.inactive.fg_stroke = Stroke::new(1.0, t.subtext0);
+    v.widgets.inactive.corner_radius = RADIUS;
 
-        v.widgets.hovered.bg_fill = t.surface1;
-        v.widgets.hovered.weak_bg_fill = t.surface1;
-        v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::TRANSPARENT);
-        v.widgets.hovered.fg_stroke = Stroke::new(1.0, t.text);
-        v.widgets.hovered.corner_radius = RADIUS;
+    v.widgets.hovered.bg_fill = t.surface1;
+    v.widgets.hovered.weak_bg_fill = t.surface1;
+    v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::TRANSPARENT);
+    v.widgets.hovered.fg_stroke = Stroke::new(1.0, t.text);
+    v.widgets.hovered.corner_radius = RADIUS;
 
-        v.widgets.active.bg_fill = t.accent_dim();
-        v.widgets.active.weak_bg_fill = t.accent_dim();
-        v.widgets.active.bg_stroke = Stroke::new(1.0, t.blue);
-        v.widgets.active.fg_stroke = Stroke::new(1.0, t.blue);
-        v.widgets.active.corner_radius = RADIUS;
+    v.widgets.active.bg_fill = t.accent_dim();
+    v.widgets.active.weak_bg_fill = t.accent_dim();
+    v.widgets.active.bg_stroke = Stroke::new(1.0, t.blue);
+    v.widgets.active.fg_stroke = Stroke::new(1.0, t.blue);
+    v.widgets.active.corner_radius = RADIUS;
 
-        v.widgets.open.bg_fill = t.surface0;
-        v.widgets.open.weak_bg_fill = t.surface0;
-        v.widgets.open.bg_stroke = Stroke::new(1.0, t.overlay1);
-        v.widgets.open.fg_stroke = Stroke::new(1.0, t.text);
-        v.widgets.open.corner_radius = RADIUS;
-    });
+    v.widgets.open.bg_fill = t.surface0;
+    v.widgets.open.weak_bg_fill = t.surface0;
+    v.widgets.open.bg_stroke = Stroke::new(1.0, t.overlay1);
+    v.widgets.open.fg_stroke = Stroke::new(1.0, t.text);
+    v.widgets.open.corner_radius = RADIUS;
 }
 
 pub fn side_panel_frame(ctx: &egui::Context) -> egui::Frame {

@@ -35,6 +35,14 @@ impl MyEguiApp {
 
         ui::theme::apply(&cc.egui_ctx);
 
+        let ctx = cc.egui_ctx.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(
+                egui::UserData::new("icu-screenshot".to_string()),
+            ));
+        });
+
         Self { state }
     }
 
@@ -111,6 +119,8 @@ impl MyEguiApp {
 
 impl eframe::App for MyEguiApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        ui::theme::apply(ctx);
+
         let image_count = self
             .state
             .items
@@ -214,6 +224,32 @@ impl eframe::App for MyEguiApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = ui.ctx().clone();
+        let screenshot = ctx.input(|i| {
+            i.raw
+                .events
+                .iter()
+                .find_map(|e| {
+                    if let egui::Event::Screenshot { image, .. } = e {
+                        Some(image.clone())
+                    } else {
+                        None
+                    }
+                })
+        });
+        if let Some(image) = screenshot {
+            let [w, h] = image.size;
+            let path = std::env::current_dir().unwrap_or_default().join("screenshot.png");
+            let _ = image::save_buffer(
+                &path,
+                image.as_raw(),
+                w as u32,
+                h as u32,
+                image::ExtendedColorType::Rgba8,
+            );
+            log::info!("screenshot {}x{} saved to {}", w, h, path.display());
+        }
+
         ui::draw_top_panel(ui, &mut self.state);
         ui::draw_bottom_panel(ui, &mut self.state);
 
