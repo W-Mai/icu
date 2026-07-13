@@ -692,6 +692,14 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                                 if resp.clicked() {
                                     state.selected_glyph = Some(i);
                                 }
+                                if resp.double_clicked() {
+                                    if let Some(og) = build_opened_glyph(font_data, i, state.font_bundle_index) {
+                                        state.opened_glyphs.push(og.clone());
+                                        state.items.push(crate::image_viewer::model::SidebarItem::Glyph(og));
+                                        state.selected_index = Some(state.items.len() - 1);
+                                        state.font_mode = FontMode::Vector;
+                                    }
+                                }
                                 if state.selected_glyph == Some(i) {
                                     ui.painter().rect_stroke(resp.rect, egui::CornerRadius::same(0), egui::Stroke::new(2.0, egui::Color32::CYAN), egui::StrokeKind::Outside);
                                 }
@@ -842,6 +850,65 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
             }
         }
     });
+}
+
+fn build_opened_glyph(
+    font_data: &FontData,
+    idx: usize,
+    bundle_index: usize,
+) -> Option<crate::image_viewer::model::OpenedGlyph> {
+    use crate::image_viewer::model::OpenedGlyph;
+    match font_data {
+        FontData::FreeType(f) => {
+            let g = f.glyphs.get(idx)?;
+            let ch = char::from_u32(g.codepoint).unwrap_or('?');
+            Some(OpenedGlyph {
+                name: format!("glyph_{} (U+{:04X})", ch, g.codepoint),
+                codepoint: g.codepoint,
+                char_repr: ch.to_string(),
+                advance: g.advance,
+                bearing: (g.bearing_x, g.bearing_y),
+                bbox: g.bbox,
+                outline: g.outline.clone(),
+                outline_approximate: false,
+                source_font: f.family.clone(),
+                source_is_sdf: false,
+            })
+        }
+        FontData::Mirx(font) => {
+            let m = font.metrics.get(idx)?;
+            let ch = char::from_u32(m.codepoint).unwrap_or('?');
+            Some(OpenedGlyph {
+                name: format!("glyph_{} (U+{:04X})", ch, m.codepoint),
+                codepoint: m.codepoint,
+                char_repr: ch.to_string(),
+                advance: m.advance,
+                bearing: (m.bearing_x as i16, m.bearing_y as i16),
+                bbox: (0, 0, 0, 0),
+                outline: Vec::new(),
+                outline_approximate: true,
+                source_font: format!("{:?}", font.chunk_header.kind),
+                source_is_sdf: true,
+            })
+        }
+        FontData::MirxBundle(fonts) => {
+            let font = fonts.get(bundle_index).or_else(|| fonts.first())?;
+            let m = font.metrics.get(idx)?;
+            let ch = char::from_u32(m.codepoint).unwrap_or('?');
+            Some(OpenedGlyph {
+                name: format!("glyph_{} (U+{:04X})", ch, m.codepoint),
+                codepoint: m.codepoint,
+                char_repr: ch.to_string(),
+                advance: m.advance,
+                bearing: (m.bearing_x as i16, m.bearing_y as i16),
+                bbox: (0, 0, 0, 0),
+                outline: Vec::new(),
+                outline_approximate: true,
+                source_font: format!("{:?}", font.chunk_header.kind),
+                source_is_sdf: true,
+            })
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -51,7 +51,7 @@ pub struct OpenedGlyph {
     pub codepoint: u32,
     pub char_repr: String,
     pub advance: u16,
-    pub bearing: (i8, i8),
+    pub bearing: (i16, i16),
     pub bbox: (i16, i16, i16, i16),
     pub outline: Vec<icu_lib::mirx::PathCmd>,
     pub outline_approximate: bool,
