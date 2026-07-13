@@ -167,7 +167,7 @@ impl<'a> ImagePlotter<'a> {
 
                 let time = ui.input(|i| i.time);
 
-                plot.show(ui, |plot_ui| {
+                let plot_response = plot.show(ui, |plot_ui| {
                     plot_ui.image(PlotImage::new(
                         "image",
                         texture.id,
@@ -269,6 +269,48 @@ impl<'a> ImagePlotter<'a> {
                         );
                     }
                 });
+
+                let plot_rect = plot_response.response.rect;
+                let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+
+                if let Some(pos) = *cursor_pos.borrow() {
+                    let color = *color_data.borrow();
+                    let coord_text = if let Some(c) = color {
+                        format!(
+                            "RGBA: #{:02X}{:02X}{:02X}{:02X}  ({:.0}, {:.0})",
+                            c.r(),
+                            c.g(),
+                            c.b(),
+                            c.a(),
+                            pos[0].floor(),
+                            -pos[1].floor() - 1.0
+                        )
+                    } else {
+                        format!("({:.0}, {:.0})", pos[0].floor(), -pos[1].floor() - 1.0)
+                    };
+                    let galley = ui.painter().layout_no_wrap(
+                        coord_text,
+                        egui::FontId::monospace(11.0),
+                        p.subtext0,
+                    );
+                    let pad = egui::vec2(8.0, 4.0);
+                    let coord_rect = egui::Rect::from_min_size(
+                        egui::pos2(plot_rect.left() + 8.0, plot_rect.bottom() - galley.size().y - pad.y - 8.0),
+                        galley.size() + pad * 2.0,
+                    );
+                    ui.painter().rect(
+                        coord_rect,
+                        egui::CornerRadius::same(4),
+                        p.mantle,
+                        egui::Stroke::new(1.0, p.surface1),
+                        egui::StrokeKind::Inside,
+                    );
+                    ui.painter().galley(
+                        coord_rect.center() - 0.5 * galley.size(),
+                        galley,
+                        p.subtext0,
+                    );
+                }
 
                 if let Some(on_hover) = &mut self.on_hover {
                     if let Some(pos) = *cursor_pos.borrow() {
