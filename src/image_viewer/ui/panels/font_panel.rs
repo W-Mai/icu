@@ -1,9 +1,75 @@
-use crate::image_viewer::model::FontMode;
+use crate::image_viewer::model::{BakeCharsetTab, FontMode};
 use crate::image_viewer::plotter::ImagePlotter;
 use eframe::egui;
 use eframe::egui::Color32;
 use icu_lib::endecoder::EnDecoder;
 use icu_lib::midata::{FontData, MiData};
+
+fn parse_charset_text(text: &str) -> Vec<char> {
+    text.chars().collect()
+}
+
+fn parse_charset_ranges(input: &str) -> Vec<char> {
+    let mut out = Vec::new();
+    for part in input.split(',') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let (start, end) = if let Some((a, b)) = part.split_once('-') {
+            let s = parse_codepoint(a.trim());
+            let e = parse_codepoint(b.trim());
+            match (s, e) {
+                (Some(s), Some(e)) => (s, e),
+                _ => continue,
+            }
+        } else {
+            match parse_codepoint(part) {
+                Some(c) => (c, c),
+                None => continue,
+            }
+        };
+        if start <= end {
+            for cp in start..=end {
+                if let Some(ch) = char::from_u32(cp) {
+                    out.push(ch);
+                }
+            }
+        }
+    }
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+fn parse_codepoint(s: &str) -> Option<u32> {
+    let s = s.trim();
+    if let Some(hex) = s.strip_prefix("U+").or_else(|| s.strip_prefix("u+")) {
+        u32::from_str_radix(hex, 16).ok()
+    } else if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+        u32::from_str_radix(hex, 16).ok()
+    } else {
+        s.parse::<u32>().ok()
+    }
+}
+
+fn parse_charset_file(path: &str) -> Vec<char> {
+    std::fs::read_to_string(path)
+        .map(|s| s.chars().collect())
+        .unwrap_or_default()
+}
+
+fn collect_charset(state: &crate::image_viewer::model::ViewerState) -> Vec<char> {
+    match state.font_bake_charset_tab {
+        BakeCharsetTab::Text => parse_charset_text(&state.font_bake_charset_text),
+        BakeCharsetTab::Range => parse_charset_ranges(&state.font_bake_charset_ranges),
+        BakeCharsetTab::File => state
+            .font_bake_charset_file
+            .as_deref()
+            .map(parse_charset_file)
+            .unwrap_or_default(),
+    }
+}
 
 fn selected_mirx_font<'a>(
     font_data: &'a FontData,
@@ -304,22 +370,84 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                             ui.selectable_value(&mut state.font_bake_format, "sdf".into(), "sdf");
                             ui.selectable_value(&mut state.font_bake_format, "gray".into(), "gray");
                         });
+                    ui.label("bit_depth:");
+                    let valid_depths: &[u8] = if state.font_bake_format == "gray" {
+                        &[1, 2, 4, 8]
+                    } else {
+                        &[4, 8]
+                    };
+                    if !valid_depths.contains(&state.font_bake_bit_depth) {
+                        state.font_bake_bit_depth = valid_depths[0];
+                    }
+                    egui::ComboBox::from_id_salt("bake_bit_depth")
+                        .selected_text(format!("{}", state.font_bake_bit_depth))
+                        .show_ui(ui, |ui| {
+                            for &d in valid_depths {
+                                ui.selectable_value(
+                                    &mut state.font_bake_bit_depth,
+                                    d,
+                                    format!("{d}"),
+                                );
+                            }
+                        });
                 });
+
+                ui.add_space(4.0);
+                crate::image_viewer::ui::widgets::mode_tabs(
+                    ui,
+                    &mut state.font_bake_charset_tab,
+                    &[
+                        (BakeCharsetTab::Text, "Text"),
+                        (BakeCharsetTab::Range, "Range"),
+                        (BakeCharsetTab::File, "File"),
+                    ],
+                );
+                ui.add_space(4.0);
+
+                match state.font_bake_charset_tab {
+                    BakeCharsetTab::Text => {
+                        ui.text_edit_multiline(&mut state.font_bake_charset_text);
+                    }
+                    BakeCharsetTab::Range => {
+                        ui.text_edit_multiline(&mut state.font_bake_charset_ranges);
+                        ui.label(
+                            egui::RichText::new("Format: U+XXXX-U+YYYY, one range per line or comma-separated")
+                                .size(9.0)
+                                .color(ui.style().visuals.weak_text_color()),
+                        );
+                    }
+                    BakeCharsetTab::File => {
+                        ui.horizontal(|ui| {
+                            if ui.button("Choose charset file…").clicked() {
+                                if let Some(path) = super::pick_file(&[("Text", &["txt"])]) {
+                                    state.font_bake_charset_file =
+                                        Some(path.to_string_lossy().into());
+                                }
+                            }
+                            if let Some(p) = &state.font_bake_charset_file {
+                                ui.label(p);
+                            }
+                        });
+                    }
+                }
+
                 if ui.button("Bake & Save").clicked() {
                     let kind = if state.font_bake_format == "gray" {
                         icu_lib::mirx::FontChunkKind::Grayscale
                     } else {
                         icu_lib::mirx::FontChunkKind::Sdf
                     };
-                    let charset: String = (0x20u32..=0x7Eu32)
-                        .filter_map(char::from_u32)
-                        .collect();
+                    let charset = collect_charset(state);
+                    if charset.is_empty() {
+                        log::warn!("bake charset is empty");
+                        return;
+                    }
                     let params = icu_lib::endecoder::mirui::font_bake::FontBakeParams {
                         kind,
                         source_size: state.font_bake_size,
-                        bit_depth: if kind == icu_lib::mirx::FontChunkKind::Sdf { 4 } else { 4 },
+                        bit_depth: state.font_bake_bit_depth as u8,
                         spread: (state.font_bake_size / 4).max(1),
-                        charset: charset.chars().collect(),
+                        charset,
                     };
                     let raw = std::fs::read(&image.path).unwrap_or_default();
                     if let Some(font) = icu_lib::endecoder::mirui::font_bake::bake_font(&raw, &params) {

@@ -98,6 +98,19 @@ impl Default for IndexedViewMode {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BakeCharsetTab {
+    Text,
+    Range,
+    File,
+}
+
+impl Default for BakeCharsetTab {
+    fn default() -> Self {
+        BakeCharsetTab::Text
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PathMode {
@@ -220,6 +233,11 @@ pub struct ViewerState {
     pub indexed_view_mode: IndexedViewMode,
     pub font_bake_size: u16,
     pub font_bake_format: String,
+    pub font_bake_bit_depth: u8,
+    pub font_bake_charset_tab: BakeCharsetTab,
+    pub font_bake_charset_text: String,
+    pub font_bake_charset_ranges: String,
+    pub font_bake_charset_file: Option<String>,
     pub indexed_dither: u32,
     pub indexed_dither_cached: u32,
     pub indexed_requantized: Option<icu_lib::midata::IndexedImageData>,
@@ -260,6 +278,11 @@ impl Default for ViewerState {
             indexed_view_mode: IndexedViewMode::default(),
             font_bake_size: 24,
             font_bake_format: "sdf".to_string(),
+            font_bake_bit_depth: 4,
+            font_bake_charset_tab: BakeCharsetTab::default(),
+            font_bake_charset_text: "ABCabc012 .,;:!?".to_string(),
+            font_bake_charset_ranges: "U+0020-U+007F".to_string(),
+            font_bake_charset_file: None,
             indexed_dither: 0,
             indexed_dither_cached: u32::MAX,
             indexed_requantized: None,
