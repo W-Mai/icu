@@ -59,16 +59,6 @@ pub fn draw_path_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
         });
     });
 
-    egui::Panel::right("path_right").show(ui, |ui| {
-        if let Some(idx) = state.selected_op {
-            if let Some(op) = scene_data.scene.ops.get(idx) {
-                ui.heading(format!("Op #{}: {}", idx, op_label(op)));
-                ui.separator();
-                op_inspector(ui, op);
-            }
-        }
-    });
-
     egui::CentralPanel::default().show(ui, |ui| {
         ui.horizontal(|ui| {
             crate::image_viewer::ui::widgets::mode_tabs(
@@ -139,7 +129,7 @@ fn op_center(op: &icu_lib::mirx::SceneOp) -> Option<[u32; 2]> {
     }
 }
 
-fn op_label(op: &icu_lib::mirx::SceneOp) -> &'static str {
+pub fn op_label(op: &icu_lib::mirx::SceneOp) -> &'static str {
     match op {
         icu_lib::mirx::SceneOp::GroupBegin { .. } => "GroupBegin",
         icu_lib::mirx::SceneOp::GroupEnd => "GroupEnd",
@@ -156,7 +146,7 @@ fn op_label(op: &icu_lib::mirx::SceneOp) -> &'static str {
     }
 }
 
-fn op_inspector(ui: &mut egui::Ui, op: &icu_lib::mirx::SceneOp) {
+pub fn op_inspector(ui: &mut egui::Ui, op: &icu_lib::mirx::SceneOp) {
     use icu_lib::mirx::SceneOp;
     match op {
         SceneOp::FillPath {

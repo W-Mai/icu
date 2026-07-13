@@ -70,6 +70,21 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                 widgets::info_row(ui, "Format", &img.info.format);
                 widgets::info_row(ui, "Size", &format!("{} bytes", img.info.data_size));
             });
+
+            if let Some(icu_lib::midata::MiData::PATH(scene_data)) = &img.midata {
+                ui.add_space(8.0);
+                widgets::section_card(ui, "Scene", |ui| {
+                    ui.label(format!("ops: {}", scene_data.scene.ops.len()));
+                });
+                if let Some(idx) = state.selected_op {
+                    if let Some(op) = scene_data.scene.ops.get(idx) {
+                        ui.add_space(8.0);
+                        widgets::section_card(ui, &format!("Op #{}: {}", idx, panels::path_panel::op_label(op)), |ui| {
+                            panels::path_panel::op_inspector(ui, op);
+                        });
+                    }
+                }
+            }
         }
         SidebarItem::Glyph(g) => {
             widgets::section_card(ui, "Glyph Properties", |ui| {
