@@ -6,6 +6,15 @@ use icu_lib::midata::MiData;
 use serde::Serialize;
 
 pub fn draw_central_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
+    use crate::image_viewer::model::SidebarItem;
+
+    if let Some(idx) = state.selected_index {
+        if let Some(SidebarItem::Glyph(_)) = state.items.get(idx) {
+            panels::draw_glyph_panel(ui, state);
+            return;
+        }
+    }
+
     if let Some(image) = &state.current_image {
         if let Some(midata) = &image.midata {
             match midata {

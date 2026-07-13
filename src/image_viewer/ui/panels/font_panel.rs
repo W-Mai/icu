@@ -100,6 +100,45 @@ fn reset_font_caches(state: &mut crate::image_viewer::model::ViewerState) {
     state.selected_glyph = None;
 }
 
+pub fn draw_glyph_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
+    use crate::image_viewer::model::SidebarItem;
+    let idx = match state.selected_index {
+        Some(i) => i,
+        None => return,
+    };
+    let glyph = match state.items.get(idx) {
+        Some(SidebarItem::Glyph(g)) => g.clone(),
+        _ => return,
+    };
+
+    egui::CentralPanel::default().show(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(format!(
+                    "{} · U+{:04X} · {} path cmds",
+                    glyph.char_repr,
+                    glyph.codepoint,
+                    glyph.outline.len()
+                ))
+                .size(11.0)
+                .color(ui.style().visuals.weak_text_color()),
+            );
+        });
+        ui.separator();
+
+        draw_glyph_vector_view(
+            ui,
+            glyph.codepoint,
+            glyph.advance,
+            glyph.bearing.0,
+            glyph.bearing.1,
+            glyph.bbox,
+            &glyph.outline,
+            glyph.outline_approximate,
+        );
+    });
+}
+
 pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
     let ctx = ui.ctx().clone();
     let Some(image) = state.current_image.clone() else {

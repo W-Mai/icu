@@ -2,7 +2,7 @@ pub mod font_panel;
 pub mod indexed_panel;
 pub mod path_panel;
 
-pub use font_panel::draw_font_panel;
+pub use font_panel::{draw_font_panel, draw_glyph_panel};
 pub use indexed_panel::draw_indexed_panel;
 pub use path_panel::draw_path_panel;
 
