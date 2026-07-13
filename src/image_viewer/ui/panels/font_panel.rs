@@ -702,7 +702,57 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                         });
                 });
             }
-            FontMode::Atlas | FontMode::Vector => {
+            FontMode::Vector => {
+                let glyph = match font_data {
+                    FontData::FreeType(f) => state
+                        .selected_glyph
+                        .and_then(|idx| f.glyphs.get(idx))
+                        .map(|g| (g.codepoint, g.advance, g.bearing_x, g.bearing_y, g.bbox, g.outline.clone(), false)),
+                    FontData::Mirx(font) => state
+                        .selected_glyph
+                        .and_then(|idx| font.metrics.get(idx))
+                        .map(|m| {
+                            (
+                                m.codepoint,
+                                m.advance,
+                                m.bearing_x as i16,
+                                m.bearing_y as i16,
+                                (0, 0, 0, 0),
+                                Vec::new(),
+                                true,
+                            )
+                        }),
+                    FontData::MirxBundle(fonts) => fonts
+                        .get(state.font_bundle_index)
+                        .or_else(|| fonts.first())
+                        .and_then(|font| {
+                            state.selected_glyph.and_then(|idx| font.metrics.get(idx))
+                        })
+                        .map(|m| {
+                            (
+                                m.codepoint,
+                                m.advance,
+                                m.bearing_x as i16,
+                                m.bearing_y as i16,
+                                (0, 0, 0, 0),
+                                Vec::new(),
+                                true,
+                            )
+                        }),
+                };
+
+                if let Some((cp, advance, bx, by, bbox, outline, approx)) = glyph {
+                    draw_glyph_vector_view(ui, cp, advance, bx, by, bbox, &outline, approx);
+                } else {
+                    ui.centered_and_justified(|ui| {
+                        ui.label(
+                            egui::RichText::new("Select a glyph in Grid mode to view its vector outline")
+                                .color(ui.style().visuals.weak_text_color()),
+                        );
+                    });
+                }
+            }
+            FontMode::Atlas => {
                 let theme_key = format!(
                     "{:?}_{:?}_{}_{}",
                     fg,
@@ -792,4 +842,206 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
             }
         }
     });
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_glyph_vector_view(
+    ui: &mut egui::Ui,
+    codepoint: u32,
+    advance: u16,
+    bearing_x: i16,
+    bearing_y: i16,
+    bbox: (i16, i16, i16, i16),
+    outline: &[icu_lib::mirx::PathCmd],
+    approximate: bool,
+) {
+    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+    let (bx, by, bw, bh) = bbox;
+    let ch = char::from_u32(codepoint).unwrap_or('?');
+
+    let available = ui.available_size();
+    let canvas_size = available.y.min(available.x * 0.7).min(400.0);
+    let (canvas_rect, _) =
+        ui.allocate_exact_size(egui::vec2(available.x, canvas_size), egui::Sense::hover());
+
+    let (min_x, min_y) = (bx.min(0) - 4, by.min(0) - 4);
+    let (max_x, max_y) = (bx + bw + 4, by + bh + 4);
+    let gw = (max_x - min_x).max(1) as f32;
+    let gh = (max_y - min_y).max(1) as f32;
+
+    let scale = (canvas_rect.width() / gw).min(canvas_rect.height() / gh);
+    let ox = canvas_rect.center().x - (min_x as f32 + gw / 2.0) * scale;
+    let oy = canvas_rect.center().y + (min_y as f32 + gh / 2.0) * scale;
+
+    let to_screen = |x: i32, y: i32| -> egui::Pos2 {
+        egui::pos2(ox + x as f32 * scale, oy - y as f32 * scale)
+    };
+
+    if ui.is_rect_visible(canvas_rect) {
+        ui.painter().rect(
+            canvas_rect,
+            crate::image_viewer::ui::theme::RADIUS,
+            p.surface0,
+            egui::Stroke::new(1.0, p.surface1),
+            egui::StrokeKind::Inside,
+        );
+
+        let baseline_y = 0i32;
+        let left_x = bearing_x;
+        let right_x = bearing_x + advance as i16;
+        let stroke_dash = egui::Stroke::new(0.5, p.overlay0);
+        for x in [left_x, right_x] {
+            let p1 = to_screen(x as i32, min_y as i32);
+            let p2 = to_screen(x as i32, max_y as i32);
+            paint_dashed_line(ui.painter(), p1, p2, stroke_dash, 4.0);
+        }
+        let p1 = to_screen(min_x as i32, baseline_y);
+        let p2 = to_screen(max_x as i32, baseline_y);
+        paint_dashed_line(ui.painter(), p1, p2, stroke_dash, 4.0);
+
+        ui.painter().text(
+            to_screen(left_x as i32, max_y as i32) + egui::vec2(2.0, -2.0),
+            egui::Align2::LEFT_BOTTOM,
+            "bearing_x",
+            egui::FontId::monospace(8.0),
+            p.overlay0,
+        );
+        ui.painter().text(
+            to_screen(right_x as i32, max_y as i32) + egui::vec2(2.0, -2.0),
+            egui::Align2::LEFT_BOTTOM,
+            "advance",
+            egui::FontId::monospace(8.0),
+            p.overlay0,
+        );
+        ui.painter().text(
+            to_screen(min_x as i32, baseline_y) + egui::vec2(2.0, 2.0),
+            egui::Align2::LEFT_TOP,
+            "baseline",
+            egui::FontId::monospace(8.0),
+            p.overlay0,
+        );
+
+        if outline.is_empty() {
+            ui.painter().text(
+                canvas_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                if approximate {
+                    "⚠ Approximate contour from atlas — no Bezier data"
+                } else {
+                    "No outline data"
+                },
+                egui::FontId::proportional(11.0),
+                p.peach,
+            );
+        } else {
+            let mut current = egui::Pos2::ZERO;
+            let path_stroke = egui::Stroke::new(1.5, p.accent());
+            for cmd in outline {
+                match cmd {
+                    icu_lib::mirx::PathCmd::MoveTo(pt) => {
+                        current = to_screen(pt.x.to_int(), pt.y.to_int());
+                    }
+                    icu_lib::mirx::PathCmd::LineTo(pt) => {
+                        let end = to_screen(pt.x.to_int(), pt.y.to_int());
+                        ui.painter().line_segment([current, end], path_stroke);
+                        current = end;
+                    }
+                    icu_lib::mirx::PathCmd::QuadTo { ctrl, end } => {
+                        let ctrl_p = to_screen(ctrl.x.to_int(), ctrl.y.to_int());
+                        let end_p = to_screen(end.x.to_int(), end.y.to_int());
+                        let pts = [current, ctrl_p, end_p];
+                        ui.painter().add(egui::epaint::QuadraticBezierShape::from_points_stroke(
+                            pts,
+                            false,
+                            egui::Color32::TRANSPARENT,
+                            path_stroke,
+                        ));
+                        let handle_stroke = egui::Stroke::new(0.7, p.peach);
+                        ui.painter()
+                            .line_segment([current, ctrl_p], handle_stroke);
+                        ui.painter()
+                            .line_segment([end_p, ctrl_p], handle_stroke);
+                        ui.painter().circle_filled(ctrl_p, 2.0, p.peach);
+                        current = end_p;
+                    }
+                    icu_lib::mirx::PathCmd::CubicTo { ctrl1, ctrl2, end } => {
+                        let c1 = to_screen(ctrl1.x.to_int(), ctrl1.y.to_int());
+                        let c2 = to_screen(ctrl2.x.to_int(), ctrl2.y.to_int());
+                        let e = to_screen(end.x.to_int(), end.y.to_int());
+                        let pts = [current, c1, c2, e];
+                        ui.painter().add(egui::epaint::CubicBezierShape::from_points_stroke(
+                            pts,
+                            false,
+                            egui::Color32::TRANSPARENT,
+                            path_stroke,
+                        ));
+                        let handle_stroke = egui::Stroke::new(0.7, p.peach);
+                        ui.painter().line_segment([current, c1], handle_stroke);
+                        ui.painter().line_segment([e, c2], handle_stroke);
+                        ui.painter().circle_filled(c1, 2.0, p.peach);
+                        ui.painter().circle_filled(c2, 2.0, p.peach);
+                        current = e;
+                    }
+                    icu_lib::mirx::PathCmd::Close => {}
+                }
+            }
+
+            for cmd in outline {
+                if let icu_lib::mirx::PathCmd::MoveTo(pt)
+                | icu_lib::mirx::PathCmd::LineTo(pt) = cmd
+                {
+                    let pos = to_screen(pt.x.to_int(), pt.y.to_int());
+                    ui.painter().circle_filled(pos, 3.0, p.accent());
+                    ui.painter()
+                        .circle_stroke(pos, 3.0, egui::Stroke::new(1.0, p.base));
+                }
+            }
+        }
+    }
+
+    ui.add_space(8.0);
+    ui.horizontal(|ui| {
+        ui.label(
+            egui::RichText::new(format!("Glyph '{}' (U+{:04X})", ch, codepoint))
+                .size(12.0)
+                .color(p.text),
+        );
+    });
+    crate::image_viewer::ui::widgets::section_card(ui, "Glyph Metrics", |ui| {
+        crate::image_viewer::ui::widgets::info_row(ui, "Codepoint", &format!("U+{:04X}", codepoint));
+        crate::image_viewer::ui::widgets::info_row(ui, "Advance", &format!("{}px", advance));
+        crate::image_viewer::ui::widgets::info_row(ui, "Bearing", &format!("({}, {})", bearing_x, bearing_y));
+        crate::image_viewer::ui::widgets::info_row(ui, "BBox", &format!("({}, {}, {}, {})", bx, by, bw, bh));
+        crate::image_viewer::ui::widgets::info_row(ui, "Outline cmds", &format!("{}", outline.len()));
+        crate::image_viewer::ui::widgets::info_row(
+            ui,
+            "Source",
+            if approximate { "atlas (approximate)" } else { "FreeType (true vector)" },
+        );
+    });
+}
+
+fn paint_dashed_line(
+    painter: &egui::Painter,
+    p1: egui::Pos2,
+    p2: egui::Pos2,
+    stroke: egui::Stroke,
+    dash: f32,
+) {
+    let delta = p2 - p1;
+    let len = delta.length();
+    if len < 1.0 {
+        return;
+    }
+    let dir = delta / len;
+    let mut t = 0.0;
+    let mut on = true;
+    while t < len {
+        let next = (t + dash).min(len);
+        if on {
+            painter.line_segment([p1 + dir * t, p1 + dir * next], stroke);
+        }
+        t = next;
+        on = !on;
+    }
 }
