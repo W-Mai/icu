@@ -40,19 +40,21 @@ pub fn draw_indexed_panel(
             crate::image_viewer::ui::widgets::info_row(ui, "Palette", &indexed.palette.len().to_string());
             crate::image_viewer::ui::widgets::info_row(ui, "Size", &format!("{}×{}", indexed.width, indexed.height));
         });
-        ui.separator();
-        let prev_quality = state.indexed_show_quality;
-        ui.checkbox(&mut state.indexed_show_quality, "Quality view");
-        if state.indexed_show_quality != prev_quality {
-            state.indexed_hover_palette = None;
-        }
-        ui.separator();
-        ui.horizontal(|ui| {
-            ui.label("Dither:");
-            ui.add(egui::Slider::new(&mut state.indexed_dither, 0..=30).text("level"));
+        ui.add_space(4.0);
+        crate::image_viewer::ui::widgets::section_card(ui, "Display", |ui| {
+            let prev_quality = state.indexed_show_quality;
+            crate::image_viewer::ui::widgets::toggle_labeled(ui, "Quality View", &mut state.indexed_show_quality);
+            if state.indexed_show_quality != prev_quality {
+                state.indexed_hover_palette = None;
+            }
+            ui.horizontal(|ui| {
+                ui.label("Dither:");
+                ui.add(egui::Slider::new(&mut state.indexed_dither, 0..=30).text("level"));
+            });
         });
-        ui.separator();
-        ui.label("Palette (hover to highlight, click to edit):");
+        ui.add_space(4.0);
+        crate::image_viewer::ui::widgets::section_card(ui, "Palette", |ui| {
+            ui.label("(hover to highlight, click to edit)");
         let cols = match indexed.bpp {
             1 => 2,
             2 => 4,
@@ -96,7 +98,9 @@ pub fn draw_indexed_panel(
         } else {
             state.indexed_hover_palette = hovered_palette;
         }
-        ui.separator();
+        });
+        ui.add_space(4.0);
+        crate::image_viewer::ui::widgets::section_card(ui, "Export", |ui| {
         if ui.button("Export PNG").clicked() {
             let img = indexed.rgba.clone();
             if let Some(path) = super::pick_save_file(&[("PNG", &["png"])], &"indexed.png") {
@@ -119,6 +123,7 @@ pub fn draw_indexed_panel(
                 }
             }
         }
+        });
     });
 
     egui::CentralPanel::default().show(ui, |ui| {
