@@ -406,8 +406,8 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                     crate::image_viewer::ui::widgets::info_row(ui, "Line Height", &f.line_height.to_string());
                     crate::image_viewer::ui::widgets::info_row(ui, "Glyphs", &format!("{} / {}", f.glyphs.len(), f.glyph_count));
                 });
-                ui.separator();
-                ui.label("Bake to mirx:");
+                ui.add_space(4.0);
+                crate::image_viewer::ui::widgets::section_card(ui, "Bake to mirx", |ui| {
                 ui.horizontal(|ui| {
                     ui.label("size:");
                     ui.add(egui::DragValue::new(&mut state.font_bake_size).range(8..=64));
@@ -514,6 +514,7 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                         }
                     }
                 }
+                });
             }
         }
     });
