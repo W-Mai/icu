@@ -176,30 +176,31 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
         match font_data {
             FontData::Mirx(font) => {
                 show_mirx_metadata(ui, font);
-                ui.separator();
-                ui.label("Preview text:");
-                ui.text_edit_singleline(&mut state.font_preview_text);
-                if ui.button("Render").clicked() {
-                    let img = icu_lib::endecoder::mirui::font_render::render_font_text(
-                        font,
-                        &state.font_preview_text,
-                        400,
-                        64,
-                        text_color,
-                    );
-                    state.font_rendered_preview = Some(img);
-                }
-                ui.separator();
-                ui.label("Glyph diff:");
-                if ui.button("Select font to diff...").clicked() {
-                    if let Some(path) = super::pick_file(&[("Font", &["ttf", "otf", "ttc", "mirx"])])
-                    {
-                        state.font_diff_path = Some(path.to_string_lossy().into());
+                ui.add_space(4.0);
+                crate::image_viewer::ui::widgets::section_card(ui, "Preview", |ui| {
+                    ui.text_edit_singleline(&mut state.font_preview_text);
+                    if ui.button("Render").clicked() {
+                        let img = icu_lib::endecoder::mirui::font_render::render_font_text(
+                            font,
+                            &state.font_preview_text,
+                            400,
+                            64,
+                            text_color,
+                        );
+                        state.font_rendered_preview = Some(img);
                     }
-                }
-                if let Some(diff_path) = &state.font_diff_path {
-                    ui.label(format!("vs: {}", diff_path));
-                    if ui.button("Render Diff").clicked() {
+                });
+                ui.add_space(4.0);
+                crate::image_viewer::ui::widgets::section_card(ui, "Glyph Diff", |ui| {
+                    if ui.button("Select font to diff...").clicked() {
+                        if let Some(path) = super::pick_file(&[("Font", &["ttf", "otf", "ttc", "mirx"])])
+                        {
+                            state.font_diff_path = Some(path.to_string_lossy().into());
+                        }
+                    }
+                    if let Some(diff_path) = &state.font_diff_path {
+                        ui.label(format!("vs: {}", diff_path));
+                        if ui.button("Render Diff").clicked() {
                         let img_a = icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
                         let raw_b = std::fs::read(diff_path).unwrap_or_default();
                         let ed = icu_lib::endecoder::mirui::Mirx;
@@ -255,21 +256,24 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                         }
                     }
                 }
-                if ui.button("Add font file...").clicked() {
-                    if let Some(path) = super::pick_file(&[("mirx", &["mirx"])])
-                    {
-                        state.merge_font_paths.push(path.to_string_lossy().into());
-                    }
-                }
-                for (i, p) in state.merge_font_paths.clone().iter().enumerate() {
-                    ui.horizontal(|ui| {
-                        ui.label(format!("{}", p));
-                        if ui.button("×").clicked() {
-                            state.merge_font_paths.remove(i);
+                });
+                ui.add_space(4.0);
+                crate::image_viewer::ui::widgets::section_card(ui, "Merge Fonts", |ui| {
+                    if ui.button("Add font file...").clicked() {
+                        if let Some(path) = super::pick_file(&[("mirx", &["mirx"])])
+                        {
+                            state.merge_font_paths.push(path.to_string_lossy().into());
                         }
-                    });
-                }
-                if state.merge_font_paths.len() >= 2 && ui.button("Merge & Save").clicked() {
+                    }
+                    for (i, p) in state.merge_font_paths.clone().iter().enumerate() {
+                        ui.horizontal(|ui| {
+                            ui.label(format!("{}", p));
+                            if ui.button("×").clicked() {
+                                state.merge_font_paths.remove(i);
+                            }
+                        });
+                    }
+                    if state.merge_font_paths.len() >= 2 && ui.button("Merge & Save").clicked() {
                     let inputs: Vec<Vec<u8>> = state.merge_font_paths
                         .iter()
                         .filter_map(|p| std::fs::read(p).ok())
@@ -280,6 +284,7 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                         let _ = std::fs::write(&path, merged);
                     }
                 }
+                });
             }
             FontData::MirxBundle(fonts) => {
                 if fonts.is_empty() {
