@@ -58,16 +58,24 @@ pub fn draw_central_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
         } else if let Some(image) = &state.current_image {
             image_plotter.badge(format!("{}×{} · {}", image.width, image.height, image.info.format)).show(ui, &Some(image.clone()));
         } else {
-            let resp = ui.centered_and_justified(|ui| {
-                ui.heading(
-                    egui::RichText::new(t!("drag_here"))
-                        .size(50.0)
-                        .line_height(Some(60.0))
-                        .color(ui.style().visuals.weak_text_color()),
+            let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+            let avail = ui.available_size();
+            let (rect, response) = ui.allocate_exact_size(avail, egui::Sense::click());
+            let hovered = response.hovered();
+            if ui.is_rect_visible(rect) {
+                let stroke_color = if hovered { p.accent() } else { p.surface1 };
+                let dash_len = 8.0;
+                let gap = 6.0;
+                paint_dashed_rect(ui.painter(), rect, egui::CornerRadius::same(12), stroke_color, dash_len, gap);
+                ui.painter().text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    t!("drag_here"),
+                    egui::FontId::proportional(16.0),
+                    if hovered { p.accent() } else { p.overlay0 },
                 );
-            })
-            .response;
-            if resp.clicked() {
+            }
+            if response.clicked() {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     let files: Vec<eframe::egui::DroppedFile> = rfd::FileDialog::new()
@@ -196,4 +204,48 @@ fn ui_yaml_tree(ui: &mut egui::Ui, value: &serde_yaml::Value) {
             });
         }
     }
+}
+
+fn paint_dashed_rect(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    corner: egui::CornerRadius,
+    color: eframe::egui::Color32,
+    dash: f32,
+    gap: f32,
+) {
+    let stroke = egui::Stroke::new(2.0, color);
+    let step = dash + gap;
+    let tl = rect.left_top();
+    let tr = rect.right_top();
+    let br = rect.right_bottom();
+    let mut t = 0.0;
+    while t < rect.width() {
+        let x1 = rect.left() + t;
+        let x2 = (x1 + dash).min(rect.right());
+        painter.line_segment(
+            [egui::pos2(x1, tl.y), egui::pos2(x2, tl.y)],
+            stroke,
+        );
+        painter.line_segment(
+            [egui::pos2(x1, br.y), egui::pos2(x2, br.y)],
+            stroke,
+        );
+        t += step;
+    }
+    let mut t = 0.0;
+    while t < rect.height() {
+        let y1 = rect.top() + t;
+        let y2 = (y1 + dash).min(rect.bottom());
+        painter.line_segment(
+            [egui::pos2(tl.x, y1), egui::pos2(tl.x, y2)],
+            stroke,
+        );
+        painter.line_segment(
+            [egui::pos2(tr.x, y1), egui::pos2(tr.x, y2)],
+            stroke,
+        );
+        t += step;
+    }
+    let _ = corner;
 }

@@ -1,5 +1,4 @@
 use crate::image_viewer::model::{SidebarItem, ViewerState};
-use crate::image_viewer::plotter::ImagePlotter;
 use eframe::egui;
 use eframe::egui::Color32;
 
@@ -8,30 +7,75 @@ pub fn draw_left_panel(
     state: &mut ViewerState,
     reset_callback: impl FnOnce(&mut ViewerState),
 ) {
-    if state.items.len() > 1 {
-        let frame = crate::image_viewer::ui::theme::side_panel_frame(ui.ctx());
-        egui::Panel::left("ImagePicker")
-            .exact_size(260.0)
-            .frame(frame)
-            .show(ui, |ui| {
-            ui.separator();
-            ui.horizontal_wrapped(|ui| {
-                if ui
-                    .button(egui::RichText::new("🗑").color(Color32::RED))
-                    .clicked()
-                {
+    let frame = crate::image_viewer::ui::theme::side_panel_frame(ui.ctx());
+    egui::Panel::left("ImagePicker")
+        .exact_size(260.0)
+        .frame(frame)
+        .show(ui, |ui| {
+            let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+
+            let header_h = 28.0;
+            let (hdr_rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), header_h), egui::Sense::hover());
+            if ui.is_rect_visible(hdr_rect) {
+                ui.painter().text(
+                    egui::pos2(hdr_rect.left() + 4.0, hdr_rect.center().y),
+                    egui::Align2::LEFT_CENTER,
+                    format!("FILES ({})", state.items.len()),
+                    egui::FontId::proportional(11.0),
+                    p.overlay0,
+                );
+                let btn_y = hdr_rect.center().y;
+                let add_rect = egui::Rect::from_center_size(
+                    egui::pos2(hdr_rect.right() - 40.0, btn_y),
+                    egui::vec2(24.0, 20.0),
+                );
+                let add_resp = ui.interact(add_rect, ui.id().with("sb_add"), egui::Sense::click());
+                let add_fill = if add_resp.hovered() { p.surface1 } else { Color32::TRANSPARENT };
+                ui.painter().rect(add_rect, egui::CornerRadius::same(4), add_fill, egui::Stroke::NONE, egui::StrokeKind::Inside);
+                ui.painter().text(add_rect.center(), egui::Align2::CENTER_CENTER, "＋", egui::FontId::proportional(14.0), p.subtext0);
+                if add_resp.clicked() {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        let files: Vec<eframe::egui::DroppedFile> = rfd::FileDialog::new()
+                            .pick_files()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|p| eframe::egui::DroppedFile { path: Some(p), ..Default::default() })
+                            .collect();
+                        if !files.is_empty() {
+                            let new_items: Vec<SidebarItem> = crate::image_viewer::utils::process_images(&files).into_iter().map(SidebarItem::Image).collect();
+                            state.items.extend(new_items);
+                            if state.selected_index.is_none() {
+                                if let Some(SidebarItem::Image(img)) = state.items.first().cloned() {
+                                    state.current_image = Some(img);
+                                    state.selected_index = Some(0);
+                                }
+                            }
+                        }
+                    }
+                }
+                let clr_rect = egui::Rect::from_center_size(
+                    egui::pos2(hdr_rect.right() - 16.0, btn_y),
+                    egui::vec2(24.0, 20.0),
+                );
+                let clr_resp = ui.interact(clr_rect, ui.id().with("sb_clear"), egui::Sense::click());
+                let clr_fill = if clr_resp.hovered() { p.surface1 } else { Color32::TRANSPARENT };
+                ui.painter().rect(clr_rect, egui::CornerRadius::same(4), clr_fill, egui::Stroke::NONE, egui::StrokeKind::Inside);
+                ui.painter().text(clr_rect.center(), egui::Align2::CENTER_CENTER, "✕", egui::FontId::proportional(12.0), p.red);
+                if clr_resp.clicked() {
                     state.items.clear();
                     reset_callback(state);
                 }
-            });
+            }
+
             ui.separator();
+
             egui::ScrollArea::vertical().show(ui, |ui| {
                 for (index, item) in state.items.clone().iter().enumerate() {
                     draw_sidebar_item(ui, state, index, item);
                 }
             });
         });
-    }
 }
 
 fn draw_sidebar_item(
@@ -90,16 +134,20 @@ fn draw_sidebar_item(
         );
         match item {
             SidebarItem::Image(image_item) => {
-                ui.allocate_ui_with_layout(
-                    thumb_rect.size(),
-                    egui::Layout::centered_and_justified(egui::Direction::TopDown),
-                    |ui| {
-                        let mut plotter = ImagePlotter::new(format!("thumb{}", index))
-                            .anti_alias(state.context.anti_alias)
-                            .show_grid(false)
-                            .show_only(true);
-                        plotter.show(ui, &Some(image_item.clone()));
+                let tex = ui.ctx().load_texture(
+                    format!("sb_thumb_{}", index),
+                    egui::ColorImage {
+                        size: [image_item.width as usize, image_item.height as usize],
+                        source_size: egui::vec2(image_item.width as f32, image_item.height as f32),
+                        pixels: image_item.image_data.clone(),
                     },
+                    egui::TextureOptions::LINEAR,
+                );
+                ui.painter().image(
+                    tex.id(),
+                    thumb_rect,
+                    egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                    egui::Color32::WHITE,
                 );
             }
             SidebarItem::Glyph(g) => {
