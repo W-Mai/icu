@@ -172,7 +172,7 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
     };
 
     egui::Panel::left("font_left").show(ui, |ui| {
-        ui.heading("Font");
+        ui.add_space(4.0);
         match font_data {
             FontData::Mirx(font) => {
                 show_mirx_metadata(ui, font);
