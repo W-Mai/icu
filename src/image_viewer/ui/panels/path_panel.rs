@@ -15,7 +15,8 @@ pub fn draw_path_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
         crate::image_viewer::ui::widgets::section_card(ui, "Scene", |ui| {
             crate::image_viewer::ui::widgets::info_row(ui, "Ops", &scene_data.scene.ops.len().to_string());
         });
-        ui.separator();
+        ui.add_space(4.0);
+        crate::image_viewer::ui::widgets::section_card(ui, "Export", |ui| {
         if ui.button("Export PNG").clicked() {
             let (w, h) =
                 icu_lib::endecoder::mirui::scene_render::scene_dimensions(&scene_data.scene)
@@ -43,6 +44,7 @@ pub fn draw_path_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                 let _ = std::fs::write(&path, bytes);
             }
         }
+        });
         ui.separator();
         egui::ScrollArea::vertical().show(ui, |ui| {
             for (i, op) in scene_data.scene.ops.iter().enumerate() {
