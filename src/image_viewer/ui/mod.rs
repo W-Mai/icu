@@ -85,6 +85,48 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                     }
                 }
             }
+
+            if let Some(icu_lib::midata::MiData::FONT(font_data)) = &img.midata {
+                ui.add_space(8.0);
+                match font_data {
+                    icu_lib::midata::FontData::Mirx(font) => {
+                        widgets::section_card(ui, "Font Metadata", |ui| {
+                            widgets::info_row(ui, "Kind", &format!("{:?}", font.chunk_header.kind));
+                            widgets::info_row(ui, "Source Size", &font.atlas.source_size.to_string());
+                            widgets::info_row(ui, "Bit Depth", &font.atlas.bit_depth.to_string());
+                            widgets::info_row(ui, "Glyphs", &font.atlas.glyph_count.to_string());
+                            widgets::info_row(ui, "Ascender", &font.atlas.ascender.to_string());
+                            widgets::info_row(ui, "Descender", &font.atlas.descender.to_string());
+                            widgets::info_row(ui, "Line Height", &font.atlas.line_height.to_string());
+                        });
+                    }
+                    icu_lib::midata::FontData::MirxBundle(fonts) => {
+                        widgets::section_card(ui, "Font Bundle", |ui| {
+                            widgets::info_row(ui, "Fonts", &fonts.len().to_string());
+                        });
+                    }
+                    icu_lib::midata::FontData::FreeType(f) => {
+                        widgets::section_card(ui, "FreeType Metadata", |ui| {
+                            widgets::info_row(ui, "Family", &f.family);
+                            widgets::info_row(ui, "Style", &f.style);
+                            widgets::info_row(ui, "Units/em", &f.units_per_em.to_string());
+                            widgets::info_row(ui, "Ascender", &f.ascender.to_string());
+                            widgets::info_row(ui, "Descender", &f.descender.to_string());
+                            widgets::info_row(ui, "Line Height", &f.line_height.to_string());
+                            widgets::info_row(ui, "Glyphs", &format!("{} / {}", f.glyphs.len(), f.glyph_count));
+                        });
+                    }
+                }
+            }
+
+            if let Some(icu_lib::midata::MiData::INDEXED(indexed)) = &img.midata {
+                ui.add_space(8.0);
+                widgets::section_card(ui, "Indexed Info", |ui| {
+                    widgets::info_row(ui, "BPP", &indexed.bpp.to_string());
+                    widgets::info_row(ui, "Palette", &indexed.palette.len().to_string());
+                    widgets::info_row(ui, "Size", &format!("{}×{}", indexed.width, indexed.height));
+                });
+            }
         }
         SidebarItem::Glyph(g) => {
             widgets::section_card(ui, "Glyph Properties", |ui| {
