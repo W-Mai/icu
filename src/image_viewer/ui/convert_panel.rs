@@ -206,13 +206,5 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
 }
 
 fn draw_section_frame(ui: &mut egui::Ui, title: &str, add_contents: impl FnOnce(&mut egui::Ui)) {
-    egui::containers::Frame::default()
-        .inner_margin(8.0)
-        .corner_radius(4.0)
-        .stroke(ui.style().visuals.widgets.noninteractive.bg_stroke)
-        .show(ui, |ui| {
-            ui.label(egui::RichText::new(title).strong());
-            ui.add_space(4.0);
-            add_contents(ui);
-        });
+    widgets::section_card(ui, title, add_contents);
 }
