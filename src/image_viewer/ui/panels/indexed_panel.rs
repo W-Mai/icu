@@ -35,10 +35,11 @@ pub fn draw_indexed_panel(
     let mut hovered_palette: Option<u8> = None;
 
     egui::Panel::left("indexed_left").show(ui, |ui| {
-        ui.heading("Indexed");
-        ui.label(format!("bpp: {}", indexed.bpp));
-        ui.label(format!("palette: {}", indexed.palette.len()));
-        ui.label(format!("size: {}x{}", indexed.width, indexed.height));
+        crate::image_viewer::ui::widgets::section_card(ui, "Indexed Info", |ui| {
+            crate::image_viewer::ui::widgets::info_row(ui, "BPP", &indexed.bpp.to_string());
+            crate::image_viewer::ui::widgets::info_row(ui, "Palette", &indexed.palette.len().to_string());
+            crate::image_viewer::ui::widgets::info_row(ui, "Size", &format!("{}×{}", indexed.width, indexed.height));
+        });
         ui.separator();
         let prev_quality = state.indexed_show_quality;
         ui.checkbox(&mut state.indexed_show_quality, "Quality view");

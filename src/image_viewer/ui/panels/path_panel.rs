@@ -12,8 +12,9 @@ pub fn draw_path_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
     let scene_data = scene_data.clone();
 
     egui::Panel::left("path_left").show(ui, |ui| {
-        ui.heading("Scene");
-        ui.label(format!("ops: {}", scene_data.scene.ops.len()));
+        crate::image_viewer::ui::widgets::section_card(ui, "Scene", |ui| {
+            crate::image_viewer::ui::widgets::info_row(ui, "Ops", &scene_data.scene.ops.len().to_string());
+        });
         ui.separator();
         if ui.button("Export PNG").clicked() {
             let (w, h) =
