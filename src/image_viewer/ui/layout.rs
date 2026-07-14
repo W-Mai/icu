@@ -8,6 +8,10 @@ pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.set_height(30.0);
 
+            let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+            ui.label(egui::RichText::new("ICU").size(14.0).color(p.accent()).strong());
+            ui.separator();
+
             if ui.button("📂 Open").clicked() {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
