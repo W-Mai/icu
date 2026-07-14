@@ -108,7 +108,7 @@ impl<'a> ImagePlotter<'a> {
                 let cursor_pos_2 = cursor_pos.clone();
 
                 let mut plot = egui_plot::Plot::new(format!("plot{}", self.id))
-                    .set_margin_fraction(egui::Vec2::ZERO)
+                    .data_aspect(1.0)
                     .y_axis_formatter(move |y, _| format!("{:.0}", -y.value))
                     .label_formatter(move |hover| {
                         let pos = match hover {
