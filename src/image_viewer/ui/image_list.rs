@@ -10,7 +10,10 @@ pub fn draw_left_panel(
 ) {
     if state.items.len() > 1 {
         let frame = crate::image_viewer::ui::theme::side_panel_frame(ui.ctx());
-        egui::Panel::left("ImagePicker").frame(frame).show(ui, |ui| {
+        egui::Panel::left("ImagePicker")
+            .exact_size(260.0)
+            .frame(frame)
+            .show(ui, |ui| {
             ui.separator();
             ui.horizontal_wrapped(|ui| {
                 if ui
