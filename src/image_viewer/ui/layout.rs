@@ -39,8 +39,8 @@ pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
             egui::widgets::global_theme_preference_switch(ui);
 
             ui.separator();
-            ui.toggle_value(&mut state.context.show_grid, t!("show_grid"));
-            ui.toggle_value(&mut state.context.anti_alias, t!("anti_aliasing"));
+            crate::image_viewer::ui::widgets::toggle_labeled(ui, t!("show_grid"), &mut state.context.show_grid);
+            crate::image_viewer::ui::widgets::toggle_labeled(ui, t!("anti_aliasing"), &mut state.context.anti_alias);
 
             ui.separator();
             if ui.button(t!("clear")).clicked() {

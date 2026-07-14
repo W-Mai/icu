@@ -1,4 +1,4 @@
-use crate::cus_component::toggle;
+use crate::image_viewer::ui::widgets;
 use crate::image_viewer::model::{DiffSorting, ViewerState};
 use clap::ValueEnum;
 use eframe::egui;
@@ -33,10 +33,7 @@ pub fn draw_diff_panel_contents(ui: &mut egui::Ui, state: &mut ViewerState) {
 
 /// Draws the control sliders and toggles for the difference view.
 fn draw_diff_panel_controls(ui: &mut egui::Ui, state: &mut ViewerState) {
-    ui.add(toggle(
-        t!("only_show_diff_area"),
-        &mut state.context.only_show_diff,
-    ));
+    widgets::toggle_labeled(ui, t!("only_show_diff_area"), &mut state.context.only_show_diff);
     ui.add(
         egui::Slider::new(
             &mut state.context.diff_tolerance,
@@ -301,7 +298,7 @@ fn draw_diff_blend_settings(ui: &mut egui::Ui, state: &mut ViewerState) {
 
             draw_blend_preset_buttons(ui, state, diff_blend_slider.interact_rect.width());
 
-            ui.add(toggle(t!("fast_switch"), &mut state.context.fast_switch));
+            widgets::toggle_labeled(ui, t!("fast_switch"), &mut state.context.fast_switch);
             if state.context.fast_switch {
                 ui.add(
                     egui::Slider::new(&mut state.context.fast_switch_speed, 0.5..=10.0)

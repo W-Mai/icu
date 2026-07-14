@@ -1,4 +1,4 @@
-use crate::cus_component::toggle;
+use crate::image_viewer::ui::widgets;
 use crate::image_viewer::model::{
     ImageFormat, LvglColorFormat, LvglCompression, LvglVersion, ViewerState,
 };
@@ -93,7 +93,7 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                     ui.end_row();
 
                     ui.label(t!("dither"));
-                    ui.add(toggle("", &mut state.context.convert_params.dither));
+                    widgets::toggle(ui, &mut state.context.convert_params.dither);
                     ui.end_row();
                 });
         });
@@ -139,7 +139,7 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                     ui.end_row();
 
                     ui.label(t!("dither"));
-                    ui.add(toggle("", &mut state.context.convert_params.dither));
+                    widgets::toggle(ui, &mut state.context.convert_params.dither);
                     ui.end_row();
                 });
 
