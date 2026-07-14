@@ -83,13 +83,15 @@ fn selected_mirx_font<'a>(
 }
 
 fn show_mirx_metadata(ui: &mut egui::Ui, font: &icu_lib::mirx::Font) {
-    ui.label(format!("kind: {:?}", font.chunk_header.kind));
-    ui.label(format!("source_size: {}", font.atlas.source_size));
-    ui.label(format!("bit_depth: {}", font.atlas.bit_depth));
-    ui.label(format!("glyphs: {}", font.atlas.glyph_count));
-    ui.label(format!("ascender: {}", font.atlas.ascender));
-    ui.label(format!("descender: {}", font.atlas.descender));
-    ui.label(format!("line_height: {}", font.atlas.line_height));
+    crate::image_viewer::ui::widgets::section_card(ui, "Font Metadata", |ui| {
+        crate::image_viewer::ui::widgets::info_row(ui, "Kind", &format!("{:?}", font.chunk_header.kind));
+        crate::image_viewer::ui::widgets::info_row(ui, "Source Size", &font.atlas.source_size.to_string());
+        crate::image_viewer::ui::widgets::info_row(ui, "Bit Depth", &font.atlas.bit_depth.to_string());
+        crate::image_viewer::ui::widgets::info_row(ui, "Glyphs", &font.atlas.glyph_count.to_string());
+        crate::image_viewer::ui::widgets::info_row(ui, "Ascender", &font.atlas.ascender.to_string());
+        crate::image_viewer::ui::widgets::info_row(ui, "Descender", &font.atlas.descender.to_string());
+        crate::image_viewer::ui::widgets::info_row(ui, "Line Height", &font.atlas.line_height.to_string());
+    });
 }
 
 fn reset_font_caches(state: &mut crate::image_viewer::model::ViewerState) {
@@ -390,13 +392,15 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                 }
             }
             FontData::FreeType(f) => {
-                ui.label(format!("family: {}", f.family));
-                ui.label(format!("style: {}", f.style));
-                ui.label(format!("units_per_em: {}", f.units_per_em));
-                ui.label(format!("ascender: {}", f.ascender));
-                ui.label(format!("descender: {}", f.descender));
-                ui.label(format!("line_height: {}", f.line_height));
-                ui.label(format!("glyphs: {} / {}", f.glyphs.len(), f.glyph_count));
+                crate::image_viewer::ui::widgets::section_card(ui, "FreeType Metadata", |ui| {
+                    crate::image_viewer::ui::widgets::info_row(ui, "Family", &f.family);
+                    crate::image_viewer::ui::widgets::info_row(ui, "Style", &f.style);
+                    crate::image_viewer::ui::widgets::info_row(ui, "Units/em", &f.units_per_em.to_string());
+                    crate::image_viewer::ui::widgets::info_row(ui, "Ascender", &f.ascender.to_string());
+                    crate::image_viewer::ui::widgets::info_row(ui, "Descender", &f.descender.to_string());
+                    crate::image_viewer::ui::widgets::info_row(ui, "Line Height", &f.line_height.to_string());
+                    crate::image_viewer::ui::widgets::info_row(ui, "Glyphs", &format!("{} / {}", f.glyphs.len(), f.glyph_count));
+                });
                 ui.separator();
                 ui.label("Bake to mirx:");
                 ui.horizontal(|ui| {
