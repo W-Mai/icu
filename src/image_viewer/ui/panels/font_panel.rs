@@ -743,8 +743,27 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                         .num_columns(cols)
                         .spacing([2.0, 2.0])
                         .show(ui, |ui| {
+                            let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
                             for (i, tex) in handles.iter().enumerate() {
-                                let resp = ui.add(egui::Button::image(egui::load::SizedTexture::new(tex.id(), [cell; 2])));
+                                let is_sel = state.selected_glyph == Some(i);
+                                let is_opened = state.opened_glyphs.iter().any(|og| {
+                                    let cp = match font_data {
+                                        FontData::FreeType(f) => f.glyphs.get(i).map(|g| g.codepoint),
+                                        FontData::Mirx(font) => font.metrics.get(i).map(|m| m.codepoint),
+                                        FontData::MirxBundle(fonts) => fonts.get(state.font_bundle_index).or_else(|| fonts.first()).and_then(|font| font.metrics.get(i)).map(|m| m.codepoint),
+                                    };
+                                    cp == Some(og.codepoint)
+                                });
+                                let btn = egui::Button::image(egui::load::SizedTexture::new(tex.id(), [cell; 2]))
+                                    .corner_radius(egui::CornerRadius::same(2))
+                                    .stroke(if is_sel {
+                                        egui::Stroke::new(2.0, p.accent())
+                                    } else if is_opened {
+                                        egui::Stroke::new(1.0, p.peach)
+                                    } else {
+                                        egui::Stroke::new(1.0, p.surface0)
+                                    });
+                                let resp = ui.add(btn);
                                 if resp.clicked() {
                                     state.selected_glyph = Some(i);
                                 }
@@ -756,8 +775,8 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                                         state.font_mode = FontMode::Vector;
                                     }
                                 }
-                                if state.selected_glyph == Some(i) {
-                                    ui.painter().rect_stroke(resp.rect, egui::CornerRadius::same(0), egui::Stroke::new(2.0, egui::Color32::CYAN), egui::StrokeKind::Outside);
+                                if is_sel {
+                                    ui.painter().rect_filled(resp.rect.expand(2.0), egui::CornerRadius::same(3), p.accent_dim());
                                 }
                                 if (i + 1) % cols == 0 {
                                     ui.end_row();
