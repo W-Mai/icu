@@ -1008,9 +1008,9 @@ fn draw_glyph_vector_view(
     let ch = char::from_u32(codepoint).unwrap_or('?');
 
     let available = ui.available_size();
-    let canvas_h = available.y.max(200.0);
+    let canvas_h = (available.y - 32.0).max(200.0);
     let (canvas_rect, _) =
-        ui.allocate_exact_size(egui::vec2(available.x, canvas_h), egui::Sense::hover());
+        ui.allocate_exact_size(egui::vec2(available.x - 32.0, canvas_h), egui::Sense::hover());
 
     let (min_x, min_y) = (bx.min(0) - 4, by.min(0) - 4);
     let (max_x, max_y) = (bx + bw + 4, by + bh + 4);
