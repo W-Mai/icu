@@ -22,11 +22,17 @@ pub fn draw_right_panel_container(ui: &mut egui::Ui, state: &mut ViewerState) {
         .resizable(true)
         .frame(frame)
         .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                let tabs = [(RightTab::Info, "Info"), (RightTab::Convert, "Convert"), (RightTab::Diff, "Diff")];
-                widgets::mode_tabs(ui, &mut state.context.right_tab, &tabs);
-            });
-            ui.separator();
+            let p = theme::tokens::palette(ui.ctx());
+            egui::Frame::new()
+                .fill(p.surface0)
+                .stroke(egui::Stroke::new(1.0, p.surface1))
+                .inner_margin(egui::Margin { left: 8, right: 8, top: 4, bottom: 4 })
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        let tabs = [(RightTab::Info, "Info"), (RightTab::Convert, "Convert"), (RightTab::Diff, "Diff")];
+                        widgets::mode_tabs(ui, &mut state.context.right_tab, &tabs);
+                    });
+                });
 
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
