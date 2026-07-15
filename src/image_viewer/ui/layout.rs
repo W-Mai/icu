@@ -62,23 +62,20 @@ pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
                 egui::Layout::right_to_left(egui::Align::Center),
                 |ui| {
                     use crate::image_viewer::model::RightTab;
-                    let diff_active = state.context.diff_active;
-                    if ui
-                        .toggle_value(&mut state.context.diff_active, t!("image_diff"))
-                        .clicked()
-                        && state.context.diff_active
+                    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+                    if crate::image_viewer::ui::widgets::button_opts(ui, t!("image_diff").as_ref(), crate::image_viewer::ui::widgets::ButtonOpts { active: state.context.diff_active, ..Default::default() }).clicked()
+                        && !state.context.diff_active
                     {
+                        state.context.diff_active = true;
                         state.context.right_tab = RightTab::Diff;
                     }
-                    let mut convert_active = state.context.right_tab == RightTab::Convert;
-                    if ui
-                        .toggle_value(&mut convert_active, t!("convert_panel"))
-                        .clicked()
-                        && convert_active
+                    let convert_active = state.context.right_tab == RightTab::Convert;
+                    if crate::image_viewer::ui::widgets::button_opts(ui, t!("convert_panel").as_ref(), crate::image_viewer::ui::widgets::ButtonOpts { active: convert_active, ..Default::default() }).clicked()
+                        && !convert_active
                     {
                         state.context.right_tab = RightTab::Convert;
                     }
-                    let _ = diff_active;
+                    let _ = p;
                 },
             );
         });
