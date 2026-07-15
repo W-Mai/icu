@@ -1156,16 +1156,23 @@ fn draw_glyph_vector_view(
         );
     });
     crate::image_viewer::ui::widgets::section_card(ui, "Glyph Metrics", |ui| {
-        crate::image_viewer::ui::widgets::info_row(ui, "Codepoint", &format!("U+{:04X}", codepoint));
-        crate::image_viewer::ui::widgets::info_row(ui, "Advance", &format!("{}px", advance));
-        crate::image_viewer::ui::widgets::info_row(ui, "Bearing", &format!("({}, {})", bearing_x, bearing_y));
-        crate::image_viewer::ui::widgets::info_row(ui, "BBox", &format!("({}, {}, {}, {})", bx, by, bw, bh));
-        crate::image_viewer::ui::widgets::info_row(ui, "Outline cmds", &format!("{}", outline.len()));
-        crate::image_viewer::ui::widgets::info_row(
-            ui,
-            "Source",
-            if approximate { "atlas (approximate)" } else { "FreeType (true vector)" },
-        );
+        egui::Grid::new("glyph_metrics_grid")
+            .num_columns(2)
+            .spacing([16.0, 4.0])
+            .show(ui, |ui| {
+                let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+                let row = |ui: &mut egui::Ui, label: &str, value: &str| {
+                    ui.label(egui::RichText::new(label).size(11.0).color(p.overlay0));
+                    ui.label(egui::RichText::new(value).size(11.0).color(p.text).family(egui::FontFamily::Monospace));
+                    ui.end_row();
+                };
+                row(ui, "Codepoint", &format!("U+{:04X}", codepoint));
+                row(ui, "Advance", &format!("{}px", advance));
+                row(ui, "Bearing", &format!("({}, {})", bearing_x, bearing_y));
+                row(ui, "BBox", &format!("({}, {}, {}, {})", bx, by, bw, bh));
+                row(ui, "Outline cmds", &format!("{}", outline.len()));
+                row(ui, "Source", if approximate { "atlas (approximate)" } else { "FreeType (true vector)" });
+            });
     });
 }
 
