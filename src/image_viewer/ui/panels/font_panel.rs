@@ -171,9 +171,14 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
         out
     };
 
-    egui::Panel::left("font_left").show(ui, |ui| {
-        ui.add_space(4.0);
-        match font_data {
+    let frame = crate::image_viewer::ui::theme::side_panel_frame(ui.ctx());
+    egui::Panel::left("font_left").default_size(260.0).frame(frame).show(ui, |ui| {
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 8.0;
+                ui.add_space(4.0);
+                match font_data {
             FontData::Mirx(font) => {
                 show_mirx_metadata(ui, font);
                 ui.add_space(4.0);
@@ -517,6 +522,7 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                 });
             }
         }
+            });
     });
 
     egui::CentralPanel::default().show(ui, |ui| {

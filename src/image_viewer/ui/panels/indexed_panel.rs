@@ -34,7 +34,13 @@ pub fn draw_indexed_panel(
 
     let mut hovered_palette: Option<u8> = None;
 
-    egui::Panel::left("indexed_left").show(ui, |ui| {
+    let frame = crate::image_viewer::ui::theme::side_panel_frame(ui.ctx());
+    egui::Panel::left("indexed_left").default_size(260.0).frame(frame).show(ui, |ui| {
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 8.0;
+                ui.add_space(4.0);
         crate::image_viewer::ui::widgets::section_card(ui, "Indexed Info", |ui| {
             crate::image_viewer::ui::widgets::info_row(ui, "BPP", &indexed.bpp.to_string());
             crate::image_viewer::ui::widgets::info_row(ui, "Palette", &indexed.palette.len().to_string());
@@ -124,6 +130,7 @@ pub fn draw_indexed_panel(
             }
         }
         });
+            });
     });
 
     egui::CentralPanel::default().show(ui, |ui| {

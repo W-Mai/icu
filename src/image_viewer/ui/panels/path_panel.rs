@@ -11,7 +11,13 @@ pub fn draw_path_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
     };
     let scene_data = scene_data.clone();
 
-    egui::Panel::left("path_left").show(ui, |ui| {
+    let frame = crate::image_viewer::ui::theme::side_panel_frame(ui.ctx());
+    egui::Panel::left("path_left").default_size(260.0).frame(frame).show(ui, |ui| {
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 8.0;
+                ui.add_space(4.0);
         crate::image_viewer::ui::widgets::section_card(ui, "Scene", |ui| {
             crate::image_viewer::ui::widgets::info_row(ui, "Ops", &scene_data.scene.ops.len().to_string());
         });
@@ -60,6 +66,7 @@ pub fn draw_path_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                 }
             }
         });
+            });
     });
 
     egui::CentralPanel::default().show(ui, |ui| {
