@@ -71,8 +71,10 @@ pub fn draw_left_panel(
             ui.separator();
 
             egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.allocate_space(egui::vec2(4.0, 0.0));
                 for (index, item) in state.items.clone().iter().enumerate() {
                     draw_sidebar_item(ui, state, index, item);
+                    ui.add_space(2.0);
                 }
             });
         });

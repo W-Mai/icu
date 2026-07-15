@@ -36,16 +36,16 @@ pub fn draw_right_panel_container(ui: &mut egui::Ui, state: &mut ViewerState) {
 
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
-                .show(ui, |ui| match state.context.right_tab {
-                    RightTab::Info => {
-                        draw_info_tab(ui, state);
-                    }
-                    RightTab::Convert => {
-                        convert_panel::draw_convert_options(ui, state);
-                    }
-                    RightTab::Diff => {
-                        diff_panel::draw_diff_panel_contents(ui, state);
-                    }
+                .show(ui, |ui| {
+                    ui.spacing_mut().item_spacing.y = 8.0;
+                    ui.allocate_space(egui::vec2(12.0, 0.0));
+                    egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
+                        match state.context.right_tab {
+                            RightTab::Info => draw_info_tab(ui, state),
+                            RightTab::Convert => convert_panel::draw_convert_options(ui, state),
+                            RightTab::Diff => diff_panel::draw_diff_panel_contents(ui, state),
+                        }
+                    });
                 });
         });
 }
