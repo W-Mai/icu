@@ -63,13 +63,20 @@ pub fn draw_path_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
     });
 
     egui::CentralPanel::default().show(ui, |ui| {
-        ui.horizontal(|ui| {
-            crate::image_viewer::ui::widgets::mode_tabs(
-                ui,
-                &mut state.path_mode,
-                &[(crate::image_viewer::model::PathMode::Preview, "Preview")],
-            );
-        });
+        let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+        egui::Frame::new()
+            .fill(p.mantle)
+            .stroke(egui::Stroke::new(1.0, p.surface0))
+            .inner_margin(egui::Margin { left: 8, right: 8, top: 4, bottom: 4 })
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    crate::image_viewer::ui::widgets::mode_tabs(
+                        ui,
+                        &mut state.path_mode,
+                        &[(crate::image_viewer::model::PathMode::Preview, "Preview")],
+                    );
+                });
+            });
         ui.separator();
 
         let highlight = if let Some(idx) = state.selected_op {

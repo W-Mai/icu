@@ -127,6 +127,14 @@ fn draw_sidebar_item(
             ui.painter().rect_filled(rect, egui::CornerRadius::same(4), fill);
         }
 
+        if let SidebarItem::Glyph(_) = item {
+            let bar = egui::Rect::from_min_size(
+                egui::pos2(rect.left() + 1.0, rect.top() + 4.0),
+                egui::vec2(2.0, rect.height() - 8.0),
+            );
+            ui.painter().rect_filled(bar, egui::CornerRadius::same(0), p.peach);
+        }
+
         let thumb_size = 36.0;
         let thumb_rect = egui::Rect::from_min_size(
             egui::pos2(rect.left() + 6.0, rect.center().y - thumb_size / 2.0),
@@ -134,6 +142,8 @@ fn draw_sidebar_item(
         );
         match item {
             SidebarItem::Image(image_item) => {
+                ui.painter().rect_filled(thumb_rect, egui::CornerRadius::same(4), p.surface0);
+                ui.painter().rect_stroke(thumb_rect, egui::CornerRadius::same(4), egui::Stroke::new(1.0, p.surface1), egui::StrokeKind::Inside);
                 let tex = ui.ctx().load_texture(
                     format!("sb_thumb_{}", index),
                     egui::ColorImage {
@@ -143,9 +153,14 @@ fn draw_sidebar_item(
                     },
                     egui::TextureOptions::LINEAR,
                 );
+                let img_aspect = image_item.width as f32 / image_item.height as f32;
+                let inner = thumb_rect.shrink(2.0);
+                let draw_h = inner.height();
+                let draw_w = draw_h * img_aspect;
+                let img_rect = egui::Rect::from_center_size(inner.center(), egui::vec2(draw_w.min(inner.width()), draw_h));
                 ui.painter().image(
                     tex.id(),
-                    thumb_rect,
+                    img_rect,
                     egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
                     egui::Color32::WHITE,
                 );
@@ -156,6 +171,7 @@ fn draw_sidebar_item(
                     egui::CornerRadius::same(4),
                     p.surface0,
                 );
+                ui.painter().rect_stroke(thumb_rect, egui::CornerRadius::same(4), egui::Stroke::new(1.0, p.surface1), egui::StrokeKind::Inside);
                 ui.painter().text(
                     thumb_rect.center(),
                     egui::Align2::CENTER_CENTER,
