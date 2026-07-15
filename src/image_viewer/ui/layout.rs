@@ -93,12 +93,15 @@ pub fn draw_bottom_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
         use egui::special_emojis::GITHUB;
 
         ui.horizontal_wrapped(|ui| {
-            ui.label(format!("v{VERSION}"));
+            let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+            let small = |text: &str| egui::RichText::new(text).size(11.0).color(p.overlay0);
+
+            ui.label(small(&format!("v{VERSION}")));
             ui.separator();
-            ui.label(format!(
+            ui.label(small(&format!(
                 "{} files",
                 state.items.iter().filter(|i| matches!(i, crate::image_viewer::model::SidebarItem::Image(_))).count()
-            ));
+            )));
             if let Some(idx) = state.selected_index {
                 if let Some(item) = state.items.get(idx) {
                     let name = match item {
@@ -111,16 +114,16 @@ pub fn draw_bottom_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
                         crate::image_viewer::model::SidebarItem::Glyph(g) => g.name.clone(),
                     };
                     ui.separator();
-                    ui.label(name);
+                    ui.label(small(&name));
                 }
             }
             ui.separator();
             crate::image_viewer::ui::widgets::kbd(ui, "⌘O");
-            ui.label("Open");
+            ui.label(small("Open"));
             crate::image_viewer::ui::widgets::kbd(ui, "⌘D");
-            ui.label("Diff");
+            ui.label(small("Diff"));
             crate::image_viewer::ui::widgets::kbd(ui, "⌘E");
-            ui.label("Export");
+            ui.label(small("Export"));
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 egui::ComboBox::from_id_salt("Language")
