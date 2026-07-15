@@ -201,7 +201,7 @@ fn draw_sidebar_item(
         let badge_galley = ui.painter().layout_no_wrap(
             badge_text.to_string(),
             egui::FontId::proportional(9.0),
-            Color32::TRANSPARENT,
+            p.base,
         );
         let badge_w = badge_galley.size().x + 10.0;
         let badge_h = badge_galley.size().y + 2.0;

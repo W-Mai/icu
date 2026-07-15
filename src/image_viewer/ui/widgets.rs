@@ -262,7 +262,7 @@ pub fn chip(ui: &mut Ui, text: &str, color: Color32) {
     let p = theme::tokens::palette(ui.ctx());
     let galley = ui
         .painter()
-        .layout_no_wrap(text.to_string(), FontId::proportional(9.0), Color32::TRANSPARENT);
+        .layout_no_wrap(text.to_string(), FontId::proportional(9.0), p.base);
     let pad_x = 5.0;
     let pad_y = 1.0;
     let desired = galley.size() + Vec2::new(2.0 * pad_x, 2.0 * pad_y);
@@ -312,7 +312,7 @@ pub fn kbd(ui: &mut Ui, key: &str) {
     let p = theme::tokens::palette(ui.ctx());
     let galley = ui
         .painter()
-        .layout_no_wrap(key.to_string(), FontId::monospace(10.0), Color32::TRANSPARENT);
+        .layout_no_wrap(key.to_string(), FontId::monospace(10.0), p.overlay0);
     let pad_x = 5.0;
     let pad_y = 1.0;
     let desired = galley.size() + Vec2::new(2.0 * pad_x, 2.0 * pad_y);
