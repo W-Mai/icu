@@ -1,4 +1,4 @@
-use crate::image_viewer::model::{BakeCharsetTab, FontMode};
+use crate::image_viewer::model::{BakeCharsetTab, FontMode, GlyphCanvasView};
 use crate::image_viewer::plotter::ImagePlotter;
 use eframe::egui;
 use eframe::egui::Color32;
@@ -84,13 +84,41 @@ fn selected_mirx_font<'a>(
 
 fn show_mirx_metadata(ui: &mut egui::Ui, font: &icu_lib::mirx::Font) {
     crate::image_viewer::ui::widgets::section_card(ui, "Font Metadata", |ui| {
-        crate::image_viewer::ui::widgets::info_row(ui, "Kind", &format!("{:?}", font.chunk_header.kind));
-        crate::image_viewer::ui::widgets::info_row(ui, "Source Size", &font.atlas.source_size.to_string());
-        crate::image_viewer::ui::widgets::info_row(ui, "Bit Depth", &font.atlas.bit_depth.to_string());
-        crate::image_viewer::ui::widgets::info_row(ui, "Glyphs", &font.atlas.glyph_count.to_string());
-        crate::image_viewer::ui::widgets::info_row(ui, "Ascender", &font.atlas.ascender.to_string());
-        crate::image_viewer::ui::widgets::info_row(ui, "Descender", &font.atlas.descender.to_string());
-        crate::image_viewer::ui::widgets::info_row(ui, "Line Height", &font.atlas.line_height.to_string());
+        crate::image_viewer::ui::widgets::info_row(
+            ui,
+            "Kind",
+            &format!("{:?}", font.chunk_header.kind),
+        );
+        crate::image_viewer::ui::widgets::info_row(
+            ui,
+            "Source Size",
+            &font.atlas.source_size.to_string(),
+        );
+        crate::image_viewer::ui::widgets::info_row(
+            ui,
+            "Bit Depth",
+            &font.atlas.bit_depth.to_string(),
+        );
+        crate::image_viewer::ui::widgets::info_row(
+            ui,
+            "Glyphs",
+            &font.atlas.glyph_count.to_string(),
+        );
+        crate::image_viewer::ui::widgets::info_row(
+            ui,
+            "Ascender",
+            &font.atlas.ascender.to_string(),
+        );
+        crate::image_viewer::ui::widgets::info_row(
+            ui,
+            "Descender",
+            &font.atlas.descender.to_string(),
+        );
+        crate::image_viewer::ui::widgets::info_row(
+            ui,
+            "Line Height",
+            &font.atlas.line_height.to_string(),
+        );
     });
 }
 
@@ -102,46 +130,81 @@ fn reset_font_caches(state: &mut crate::image_viewer::model::ViewerState) {
     state.selected_glyph = None;
 }
 
-pub fn draw_glyph_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
+fn selected_opened_glyph(
+    state: &crate::image_viewer::model::ViewerState,
+) -> Option<crate::image_viewer::model::OpenedGlyph> {
     use crate::image_viewer::model::SidebarItem;
     let idx = match state.selected_index {
         Some(i) => i,
-        None => return,
+        None => return None,
     };
-    let glyph = match state.items.get(idx) {
-        Some(SidebarItem::Glyph(g)) => g.clone(),
-        _ => return,
-    };
-
-    egui::CentralPanel::default().show(ui, |ui| {
-        ui.horizontal(|ui| {
-            ui.label(
-                egui::RichText::new(format!(
-                    "{} · U+{:04X} · {} path cmds",
-                    glyph.char_repr,
-                    glyph.codepoint,
-                    glyph.outline.len()
-                ))
-                .size(11.0)
-                .color(ui.style().visuals.weak_text_color()),
-            );
-        });
-        ui.separator();
-
-        draw_glyph_vector_view(
-            ui,
-            glyph.codepoint,
-            glyph.advance,
-            glyph.bearing.0,
-            glyph.bearing.1,
-            glyph.bbox,
-            &glyph.outline,
-            glyph.outline_approximate,
-        );
-    });
+    match state.items.get(idx) {
+        Some(SidebarItem::Glyph(g)) => Some(g.clone()),
+        _ => None,
+    }
 }
 
-pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
+pub fn draw_glyph_side(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
+    let Some(glyph) = selected_opened_glyph(state) else {
+        return;
+    };
+
+    ui.label(
+        egui::RichText::new(format!(
+            "{} · U+{:04X} · {} path cmds",
+            glyph.char_repr,
+            glyph.codepoint,
+            glyph.outline.len()
+        ))
+        .size(11.0)
+        .color(ui.style().visuals.weak_text_color()),
+    );
+    ui.add_space(4.0);
+    glyph_metrics_card(
+        ui,
+        glyph.codepoint,
+        glyph.advance,
+        glyph.bearing.0,
+        glyph.bearing.1,
+        glyph.bbox,
+        glyph.outline.len(),
+        glyph.outline_approximate,
+    );
+}
+
+pub fn draw_glyph_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
+    let Some(glyph) = selected_opened_glyph(state) else {
+        return;
+    };
+
+    ui.horizontal(|ui| {
+        ui.label(
+            egui::RichText::new(format!(
+                "{} · U+{:04X} · {} path cmds",
+                glyph.char_repr,
+                glyph.codepoint,
+                glyph.outline.len()
+            ))
+            .size(11.0)
+            .color(ui.style().visuals.weak_text_color()),
+        );
+    });
+    ui.separator();
+
+    draw_glyph_vector_view(
+        ui,
+        glyph.codepoint,
+        glyph.advance,
+        glyph.bearing.0,
+        glyph.bearing.1,
+        glyph.bbox,
+        &glyph.outline,
+        glyph.outline_approximate,
+        &mut state.glyph_canvas_view,
+    );
+}
+
+pub fn draw_font_side(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
     let ctx = ui.ctx().clone();
     let Some(image) = state.current_image.clone() else {
         return;
@@ -151,7 +214,6 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
     };
 
     let fg = ctx.global_style().visuals.text_color();
-    let bg = ctx.global_style().visuals.panel_fill;
     let text_color = icu_lib::mirx::Color {
         r: fg.r(),
         g: fg.g(),
@@ -159,60 +221,47 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
         a: fg.a(),
     };
 
-    let tint_image = |img: &icu_lib::image::RgbaImage| -> icu_lib::image::RgbaImage {
-        let mut out = img.clone();
-        for px in out.pixels_mut() {
-            let a = px.0[3] as f32 / 255.0;
-            px.0[0] = (bg.r() as f32 * (1.0 - a) + fg.r() as f32 * a) as u8;
-            px.0[1] = (bg.g() as f32 * (1.0 - a) + fg.g() as f32 * a) as u8;
-            px.0[2] = (bg.b() as f32 * (1.0 - a) + fg.b() as f32 * a) as u8;
-            px.0[3] = 255;
-        }
-        out
-    };
-
-    let frame = crate::image_viewer::ui::theme::side_panel_frame(ui.ctx());
-    egui::Panel::left("font_left").default_size(260.0).frame(frame).show(ui, |ui| {
-        egui::ScrollArea::vertical()
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                ui.spacing_mut().item_spacing.y = 8.0;
-                ui.add_space(4.0);
-                match font_data {
-            FontData::Mirx(font) => {
-                show_mirx_metadata(ui, font);
-                ui.add_space(4.0);
-                crate::image_viewer::ui::widgets::section_card(ui, "Preview", |ui| {
-                    ui.text_edit_singleline(&mut state.font_preview_text);
-                    if ui.button("Render").clicked() {
-                        let img = icu_lib::endecoder::mirui::font_render::render_font_text(
-                            font,
-                            &state.font_preview_text,
-                            400,
-                            64,
-                            text_color,
-                        );
-                        state.font_rendered_preview = Some(img);
+    match font_data {
+        FontData::Mirx(font) => {
+            show_mirx_metadata(ui, font);
+            ui.add_space(4.0);
+            crate::image_viewer::ui::widgets::section_card(ui, "Preview", |ui| {
+                ui.text_edit_singleline(&mut state.font_preview_text);
+                if ui.button("Render").clicked() {
+                    let img = icu_lib::endecoder::mirui::font_render::render_font_text(
+                        font,
+                        &state.font_preview_text,
+                        400,
+                        64,
+                        text_color,
+                    );
+                    state.font_rendered_preview = Some(img);
+                }
+            });
+            ui.add_space(4.0);
+            crate::image_viewer::ui::widgets::section_card(ui, "Glyph Diff", |ui| {
+                if ui.button("Select font to diff...").clicked() {
+                    if let Some(path) =
+                        super::pick_file(&[("Font", &["ttf", "otf", "ttc", "mirx"])])
+                    {
+                        state.font_diff_path = Some(path.to_string_lossy().into());
                     }
-                });
-                ui.add_space(4.0);
-                crate::image_viewer::ui::widgets::section_card(ui, "Glyph Diff", |ui| {
-                    if ui.button("Select font to diff...").clicked() {
-                        if let Some(path) = super::pick_file(&[("Font", &["ttf", "otf", "ttc", "mirx"])])
-                        {
-                            state.font_diff_path = Some(path.to_string_lossy().into());
-                        }
-                    }
-                    if let Some(diff_path) = &state.font_diff_path {
-                        ui.label(format!("vs: {}", diff_path));
-                        if ui.button("Render Diff").clicked() {
+                }
+                if let Some(diff_path) = &state.font_diff_path {
+                    ui.label(format!("vs: {}", diff_path));
+                    if ui.button("Render Diff").clicked() {
                         let img_a = icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
                         let raw_b = std::fs::read(diff_path).unwrap_or_default();
                         let ed = icu_lib::endecoder::mirui::Mirx;
                         if ed.can_decode(&raw_b) {
                             match ed.decode(raw_b) {
-                                icu_lib::midata::MiData::FONT(icu_lib::midata::FontData::Mirx(font_b)) => {
-                                    let img_b = icu_lib::endecoder::mirui::font_render::render_font_atlas(&font_b);
+                                icu_lib::midata::MiData::FONT(icu_lib::midata::FontData::Mirx(
+                                    font_b,
+                                )) => {
+                                    let img_b =
+                                        icu_lib::endecoder::mirui::font_render::render_font_atlas(
+                                            &font_b,
+                                        );
                                     let (wa, ha) = img_a.dimensions();
                                     let (wb, hb) = img_b.dimensions();
                                     let (w, h) = (wa.max(wb), ha.max(hb));
@@ -225,61 +274,83 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                                         &icu_lib::midata::MiData::RGBA(canvas_b),
                                     );
                                     if let Some(dr) = dr {
-                                        let mut stack = icu_lib::postprocess::OverlayStack::new(canvas_a);
-                                        stack.push(Box::new(icu_lib::postprocess::DiffOverlay::new(dr, 1.0, 0.5)));
+                                        let mut stack =
+                                            icu_lib::postprocess::OverlayStack::new(canvas_a);
+                                        stack.push(Box::new(
+                                            icu_lib::postprocess::DiffOverlay::new(dr, 1.0, 0.5),
+                                        ));
                                         let composited = stack.composite().clone();
                                         state.font_rendered_preview = Some(composited);
                                         state.font_mode = FontMode::Rendered;
                                     }
                                 }
-                                icu_lib::midata::MiData::FONT(icu_lib::midata::FontData::MirxBundle(fonts_b)) => {
+                                icu_lib::midata::MiData::FONT(
+                                    icu_lib::midata::FontData::MirxBundle(fonts_b),
+                                ) => {
                                     if let Some(font_b) = fonts_b.first() {
                                         let img_b = icu_lib::endecoder::mirui::font_render::render_font_atlas(font_b);
                                         let (wa, ha) = img_a.dimensions();
                                         let (wb, hb) = img_b.dimensions();
                                         let (w, h) = (wa.max(wb), ha.max(hb));
                                         let mut canvas_a = icu_lib::image::RgbaImage::new(w, h);
-                                        icu_lib::image::imageops::overlay(&mut canvas_a, &img_a, 0, 0);
+                                        icu_lib::image::imageops::overlay(
+                                            &mut canvas_a,
+                                            &img_a,
+                                            0,
+                                            0,
+                                        );
                                         let mut canvas_b = icu_lib::image::RgbaImage::new(w, h);
-                                        icu_lib::image::imageops::overlay(&mut canvas_b, &img_b, 0, 0);
+                                        icu_lib::image::imageops::overlay(
+                                            &mut canvas_b,
+                                            &img_b,
+                                            0,
+                                            0,
+                                        );
                                         let dr = icu_lib::endecoder::utils::diff::diff_image(
                                             &icu_lib::midata::MiData::RGBA(canvas_a.clone()),
                                             &icu_lib::midata::MiData::RGBA(canvas_b),
                                         );
                                         if let Some(dr) = dr {
-                                            let mut stack = icu_lib::postprocess::OverlayStack::new(canvas_a);
-                                            stack.push(Box::new(icu_lib::postprocess::DiffOverlay::new(dr, 1.0, 0.5)));
+                                            let mut stack =
+                                                icu_lib::postprocess::OverlayStack::new(canvas_a);
+                                            stack.push(Box::new(
+                                                icu_lib::postprocess::DiffOverlay::new(
+                                                    dr, 1.0, 0.5,
+                                                ),
+                                            ));
                                             let composited = stack.composite().clone();
                                             state.font_rendered_preview = Some(composited);
                                             state.font_mode = FontMode::Rendered;
                                         }
                                     }
                                 }
-                                icu_lib::midata::MiData::FONT(icu_lib::midata::FontData::FreeType(_)) => {}
+                                icu_lib::midata::MiData::FONT(
+                                    icu_lib::midata::FontData::FreeType(_),
+                                ) => {}
                                 _ => {}
                             }
                         }
                     }
                 }
-                });
-                ui.add_space(4.0);
-                crate::image_viewer::ui::widgets::section_card(ui, "Merge Fonts", |ui| {
-                    if ui.button("Add font file...").clicked() {
-                        if let Some(path) = super::pick_file(&[("mirx", &["mirx"])])
-                        {
-                            state.merge_font_paths.push(path.to_string_lossy().into());
+            });
+            ui.add_space(4.0);
+            crate::image_viewer::ui::widgets::section_card(ui, "Merge Fonts", |ui| {
+                if ui.button("Add font file...").clicked() {
+                    if let Some(path) = super::pick_file(&[("mirx", &["mirx"])]) {
+                        state.merge_font_paths.push(path.to_string_lossy().into());
+                    }
+                }
+                for (i, p) in state.merge_font_paths.clone().iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{}", p));
+                        if ui.button("×").clicked() {
+                            state.merge_font_paths.remove(i);
                         }
-                    }
-                    for (i, p) in state.merge_font_paths.clone().iter().enumerate() {
-                        ui.horizontal(|ui| {
-                            ui.label(format!("{}", p));
-                            if ui.button("×").clicked() {
-                                state.merge_font_paths.remove(i);
-                            }
-                        });
-                    }
-                    if state.merge_font_paths.len() >= 2 && ui.button("Merge & Save").clicked() {
-                    let inputs: Vec<Vec<u8>> = state.merge_font_paths
+                    });
+                }
+                if state.merge_font_paths.len() >= 2 && ui.button("Merge & Save").clicked() {
+                    let inputs: Vec<Vec<u8>> = state
+                        .merge_font_paths
                         .iter()
                         .filter_map(|p| std::fs::read(p).ok())
                         .collect();
@@ -289,130 +360,179 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                         let _ = std::fs::write(&path, merged);
                     }
                 }
-                });
+            });
+        }
+        FontData::MirxBundle(fonts) => {
+            if fonts.is_empty() {
+                ui.label("bundle: 0 fonts");
+                return;
             }
-            FontData::MirxBundle(fonts) => {
-                if fonts.is_empty() {
-                    ui.label("bundle: 0 fonts");
-                    return;
-                }
-                if state.font_bundle_index >= fonts.len() {
-                    state.font_bundle_index = 0;
-                }
-                ui.label(format!("bundle: {} fonts", fonts.len()));
-                if fonts.len() > 1 {
-                    let mut next_index = state.font_bundle_index;
-                    egui::ComboBox::from_label("font")
-                        .selected_text(format!("{} / {}", state.font_bundle_index + 1, fonts.len()))
-                        .show_ui(ui, |ui| {
-                            for (idx, font) in fonts.iter().enumerate() {
-                                ui.selectable_value(
-                                    &mut next_index,
-                                    idx,
-                                    format!("{}: {:?}, {} glyphs", idx + 1, font.chunk_header.kind, font.atlas.glyph_count),
-                                );
-                            }
-                        });
-                    if next_index != state.font_bundle_index {
-                        state.font_bundle_index = next_index;
-                        reset_font_caches(state);
-                    }
-                }
-                if let Some(font) = fonts.get(state.font_bundle_index).or_else(|| fonts.first()) {
-                    show_mirx_metadata(ui, font);
-                    ui.separator();
-                    ui.label("Preview text:");
-                    ui.text_edit_singleline(&mut state.font_preview_text);
-                    if ui.button("Render").clicked() {
-                        let img = icu_lib::endecoder::mirui::font_render::render_font_text(
-                            font,
-                            &state.font_preview_text,
-                            400,
-                            64,
-                            text_color,
-                        );
-                        state.font_rendered_preview = Some(img);
-                    }
-                    ui.separator();
-                    ui.label("Glyph diff:");
-                    if ui.button("Select font to diff...").clicked() {
-                        if let Some(path) = super::pick_file(&[("Font", &["ttf", "otf", "ttc", "mirx"])])
-                        {
-                            state.font_diff_path = Some(path.to_string_lossy().into());
+            if state.font_bundle_index >= fonts.len() {
+                state.font_bundle_index = 0;
+            }
+            ui.label(format!("bundle: {} fonts", fonts.len()));
+            if fonts.len() > 1 {
+                let mut next_index = state.font_bundle_index;
+                egui::ComboBox::from_label("font")
+                    .selected_text(format!("{} / {}", state.font_bundle_index + 1, fonts.len()))
+                    .show_ui(ui, |ui| {
+                        for (idx, font) in fonts.iter().enumerate() {
+                            ui.selectable_value(
+                                &mut next_index,
+                                idx,
+                                format!(
+                                    "{}: {:?}, {} glyphs",
+                                    idx + 1,
+                                    font.chunk_header.kind,
+                                    font.atlas.glyph_count
+                                ),
+                            );
                         }
+                    });
+                if next_index != state.font_bundle_index {
+                    state.font_bundle_index = next_index;
+                    reset_font_caches(state);
+                }
+            }
+            if let Some(font) = fonts.get(state.font_bundle_index).or_else(|| fonts.first()) {
+                show_mirx_metadata(ui, font);
+                ui.separator();
+                ui.label("Preview text:");
+                ui.text_edit_singleline(&mut state.font_preview_text);
+                if ui.button("Render").clicked() {
+                    let img = icu_lib::endecoder::mirui::font_render::render_font_text(
+                        font,
+                        &state.font_preview_text,
+                        400,
+                        64,
+                        text_color,
+                    );
+                    state.font_rendered_preview = Some(img);
+                }
+                ui.separator();
+                ui.label("Glyph diff:");
+                if ui.button("Select font to diff...").clicked() {
+                    if let Some(path) =
+                        super::pick_file(&[("Font", &["ttf", "otf", "ttc", "mirx"])])
+                    {
+                        state.font_diff_path = Some(path.to_string_lossy().into());
                     }
-                    if let Some(diff_path) = &state.font_diff_path {
-                        ui.label(format!("vs: {}", diff_path));
-                        if ui.button("Render Diff").clicked() {
-                            let img_a = icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
-                            let raw_b = std::fs::read(diff_path).unwrap_or_default();
-                            let ed = icu_lib::endecoder::mirui::Mirx;
-                            if ed.can_decode(&raw_b) {
-                                match ed.decode(raw_b) {
-                                    icu_lib::midata::MiData::FONT(icu_lib::midata::FontData::Mirx(font_b)) => {
-                                        let img_b = icu_lib::endecoder::mirui::font_render::render_font_atlas(&font_b);
+                }
+                if let Some(diff_path) = &state.font_diff_path {
+                    ui.label(format!("vs: {}", diff_path));
+                    if ui.button("Render Diff").clicked() {
+                        let img_a = icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
+                        let raw_b = std::fs::read(diff_path).unwrap_or_default();
+                        let ed = icu_lib::endecoder::mirui::Mirx;
+                        if ed.can_decode(&raw_b) {
+                            match ed.decode(raw_b) {
+                                icu_lib::midata::MiData::FONT(icu_lib::midata::FontData::Mirx(
+                                    font_b,
+                                )) => {
+                                    let img_b =
+                                        icu_lib::endecoder::mirui::font_render::render_font_atlas(
+                                            &font_b,
+                                        );
+                                    let (wa, ha) = img_a.dimensions();
+                                    let (wb, hb) = img_b.dimensions();
+                                    let (w, h) = (wa.max(wb), ha.max(hb));
+                                    let mut canvas_a = icu_lib::image::RgbaImage::new(w, h);
+                                    icu_lib::image::imageops::overlay(&mut canvas_a, &img_a, 0, 0);
+                                    let mut canvas_b = icu_lib::image::RgbaImage::new(w, h);
+                                    icu_lib::image::imageops::overlay(&mut canvas_b, &img_b, 0, 0);
+                                    let dr = icu_lib::endecoder::utils::diff::diff_image(
+                                        &icu_lib::midata::MiData::RGBA(canvas_a.clone()),
+                                        &icu_lib::midata::MiData::RGBA(canvas_b),
+                                    );
+                                    if let Some(dr) = dr {
+                                        let mut stack =
+                                            icu_lib::postprocess::OverlayStack::new(canvas_a);
+                                        stack.push(Box::new(
+                                            icu_lib::postprocess::DiffOverlay::new(dr, 1.0, 0.5),
+                                        ));
+                                        let composited = stack.composite().clone();
+                                        state.font_rendered_preview = Some(composited);
+                                        state.font_mode = FontMode::Rendered;
+                                    }
+                                }
+                                icu_lib::midata::MiData::FONT(
+                                    icu_lib::midata::FontData::MirxBundle(fonts_b),
+                                ) => {
+                                    if let Some(font_b) = fonts_b.first() {
+                                        let img_b = icu_lib::endecoder::mirui::font_render::render_font_atlas(font_b);
                                         let (wa, ha) = img_a.dimensions();
                                         let (wb, hb) = img_b.dimensions();
                                         let (w, h) = (wa.max(wb), ha.max(hb));
                                         let mut canvas_a = icu_lib::image::RgbaImage::new(w, h);
-                                        icu_lib::image::imageops::overlay(&mut canvas_a, &img_a, 0, 0);
+                                        icu_lib::image::imageops::overlay(
+                                            &mut canvas_a,
+                                            &img_a,
+                                            0,
+                                            0,
+                                        );
                                         let mut canvas_b = icu_lib::image::RgbaImage::new(w, h);
-                                        icu_lib::image::imageops::overlay(&mut canvas_b, &img_b, 0, 0);
+                                        icu_lib::image::imageops::overlay(
+                                            &mut canvas_b,
+                                            &img_b,
+                                            0,
+                                            0,
+                                        );
                                         let dr = icu_lib::endecoder::utils::diff::diff_image(
                                             &icu_lib::midata::MiData::RGBA(canvas_a.clone()),
                                             &icu_lib::midata::MiData::RGBA(canvas_b),
                                         );
                                         if let Some(dr) = dr {
-                                            let mut stack = icu_lib::postprocess::OverlayStack::new(canvas_a);
-                                            stack.push(Box::new(icu_lib::postprocess::DiffOverlay::new(dr, 1.0, 0.5)));
+                                            let mut stack =
+                                                icu_lib::postprocess::OverlayStack::new(canvas_a);
+                                            stack.push(Box::new(
+                                                icu_lib::postprocess::DiffOverlay::new(
+                                                    dr, 1.0, 0.5,
+                                                ),
+                                            ));
                                             let composited = stack.composite().clone();
                                             state.font_rendered_preview = Some(composited);
                                             state.font_mode = FontMode::Rendered;
                                         }
                                     }
-                                    icu_lib::midata::MiData::FONT(icu_lib::midata::FontData::MirxBundle(fonts_b)) => {
-                                        if let Some(font_b) = fonts_b.first() {
-                                            let img_b = icu_lib::endecoder::mirui::font_render::render_font_atlas(font_b);
-                                            let (wa, ha) = img_a.dimensions();
-                                            let (wb, hb) = img_b.dimensions();
-                                            let (w, h) = (wa.max(wb), ha.max(hb));
-                                            let mut canvas_a = icu_lib::image::RgbaImage::new(w, h);
-                                            icu_lib::image::imageops::overlay(&mut canvas_a, &img_a, 0, 0);
-                                            let mut canvas_b = icu_lib::image::RgbaImage::new(w, h);
-                                            icu_lib::image::imageops::overlay(&mut canvas_b, &img_b, 0, 0);
-                                            let dr = icu_lib::endecoder::utils::diff::diff_image(
-                                                &icu_lib::midata::MiData::RGBA(canvas_a.clone()),
-                                                &icu_lib::midata::MiData::RGBA(canvas_b),
-                                            );
-                                            if let Some(dr) = dr {
-                                                let mut stack = icu_lib::postprocess::OverlayStack::new(canvas_a);
-                                                stack.push(Box::new(icu_lib::postprocess::DiffOverlay::new(dr, 1.0, 0.5)));
-                                                let composited = stack.composite().clone();
-                                                state.font_rendered_preview = Some(composited);
-                                                state.font_mode = FontMode::Rendered;
-                                            }
-                                        }
-                                    }
-                                    icu_lib::midata::MiData::FONT(icu_lib::midata::FontData::FreeType(_)) => {}
-                                    _ => {}
                                 }
+                                icu_lib::midata::MiData::FONT(
+                                    icu_lib::midata::FontData::FreeType(_),
+                                ) => {}
+                                _ => {}
                             }
                         }
                     }
                 }
             }
-            FontData::FreeType(f) => {
-                crate::image_viewer::ui::widgets::section_card(ui, "FreeType Metadata", |ui| {
-                    crate::image_viewer::ui::widgets::info_row(ui, "Family", &f.family);
-                    crate::image_viewer::ui::widgets::info_row(ui, "Style", &f.style);
-                    crate::image_viewer::ui::widgets::info_row(ui, "Units/em", &f.units_per_em.to_string());
-                    crate::image_viewer::ui::widgets::info_row(ui, "Ascender", &f.ascender.to_string());
-                    crate::image_viewer::ui::widgets::info_row(ui, "Descender", &f.descender.to_string());
-                    crate::image_viewer::ui::widgets::info_row(ui, "Line Height", &f.line_height.to_string());
-                    crate::image_viewer::ui::widgets::info_row(ui, "Glyphs", &format!("{} / {}", f.glyphs.len(), f.glyph_count));
-                });
-                ui.add_space(4.0);
-                crate::image_viewer::ui::widgets::section_card(ui, "Bake to mirx", |ui| {
+        }
+        FontData::FreeType(f) => {
+            crate::image_viewer::ui::widgets::section_card(ui, "FreeType Metadata", |ui| {
+                crate::image_viewer::ui::widgets::info_row(ui, "Family", &f.family);
+                crate::image_viewer::ui::widgets::info_row(ui, "Style", &f.style);
+                crate::image_viewer::ui::widgets::info_row(
+                    ui,
+                    "Units/em",
+                    &f.units_per_em.to_string(),
+                );
+                crate::image_viewer::ui::widgets::info_row(ui, "Ascender", &f.ascender.to_string());
+                crate::image_viewer::ui::widgets::info_row(
+                    ui,
+                    "Descender",
+                    &f.descender.to_string(),
+                );
+                crate::image_viewer::ui::widgets::info_row(
+                    ui,
+                    "Line Height",
+                    &f.line_height.to_string(),
+                );
+                crate::image_viewer::ui::widgets::info_row(
+                    ui,
+                    "Glyphs",
+                    &format!("{} / {}", f.glyphs.len(), f.glyph_count),
+                );
+            });
+            ui.add_space(4.0);
+            crate::image_viewer::ui::widgets::section_card(ui, "Bake to mirx", |ui| {
                 ui.horizontal(|ui| {
                     ui.label("size:");
                     ui.add(egui::DragValue::new(&mut state.font_bake_size).range(8..=64));
@@ -464,9 +584,11 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                     BakeCharsetTab::Range => {
                         ui.text_edit_multiline(&mut state.font_bake_charset_ranges);
                         ui.label(
-                            egui::RichText::new("Format: U+XXXX-U+YYYY, one range per line or comma-separated")
-                                .size(9.0)
-                                .color(ui.style().visuals.weak_text_color()),
+                            egui::RichText::new(
+                                "Format: U+XXXX-U+YYYY, one range per line or comma-separated",
+                            )
+                            .size(9.0)
+                            .color(ui.style().visuals.weak_text_color()),
                         );
                     }
                     BakeCharsetTab::File => {
@@ -503,7 +625,9 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                         charset,
                     };
                     let raw = std::fs::read(&image.path).unwrap_or_default();
-                    if let Some(font) = icu_lib::endecoder::mirui::font_bake::bake_font(&raw, &params) {
+                    if let Some(font) =
+                        icu_lib::endecoder::mirui::font_bake::bake_font(&raw, &params)
+                    {
                         let payload = font.encode();
                         let bytes = icu_lib::mirx::encode_chunk_generic(
                             icu_lib::mirx::chunk_type::FONT,
@@ -513,176 +637,283 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                         if let Some(path) = super::pick_save_file(
                             &[("mirx", &["mirx"])],
                             &format!("{}_{}.mirx", f.family, state.font_bake_format),
-                        )
-                        {
+                        ) {
                             let _ = std::fs::write(&path, bytes);
                         }
                     }
                 }
-                });
+            });
+        }
+    }
+}
+
+pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
+    let ctx = ui.ctx().clone();
+    let Some(image) = state.current_image.clone() else {
+        return;
+    };
+    let Some(MiData::FONT(font_data)) = &image.midata else {
+        return;
+    };
+
+    let fg = ctx.global_style().visuals.text_color();
+    let bg = ctx.global_style().visuals.panel_fill;
+    let text_color = icu_lib::mirx::Color {
+        r: fg.r(),
+        g: fg.g(),
+        b: fg.b(),
+        a: fg.a(),
+    };
+
+    let tint_image = |img: &icu_lib::image::RgbaImage| -> icu_lib::image::RgbaImage {
+        let mut out = img.clone();
+        for px in out.pixels_mut() {
+            let a = px.0[3] as f32 / 255.0;
+            px.0[0] = (bg.r() as f32 * (1.0 - a) + fg.r() as f32 * a) as u8;
+            px.0[1] = (bg.g() as f32 * (1.0 - a) + fg.g() as f32 * a) as u8;
+            px.0[2] = (bg.b() as f32 * (1.0 - a) + fg.b() as f32 * a) as u8;
+            px.0[3] = 255;
+        }
+        out
+    };
+
+    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+    egui::Frame::new()
+        .fill(p.mantle)
+        .stroke(egui::Stroke::new(1.0, p.surface0))
+        .inner_margin(egui::Margin {
+            left: 8,
+            right: 8,
+            top: 4,
+            bottom: 4,
+        })
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                crate::image_viewer::ui::widgets::mode_tabs(
+                    ui,
+                    &mut state.font_mode,
+                    &[
+                        (FontMode::Atlas, "Atlas"),
+                        (FontMode::Rendered, "Rendered"),
+                        (FontMode::Grid, "Grid"),
+                    ],
+                );
+            });
+        });
+    ui.separator();
+
+    match state.font_mode {
+        FontMode::Rendered => {
+            if state.font_rendered_preview.is_none() {
+                if let Some(font) = selected_mirx_font(font_data, state.font_bundle_index) {
+                    let img = icu_lib::endecoder::mirui::font_render::render_font_text(
+                        font,
+                        &state.font_preview_text,
+                        400,
+                        64,
+                        text_color,
+                    );
+                    state.font_rendered_preview = Some(img);
+                } else if let FontData::FreeType(_) = font_data {
+                }
+            }
+            if let Some(preview) = &state.font_rendered_preview {
+                let w = preview.width();
+                let h = preview.height();
+                let color_image = egui::ColorImage::from_rgba_unmultiplied(
+                    [w as usize, h as usize],
+                    preview.as_raw(),
+                );
+                let texture = ui.ctx().load_texture(
+                    "font_rendered",
+                    color_image,
+                    egui::TextureOptions::LINEAR,
+                );
+                ui.image(egui::load::SizedTexture::new(
+                    texture.id(),
+                    [w as f32, h as f32],
+                ));
+            } else {
+                ui.label("Rendering not available for this font type");
             }
         }
-            });
-    });
-
-    egui::CentralPanel::default().show(ui, |ui| {
-        let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-        egui::Frame::new()
-            .fill(p.mantle)
-            .stroke(egui::Stroke::new(1.0, p.surface0))
-            .inner_margin(egui::Margin { left: 8, right: 8, top: 4, bottom: 4 })
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    crate::image_viewer::ui::widgets::mode_tabs(
-                        ui,
-                        &mut state.font_mode,
-                        &[
-                            (FontMode::Atlas, "Atlas"),
-                            (FontMode::Rendered, "Rendered"),
-                            (FontMode::Grid, "Grid"),
-                            (FontMode::Vector, "Vector"),
-                        ],
-                    );
-                });
-            });
-        ui.separator();
-
-        match state.font_mode {
-            FontMode::Rendered => {
-                if state.font_rendered_preview.is_none() {
-                    if let Some(font) = selected_mirx_font(font_data, state.font_bundle_index) {
-                        let img = icu_lib::endecoder::mirui::font_render::render_font_text(
-                            font,
-                            &state.font_preview_text,
-                            400,
-                            64,
-                            text_color,
-                        );
-                        state.font_rendered_preview = Some(img);
-                    } else if let FontData::FreeType(_) = font_data {
+        FontMode::Grid => {
+            let grid_key = format!("{}_{:?}_{}", image.path, fg, state.font_bundle_index);
+            let grid_key_clone = grid_key.clone();
+            let need_rebuild = match &state.font_grid_cached {
+                Some((k, _, _)) => k != &grid_key,
+                None => true,
+            };
+            if need_rebuild {
+                let mut handles: Vec<egui::TextureHandle> = Vec::new();
+                match font_data {
+                    FontData::Mirx(font) => {
+                        let cell = font.atlas.source_size as usize + 4;
+                        for m in font.metrics.iter() {
+                            let ch = char::from_u32(m.codepoint).unwrap_or('?');
+                            let img = icu_lib::endecoder::mirui::font_render::render_font_text(
+                                font,
+                                &ch.to_string(),
+                                cell as u32,
+                                cell as u32,
+                                text_color,
+                            );
+                            let ci = egui::ColorImage::from_rgba_unmultiplied(
+                                [cell, cell],
+                                img.as_raw(),
+                            );
+                            handles.push(ctx.load_texture(
+                                format!("glyph_grid_{}", handles.len()),
+                                ci,
+                                egui::TextureOptions::LINEAR,
+                            ));
+                        }
                     }
-                }
-                if let Some(preview) = &state.font_rendered_preview {
-                    let w = preview.width();
-                    let h = preview.height();
-                    let color_image = egui::ColorImage::from_rgba_unmultiplied(
-                        [w as usize, h as usize],
-                        preview.as_raw(),
-                    );
-                    let texture = ui
-                        .ctx()
-                        .load_texture("font_rendered", color_image, egui::TextureOptions::LINEAR);
-                    ui.image(egui::load::SizedTexture::new(
-                        texture.id(),
-                        [w as f32, h as f32],
-                    ));
-                } else {
-                    ui.label("Rendering not available for this font type");
-                }
-            }
-            FontMode::Grid => {
-                let grid_key = format!("{}_{:?}_{}", image.path, fg, state.font_bundle_index);
-                let grid_key_clone = grid_key.clone();
-                let need_rebuild = match &state.font_grid_cached {
-                    Some((k, _, _)) => k != &grid_key,
-                    None => true,
-                };
-                if need_rebuild {
-                    let mut handles: Vec<egui::TextureHandle> = Vec::new();
-                    match font_data {
-                        FontData::Mirx(font) => {
+                    FontData::MirxBundle(fonts) => {
+                        if let Some(font) =
+                            fonts.get(state.font_bundle_index).or_else(|| fonts.first())
+                        {
                             let cell = font.atlas.source_size as usize + 4;
                             for m in font.metrics.iter() {
                                 let ch = char::from_u32(m.codepoint).unwrap_or('?');
                                 let img = icu_lib::endecoder::mirui::font_render::render_font_text(
-                                    font, &ch.to_string(), cell as u32, cell as u32, text_color,
+                                    font,
+                                    &ch.to_string(),
+                                    cell as u32,
+                                    cell as u32,
+                                    text_color,
                                 );
-                                let ci = egui::ColorImage::from_rgba_unmultiplied([cell, cell], img.as_raw());
-                                handles.push(ctx.load_texture(format!("glyph_grid_{}", handles.len()), ci, egui::TextureOptions::LINEAR));
+                                let ci = egui::ColorImage::from_rgba_unmultiplied(
+                                    [cell, cell],
+                                    img.as_raw(),
+                                );
+                                handles.push(ctx.load_texture(
+                                    format!("glyph_grid_{}", handles.len()),
+                                    ci,
+                                    egui::TextureOptions::LINEAR,
+                                ));
                             }
                         }
-                        FontData::MirxBundle(fonts) => {
-                            if let Some(font) = fonts.get(state.font_bundle_index).or_else(|| fonts.first()) {
-                                let cell = font.atlas.source_size as usize + 4;
-                                for m in font.metrics.iter() {
-                                    let ch = char::from_u32(m.codepoint).unwrap_or('?');
-                                    let img = icu_lib::endecoder::mirui::font_render::render_font_text(
-                                        font, &ch.to_string(), cell as u32, cell as u32, text_color,
-                                    );
-                                    let ci = egui::ColorImage::from_rgba_unmultiplied([cell, cell], img.as_raw());
-                                    handles.push(ctx.load_texture(format!("glyph_grid_{}", handles.len()), ci, egui::TextureOptions::LINEAR));
-                                }
-                            }
-                        }
-                        FontData::FreeType(f) => {
-                            let cell = 48u32;
-                            for g in f.glyphs.iter() {
-                                let ch = char::from_u32(g.codepoint).unwrap_or('?');
-                                if let Some(img) = icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
+                    }
+                    FontData::FreeType(f) => {
+                        let cell = 48u32;
+                        for g in f.glyphs.iter() {
+                            let ch = char::from_u32(g.codepoint).unwrap_or('?');
+                            if let Some(img) =
+                                icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
                                     f, ch, cell, cell, text_color,
-                                ) {
-                                    let ci = egui::ColorImage::from_rgba_unmultiplied([cell as usize, cell as usize], img.as_raw());
-                                    handles.push(ctx.load_texture(format!("ft_grid_{}", handles.len()), ci, egui::TextureOptions::LINEAR));
-                                } else {
-                                    let empty_img = icu_lib::image::RgbaImage::new(cell, cell);
-                                    handles.push(ctx.load_texture("ft_grid_empty", egui::ColorImage::from_rgba_unmultiplied([cell as usize, cell as usize], empty_img.as_raw()), egui::TextureOptions::LINEAR));
-                                }
+                                )
+                            {
+                                let ci = egui::ColorImage::from_rgba_unmultiplied(
+                                    [cell as usize, cell as usize],
+                                    img.as_raw(),
+                                );
+                                handles.push(ctx.load_texture(
+                                    format!("ft_grid_{}", handles.len()),
+                                    ci,
+                                    egui::TextureOptions::LINEAR,
+                                ));
+                            } else {
+                                let empty_img = icu_lib::image::RgbaImage::new(cell, cell);
+                                handles.push(ctx.load_texture(
+                                    "ft_grid_empty",
+                                    egui::ColorImage::from_rgba_unmultiplied(
+                                        [cell as usize, cell as usize],
+                                        empty_img.as_raw(),
+                                    ),
+                                    egui::TextureOptions::LINEAR,
+                                ));
                             }
                         }
                     }
-                    let count = handles.len();
-                    state.font_grid_cached = Some((grid_key, handles, count));
-                    state.font_grid_big_cached = None;
                 }
+                let count = handles.len();
+                state.font_grid_cached = Some((grid_key, handles, count));
+                state.font_grid_big_cached = None;
+            }
 
-                let handles = state.font_grid_cached.as_ref()
-                    .map(|(_, h, _)| h.clone())
-                    .unwrap_or_default();
+            let handles = state
+                .font_grid_cached
+                .as_ref()
+                .map(|(_, h, _)| h.clone())
+                .unwrap_or_default();
 
-                let cell = match font_data {
-                    FontData::Mirx(font) => font.atlas.source_size as f32 + 4.0,
-                    FontData::MirxBundle(fonts) => fonts
-                        .get(state.font_bundle_index)
-                        .or_else(|| fonts.first())
-                        .map(|font| font.atlas.source_size as f32 + 4.0)
-                        .unwrap_or(48.0),
-                    FontData::FreeType(_) => 48.0,
-                };
-                let cols = 16usize;
+            let cell = match font_data {
+                FontData::Mirx(font) => font.atlas.source_size as f32 + 4.0,
+                FontData::MirxBundle(fonts) => fonts
+                    .get(state.font_bundle_index)
+                    .or_else(|| fonts.first())
+                    .map(|font| font.atlas.source_size as f32 + 4.0)
+                    .unwrap_or(48.0),
+                FontData::FreeType(_) => 48.0,
+            };
+            let cols = 16usize;
 
-                match font_data {
-                    FontData::Mirx(font) => {
-                        egui::Panel::bottom("glyph_detail").show(ui, |ui| {
-                            if let Some(idx) = state.selected_glyph {
-                                if let Some(m) = font.metrics.get(idx) {
-                                    let ch = char::from_u32(m.codepoint).unwrap_or('?');
-                                    ui.heading(format!("Glyph #{}: '{}' (U+{:04X})", idx, ch, m.codepoint));
-                                    ui.label(format!("advance: {}  bearing: ({}, {})", m.advance, m.bearing_x, m.bearing_y));
-                                    let big_key = format!("{}_{}", grid_key_clone, idx);
-                                    let need_big = match &state.font_grid_big_cached {
-                                        Some((k, _)) => k != &big_key,
-                                        None => true,
-                                    };
-                                    if need_big {
-                                        let big = icu_lib::endecoder::mirui::font_render::render_font_text(
-                                            font, &ch.to_string(), 128, 128, text_color,
+            match font_data {
+                FontData::Mirx(font) => {
+                    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+                    egui::Frame::new()
+                        .fill(p.mantle)
+                        .stroke(egui::Stroke::new(1.0, p.surface0))
+                        .inner_margin(egui::Margin::same(8))
+                        .show(ui, |ui| {
+                        if let Some(idx) = state.selected_glyph {
+                            if let Some(m) = font.metrics.get(idx) {
+                                let ch = char::from_u32(m.codepoint).unwrap_or('?');
+                                ui.heading(format!(
+                                    "Glyph #{}: '{}' (U+{:04X})",
+                                    idx, ch, m.codepoint
+                                ));
+                                ui.label(format!(
+                                    "advance: {}  bearing: ({}, {})",
+                                    m.advance, m.bearing_x, m.bearing_y
+                                ));
+                                let big_key = format!("{}_{}", grid_key_clone, idx);
+                                let need_big = match &state.font_grid_big_cached {
+                                    Some((k, _)) => k != &big_key,
+                                    None => true,
+                                };
+                                if need_big {
+                                    let big =
+                                        icu_lib::endecoder::mirui::font_render::render_font_text(
+                                            font,
+                                            &ch.to_string(),
+                                            128,
+                                            128,
+                                            text_color,
                                         );
-                                        let ci = egui::ColorImage::from_rgba_unmultiplied([128, 128], big.as_raw());
-                                        let tex = ctx.load_texture("glyph_big", ci, egui::TextureOptions::LINEAR);
-                                        state.font_grid_big_cached = Some((big_key, tex));
-                                    }
-                                    if let Some((_, tex)) = &state.font_grid_big_cached {
-                                        ui.image(egui::load::SizedTexture::new(tex.id(), [128.0, 128.0]));
-                                    }
+                                    let ci = egui::ColorImage::from_rgba_unmultiplied(
+                                        [128, 128],
+                                        big.as_raw(),
+                                    );
+                                    let tex = ctx.load_texture(
+                                        "glyph_big",
+                                        ci,
+                                        egui::TextureOptions::LINEAR,
+                                    );
+                                    state.font_grid_big_cached = Some((big_key, tex));
                                 }
-                            } else {
-                                ui.label("Click a glyph to inspect");
+                                if let Some((_, tex)) = &state.font_grid_big_cached {
+                                    ui.image(egui::load::SizedTexture::new(
+                                        tex.id(),
+                                        [128.0, 128.0],
+                                    ));
+                                }
                             }
-                        });
-                    }
-                    FontData::MirxBundle(fonts) => {
-                        if let Some(font) = fonts.get(state.font_bundle_index).or_else(|| fonts.first()) {
-                            egui::Panel::bottom("glyph_detail_bundle").show(ui, |ui| {
+                        } else {
+                            ui.label("Click a glyph to inspect");
+                        }
+                    });
+                }
+                FontData::MirxBundle(fonts) => {
+                    if let Some(font) = fonts.get(state.font_bundle_index).or_else(|| fonts.first())
+                    {
+                        let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+                        egui::Frame::new()
+                            .fill(p.mantle)
+                            .stroke(egui::Stroke::new(1.0, p.surface0))
+                            .inner_margin(egui::Margin::same(8))
+                            .show(ui, |ui| {
                                 if let Some(idx) = state.selected_glyph {
                                     if let Some(m) = font.metrics.get(idx) {
                                         let ch = char::from_u32(m.codepoint).unwrap_or('?');
@@ -709,10 +940,15 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                                     ui.label("Click a glyph to inspect");
                                 }
                             });
-                        }
                     }
-                    FontData::FreeType(f) => {
-                        egui::Panel::bottom("glyph_detail_ft").show(ui, |ui| {
+                }
+                FontData::FreeType(f) => {
+                    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+                    egui::Frame::new()
+                        .fill(p.mantle)
+                        .stroke(egui::Stroke::new(1.0, p.surface0))
+                        .inner_margin(egui::Margin::same(8))
+                        .show(ui, |ui| {
                             if let Some(idx) = state.selected_glyph {
                                 if let Some(g) = f.glyphs.get(idx) {
                                     let ch = char::from_u32(g.codepoint).unwrap_or('?');
@@ -741,151 +977,158 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                                 ui.label("Click a glyph to inspect");
                             }
                         });
-                    }
                 }
+            }
 
-                egui::ScrollArea::both().show(ui, |ui| {
-                    egui::Grid::new("glyph_grid")
-                        .num_columns(cols)
-                        .spacing([2.0, 2.0])
-                        .show(ui, |ui| {
-                            let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-                            for (i, tex) in handles.iter().enumerate() {
-                                let is_sel = state.selected_glyph == Some(i);
-                                let is_opened = state.opened_glyphs.iter().any(|og| {
-                                    let cp = match font_data {
-                                        FontData::FreeType(f) => f.glyphs.get(i).map(|g| g.codepoint),
-                                        FontData::Mirx(font) => font.metrics.get(i).map(|m| m.codepoint),
-                                        FontData::MirxBundle(fonts) => fonts.get(state.font_bundle_index).or_else(|| fonts.first()).and_then(|font| font.metrics.get(i)).map(|m| m.codepoint),
-                                    };
-                                    cp == Some(og.codepoint)
-                                });
-                                let btn = egui::Button::image(egui::load::SizedTexture::new(tex.id(), [cell; 2]))
-                                    .corner_radius(egui::CornerRadius::same(2))
-                                    .stroke(if is_sel {
-                                        egui::Stroke::new(2.0, p.accent())
-                                    } else if is_opened {
-                                        egui::Stroke::new(1.0, p.peach)
-                                    } else {
-                                        egui::Stroke::new(1.0, p.surface0)
-                                    });
-                                let resp = ui.add(btn);
-                                if resp.clicked() {
-                                    state.selected_glyph = Some(i);
-                                }
-                                if resp.double_clicked() {
-                                    if let Some(og) = build_opened_glyph(font_data, i, state.font_bundle_index) {
-                                        state.opened_glyphs.push(og.clone());
-                                        state.items.push(crate::image_viewer::model::SidebarItem::Glyph(og));
-                                        state.selected_index = Some(state.items.len() - 1);
-                                        state.font_mode = FontMode::Vector;
+            egui::ScrollArea::both().show(ui, |ui| {
+                egui::Grid::new("glyph_grid")
+                    .num_columns(cols)
+                    .spacing([2.0, 2.0])
+                    .show(ui, |ui| {
+                        let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+                        for (i, tex) in handles.iter().enumerate() {
+                            let is_sel = state.selected_glyph == Some(i);
+                            let is_opened = state.opened_glyphs.iter().any(|og| {
+                                let cp = match font_data {
+                                    FontData::FreeType(f) => f.glyphs.get(i).map(|g| g.codepoint),
+                                    FontData::Mirx(font) => {
+                                        font.metrics.get(i).map(|m| m.codepoint)
                                     }
-                                }
-                                if is_sel {
-                                    ui.painter().rect_filled(resp.rect.expand(2.0), egui::CornerRadius::same(3), p.accent_dim());
-                                }
-                                if (i + 1) % cols == 0 {
-                                    ui.end_row();
+                                    FontData::MirxBundle(fonts) => fonts
+                                        .get(state.font_bundle_index)
+                                        .or_else(|| fonts.first())
+                                        .and_then(|font| font.metrics.get(i))
+                                        .map(|m| m.codepoint),
+                                };
+                                cp == Some(og.codepoint)
+                            });
+                            let btn = egui::Button::image(egui::load::SizedTexture::new(
+                                tex.id(),
+                                [cell; 2],
+                            ))
+                            .corner_radius(egui::CornerRadius::same(2))
+                            .stroke(if is_sel {
+                                egui::Stroke::new(2.0, p.accent())
+                            } else if is_opened {
+                                egui::Stroke::new(1.0, p.peach)
+                            } else {
+                                egui::Stroke::new(1.0, p.surface0)
+                            });
+                            let resp = ui.add(btn);
+                            if resp.clicked() {
+                                state.selected_glyph = Some(i);
+                            }
+                            if resp.double_clicked() {
+                                if let Some(og) =
+                                    build_opened_glyph(font_data, i, state.font_bundle_index)
+                                {
+                                    state.opened_glyphs.push(og.clone());
+                                    let insert_at = state
+                                        .selected_index
+                                        .map(|i| i + 1)
+                                        .unwrap_or(state.items.len());
+                                    state.items.insert(
+                                        insert_at,
+                                        crate::image_viewer::model::SidebarItem::Glyph(og),
+                                    );
+                                    state.selected_index = Some(insert_at);
+                                    state.font_mode = FontMode::Vector;
                                 }
                             }
-                        });
+                            if is_sel {
+                                ui.painter().rect_filled(
+                                    resp.rect.expand(2.0),
+                                    egui::CornerRadius::same(3),
+                                    p.accent_dim(),
+                                );
+                            }
+                            if (i + 1) % cols == 0 {
+                                ui.end_row();
+                            }
+                        }
+                    });
+            });
+        }
+        FontMode::Vector => {
+            let glyph = match font_data {
+                FontData::FreeType(f) => state
+                    .selected_glyph
+                    .and_then(|idx| f.glyphs.get(idx))
+                    .map(|g| {
+                        (
+                            g.codepoint,
+                            g.advance,
+                            g.bearing_x,
+                            g.bearing_y,
+                            g.bbox,
+                            g.outline.clone(),
+                            false,
+                        )
+                    }),
+                FontData::Mirx(font) => state
+                    .selected_glyph
+                    .and_then(|idx| font.metrics.get(idx))
+                    .map(|m| {
+                        (
+                            m.codepoint,
+                            m.advance,
+                            m.bearing_x as i16,
+                            m.bearing_y as i16,
+                            (0, 0, 0, 0),
+                            Vec::new(),
+                            true,
+                        )
+                    }),
+                FontData::MirxBundle(fonts) => fonts
+                    .get(state.font_bundle_index)
+                    .or_else(|| fonts.first())
+                    .and_then(|font| state.selected_glyph.and_then(|idx| font.metrics.get(idx)))
+                    .map(|m| {
+                        (
+                            m.codepoint,
+                            m.advance,
+                            m.bearing_x as i16,
+                            m.bearing_y as i16,
+                            (0, 0, 0, 0),
+                            Vec::new(),
+                            true,
+                        )
+                    }),
+            };
+
+            if let Some((cp, advance, bx, by, bbox, outline, approx)) = glyph {
+                draw_glyph_vector_view(
+                    ui,
+                    cp,
+                    advance,
+                    bx,
+                    by,
+                    bbox,
+                    &outline,
+                    approx,
+                    &mut state.glyph_canvas_view,
+                );
+            } else {
+                ui.centered_and_justified(|ui| {
+                    ui.label(
+                        egui::RichText::new(
+                            "Select a glyph in Grid mode to view its vector outline",
+                        )
+                        .color(ui.style().visuals.weak_text_color()),
+                    );
                 });
             }
-            FontMode::Vector => {
-                let glyph = match font_data {
-                    FontData::FreeType(f) => state
-                        .selected_glyph
-                        .and_then(|idx| f.glyphs.get(idx))
-                        .map(|g| (g.codepoint, g.advance, g.bearing_x, g.bearing_y, g.bbox, g.outline.clone(), false)),
-                    FontData::Mirx(font) => state
-                        .selected_glyph
-                        .and_then(|idx| font.metrics.get(idx))
-                        .map(|m| {
-                            (
-                                m.codepoint,
-                                m.advance,
-                                m.bearing_x as i16,
-                                m.bearing_y as i16,
-                                (0, 0, 0, 0),
-                                Vec::new(),
-                                true,
-                            )
-                        }),
-                    FontData::MirxBundle(fonts) => fonts
-                        .get(state.font_bundle_index)
-                        .or_else(|| fonts.first())
-                        .and_then(|font| {
-                            state.selected_glyph.and_then(|idx| font.metrics.get(idx))
-                        })
-                        .map(|m| {
-                            (
-                                m.codepoint,
-                                m.advance,
-                                m.bearing_x as i16,
-                                m.bearing_y as i16,
-                                (0, 0, 0, 0),
-                                Vec::new(),
-                                true,
-                            )
-                        }),
-                };
-
-                if let Some((cp, advance, bx, by, bbox, outline, approx)) = glyph {
-                    draw_glyph_vector_view(ui, cp, advance, bx, by, bbox, &outline, approx);
-                } else {
-                    ui.centered_and_justified(|ui| {
-                        ui.label(
-                            egui::RichText::new("Select a glyph in Grid mode to view its vector outline")
-                                .color(ui.style().visuals.weak_text_color()),
-                        );
-                    });
-                }
-            }
-            FontMode::Atlas => {
-                let theme_key = format!(
-                    "{:?}_{:?}_{}_{}",
-                    fg,
-                    bg,
-                    image.path,
-                    state.font_bundle_index,
-                );
-                let (image_data, w, h) = if let Some((ref cached_key, _, ref cached_data, cw, ch)) =
-                    state.font_atlas_cached
-                {
-                    if *cached_key == theme_key {
-                        (cached_data.clone(), cw, ch)
-                    } else {
-                        let rendered = match font_data {
-                            FontData::Mirx(font) => {
-                                let atlas_img =
-                                    icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
-                                tint_image(&atlas_img)
-                            }
-                            FontData::MirxBundle(fonts) => {
-                                if let Some(font) = fonts.get(state.font_bundle_index).or_else(|| fonts.first()) {
-                                    let atlas_img = icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
-                                    tint_image(&atlas_img)
-                                } else {
-                                    icu_lib::image::RgbaImage::new(1, 1)
-                                }
-                            }
-                            FontData::FreeType(_) => {
-                                let grid_img = icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(
-                                    match font_data { FontData::FreeType(f) => f, _ => unreachable!() },
-                                    text_color,
-                                );
-                                grid_img
-                            }
-                        };
-                        let w = rendered.width();
-                        let h = rendered.height();
-                        let data: Vec<Color32> = rendered
-                            .chunks(4)
-                            .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
-                            .collect();
-                        state.font_atlas_cached = Some((theme_key.clone(), image.path.clone(), data.clone(), w, h));
-                        (data, w, h)
-                    }
+        }
+        FontMode::Atlas => {
+            let theme_key = format!(
+                "{:?}_{:?}_{}_{}",
+                fg, bg, image.path, state.font_bundle_index,
+            );
+            let (image_data, w, h) = if let Some((ref cached_key, _, ref cached_data, cw, ch)) =
+                state.font_atlas_cached
+            {
+                if *cached_key == theme_key {
+                    (cached_data.clone(), cw, ch)
                 } else {
                     let rendered = match font_data {
                         FontData::Mirx(font) => {
@@ -894,17 +1137,26 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                             tint_image(&atlas_img)
                         }
                         FontData::MirxBundle(fonts) => {
-                            if let Some(font) = fonts.get(state.font_bundle_index).or_else(|| fonts.first()) {
-                                let atlas_img = icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
+                            if let Some(font) =
+                                fonts.get(state.font_bundle_index).or_else(|| fonts.first())
+                            {
+                                let atlas_img =
+                                    icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
                                 tint_image(&atlas_img)
                             } else {
                                 icu_lib::image::RgbaImage::new(1, 1)
                             }
                         }
-                        FontData::FreeType(f) => {
-                            icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(
-                                f, text_color,
-                            )
+                        FontData::FreeType(_) => {
+                            let grid_img =
+                                icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(
+                                    match font_data {
+                                        FontData::FreeType(f) => f,
+                                        _ => unreachable!(),
+                                    },
+                                    text_color,
+                                );
+                            grid_img
                         }
                     };
                     let w = rendered.width();
@@ -913,24 +1165,58 @@ pub fn draw_font_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                         .chunks(4)
                         .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
                         .collect();
-                    state.font_atlas_cached = Some((theme_key.clone(), image.path.clone(), data.clone(), w, h));
+                    state.font_atlas_cached =
+                        Some((theme_key.clone(), image.path.clone(), data.clone(), w, h));
                     (data, w, h)
+                }
+            } else {
+                let rendered = match font_data {
+                    FontData::Mirx(font) => {
+                        let atlas_img =
+                            icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
+                        tint_image(&atlas_img)
+                    }
+                    FontData::MirxBundle(fonts) => {
+                        if let Some(font) =
+                            fonts.get(state.font_bundle_index).or_else(|| fonts.first())
+                        {
+                            let atlas_img =
+                                icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
+                            tint_image(&atlas_img)
+                        } else {
+                            icu_lib::image::RgbaImage::new(1, 1)
+                        }
+                    }
+                    FontData::FreeType(f) => {
+                        icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(
+                            f, text_color,
+                        )
+                    }
                 };
-                let tint_item = crate::image_viewer::model::ImageItem {
-                    path: image.path.clone(),
-                    info: image.info.clone(),
-                    width: w,
-                    height: h,
-                    image_data,
-                    midata: None,
-                };
-                let mut plotter = ImagePlotter::new("font_atlas")
-                    .anti_alias(state.context.anti_alias)
-                    .show_grid(state.context.show_grid);
-                plotter.show(ui, &Some(tint_item));
-            }
+                let w = rendered.width();
+                let h = rendered.height();
+                let data: Vec<Color32> = rendered
+                    .chunks(4)
+                    .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
+                    .collect();
+                state.font_atlas_cached =
+                    Some((theme_key.clone(), image.path.clone(), data.clone(), w, h));
+                (data, w, h)
+            };
+            let tint_item = crate::image_viewer::model::ImageItem {
+                path: image.path.clone(),
+                info: image.info.clone(),
+                width: w,
+                height: h,
+                image_data,
+                midata: None,
+            };
+            let mut plotter = ImagePlotter::new("font_atlas")
+                .anti_alias(state.context.anti_alias)
+                .show_grid(state.context.show_grid);
+            plotter.show(ui, &Some(tint_item));
         }
-    });
+    }
 }
 
 fn build_opened_glyph(
@@ -1002,31 +1288,53 @@ fn draw_glyph_vector_view(
     bbox: (i16, i16, i16, i16),
     outline: &[icu_lib::mirx::PathCmd],
     approximate: bool,
+    view: &mut GlyphCanvasView,
 ) {
     let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
     let (bx, by, bw, bh) = bbox;
     let ch = char::from_u32(codepoint).unwrap_or('?');
 
-    let available = ui.available_size();
-    let canvas_h = (available.y - 32.0).max(200.0);
-    let (canvas_rect, _) =
-        ui.allocate_exact_size(egui::vec2(available.x - 32.0, canvas_h), egui::Sense::hover());
+    let size = ui.available_size_before_wrap();
+    let (response, painter) = ui.allocate_painter(size, egui::Sense::drag());
+    let canvas_rect = response.rect;
 
     let (min_x, min_y) = (bx.min(0) - 4, by.min(0) - 4);
     let (max_x, max_y) = (bx + bw + 4, by + bh + 4);
     let gw = (max_x - min_x).max(1) as f32;
     let gh = (max_y - min_y).max(1) as f32;
 
-    let scale = (canvas_rect.width() / gw).min(canvas_rect.height() / gh);
-    let ox = canvas_rect.center().x - (min_x as f32 + gw / 2.0) * scale;
-    let oy = canvas_rect.center().y + (min_y as f32 + gh / 2.0) * scale;
+    if response.contains_pointer() {
+        let (zoom_delta, scroll_delta, pointer) = ui.input(|i| {
+            (
+                i.zoom_delta(),
+                i.smooth_scroll_delta,
+                i.pointer.hover_pos(),
+            )
+        });
+        if zoom_delta != 1.0 {
+            let old_zoom = view.zoom;
+            let new_zoom = (old_zoom * zoom_delta).clamp(0.1, 64.0);
+            if let Some(pointer) = pointer {
+                let anchor = pointer - canvas_rect.center();
+                view.pan = anchor - (anchor - view.pan) * (new_zoom / old_zoom);
+            }
+            view.zoom = new_zoom;
+        }
+        view.pan += response.drag_delta();
+        view.pan += scroll_delta;
+    }
 
-    let to_screen = |x: i32, y: i32| -> egui::Pos2 {
-        egui::pos2(ox + x as f32 * scale, oy - y as f32 * scale)
-    };
+    let fit_rect = canvas_rect.shrink(16.0);
+    let fit_scale = (fit_rect.width() / gw).min(fit_rect.height() / gh);
+    let scale = fit_scale * view.zoom;
+    let ox = canvas_rect.center().x + view.pan.x - (min_x as f32 + gw / 2.0) * scale;
+    let oy = canvas_rect.center().y + view.pan.y + (min_y as f32 + gh / 2.0) * scale;
+
+    let to_screen =
+        |x: i32, y: i32| -> egui::Pos2 { egui::pos2(ox + x as f32 * scale, oy - y as f32 * scale) };
 
     if ui.is_rect_visible(canvas_rect) {
-        ui.painter().rect(
+        painter.rect(
             canvas_rect,
             crate::image_viewer::ui::theme::RADIUS,
             p.surface0,
@@ -1041,27 +1349,27 @@ fn draw_glyph_vector_view(
         for x in [left_x, right_x] {
             let p1 = to_screen(x as i32, min_y as i32);
             let p2 = to_screen(x as i32, max_y as i32);
-            paint_dashed_line(ui.painter(), p1, p2, stroke_dash, 4.0);
+            paint_dashed_line(&painter, p1, p2, stroke_dash, 4.0);
         }
         let p1 = to_screen(min_x as i32, baseline_y);
         let p2 = to_screen(max_x as i32, baseline_y);
-        paint_dashed_line(ui.painter(), p1, p2, stroke_dash, 4.0);
+        paint_dashed_line(&painter, p1, p2, stroke_dash, 4.0);
 
-        ui.painter().text(
+        painter.text(
             to_screen(left_x as i32, max_y as i32) + egui::vec2(2.0, -2.0),
             egui::Align2::LEFT_BOTTOM,
             "bearing_x",
             egui::FontId::monospace(8.0),
             p.overlay0,
         );
-        ui.painter().text(
+        painter.text(
             to_screen(right_x as i32, max_y as i32) + egui::vec2(2.0, -2.0),
             egui::Align2::LEFT_BOTTOM,
             "advance",
             egui::FontId::monospace(8.0),
             p.overlay0,
         );
-        ui.painter().text(
+        painter.text(
             to_screen(min_x as i32, baseline_y) + egui::vec2(2.0, 2.0),
             egui::Align2::LEFT_TOP,
             "baseline",
@@ -1070,7 +1378,7 @@ fn draw_glyph_vector_view(
         );
 
         if outline.is_empty() {
-            ui.painter().text(
+            painter.text(
                 canvas_rect.center(),
                 egui::Align2::CENTER_CENTER,
                 if approximate {
@@ -1091,25 +1399,23 @@ fn draw_glyph_vector_view(
                     }
                     icu_lib::mirx::PathCmd::LineTo(pt) => {
                         let end = to_screen(pt.x.to_int(), pt.y.to_int());
-                        ui.painter().line_segment([current, end], path_stroke);
+                        painter.line_segment([current, end], path_stroke);
                         current = end;
                     }
                     icu_lib::mirx::PathCmd::QuadTo { ctrl, end } => {
                         let ctrl_p = to_screen(ctrl.x.to_int(), ctrl.y.to_int());
                         let end_p = to_screen(end.x.to_int(), end.y.to_int());
                         let pts = [current, ctrl_p, end_p];
-                        ui.painter().add(egui::epaint::QuadraticBezierShape::from_points_stroke(
+                        painter.add(egui::epaint::QuadraticBezierShape::from_points_stroke(
                             pts,
                             false,
                             egui::Color32::TRANSPARENT,
                             path_stroke,
                         ));
                         let handle_stroke = egui::Stroke::new(0.7, p.peach);
-                        ui.painter()
-                            .line_segment([current, ctrl_p], handle_stroke);
-                        ui.painter()
-                            .line_segment([end_p, ctrl_p], handle_stroke);
-                        ui.painter().circle_filled(ctrl_p, 2.0, p.peach);
+                        painter.line_segment([current, ctrl_p], handle_stroke);
+                        painter.line_segment([end_p, ctrl_p], handle_stroke);
+                        painter.circle_filled(ctrl_p, 2.0, p.peach);
                         current = end_p;
                     }
                     icu_lib::mirx::PathCmd::CubicTo { ctrl1, ctrl2, end } => {
@@ -1117,17 +1423,17 @@ fn draw_glyph_vector_view(
                         let c2 = to_screen(ctrl2.x.to_int(), ctrl2.y.to_int());
                         let e = to_screen(end.x.to_int(), end.y.to_int());
                         let pts = [current, c1, c2, e];
-                        ui.painter().add(egui::epaint::CubicBezierShape::from_points_stroke(
+                        painter.add(egui::epaint::CubicBezierShape::from_points_stroke(
                             pts,
                             false,
                             egui::Color32::TRANSPARENT,
                             path_stroke,
                         ));
                         let handle_stroke = egui::Stroke::new(0.7, p.peach);
-                        ui.painter().line_segment([current, c1], handle_stroke);
-                        ui.painter().line_segment([e, c2], handle_stroke);
-                        ui.painter().circle_filled(c1, 2.0, p.peach);
-                        ui.painter().circle_filled(c2, 2.0, p.peach);
+                        painter.line_segment([current, c1], handle_stroke);
+                        painter.line_segment([e, c2], handle_stroke);
+                        painter.circle_filled(c1, 2.0, p.peach);
+                        painter.circle_filled(c2, 2.0, p.peach);
                         current = e;
                     }
                     icu_lib::mirx::PathCmd::Close => {}
@@ -1135,13 +1441,11 @@ fn draw_glyph_vector_view(
             }
 
             for cmd in outline {
-                if let icu_lib::mirx::PathCmd::MoveTo(pt)
-                | icu_lib::mirx::PathCmd::LineTo(pt) = cmd
+                if let icu_lib::mirx::PathCmd::MoveTo(pt) | icu_lib::mirx::PathCmd::LineTo(pt) = cmd
                 {
                     let pos = to_screen(pt.x.to_int(), pt.y.to_int());
-                    ui.painter().circle_filled(pos, 3.0, p.accent());
-                    ui.painter()
-                        .circle_stroke(pos, 3.0, egui::Stroke::new(1.0, p.base));
+                    painter.circle_filled(pos, 3.0, p.accent());
+                    painter.circle_stroke(pos, 3.0, egui::Stroke::new(1.0, p.base));
                 }
             }
         }
@@ -1155,6 +1459,29 @@ fn draw_glyph_vector_view(
                 .color(p.text),
         );
     });
+    glyph_metrics_card(
+        ui,
+        codepoint,
+        advance,
+        bearing_x,
+        bearing_y,
+        bbox,
+        outline.len(),
+        approximate,
+    );
+}
+
+fn glyph_metrics_card(
+    ui: &mut egui::Ui,
+    codepoint: u32,
+    advance: u16,
+    bearing_x: i16,
+    bearing_y: i16,
+    bbox: (i16, i16, i16, i16),
+    outline_len: usize,
+    approximate: bool,
+) {
+    let (bx, by, bw, bh) = bbox;
     crate::image_viewer::ui::widgets::section_card(ui, "Glyph Metrics", |ui| {
         egui::Grid::new("glyph_metrics_grid")
             .num_columns(2)
@@ -1163,15 +1490,28 @@ fn draw_glyph_vector_view(
                 let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
                 let row = |ui: &mut egui::Ui, label: &str, value: &str| {
                     ui.label(egui::RichText::new(label).size(11.0).color(p.overlay0));
-                    ui.label(egui::RichText::new(value).size(11.0).color(p.text).family(egui::FontFamily::Monospace));
+                    ui.label(
+                        egui::RichText::new(value)
+                            .size(11.0)
+                            .color(p.text)
+                            .family(egui::FontFamily::Monospace),
+                    );
                     ui.end_row();
                 };
                 row(ui, "Codepoint", &format!("U+{:04X}", codepoint));
                 row(ui, "Advance", &format!("{}px", advance));
                 row(ui, "Bearing", &format!("({}, {})", bearing_x, bearing_y));
                 row(ui, "BBox", &format!("({}, {}, {}, {})", bx, by, bw, bh));
-                row(ui, "Outline cmds", &format!("{}", outline.len()));
-                row(ui, "Source", if approximate { "atlas (approximate)" } else { "FreeType (true vector)" });
+                row(ui, "Outline cmds", &format!("{}", outline_len));
+                row(
+                    ui,
+                    "Source",
+                    if approximate {
+                        "atlas (approximate)"
+                    } else {
+                        "FreeType (true vector)"
+                    },
+                );
             });
     });
 }

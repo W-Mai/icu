@@ -1,5 +1,5 @@
-use crate::image_viewer::ui::widgets;
 use crate::image_viewer::model::{DiffSorting, ViewerState};
+use crate::image_viewer::ui::widgets;
 use clap::ValueEnum;
 use eframe::egui;
 use eframe::egui::{Color32, Sense};
@@ -33,7 +33,11 @@ pub fn draw_diff_panel_contents(ui: &mut egui::Ui, state: &mut ViewerState) {
 
 /// Draws the control sliders and toggles for the difference view.
 fn draw_diff_panel_controls(ui: &mut egui::Ui, state: &mut ViewerState) {
-    widgets::toggle_labeled(ui, t!("only_show_diff_area"), &mut state.context.only_show_diff);
+    widgets::toggle_labeled(
+        ui,
+        t!("only_show_diff_area"),
+        &mut state.context.only_show_diff,
+    );
     ui.add(
         egui::Slider::new(
             &mut state.context.diff_tolerance,

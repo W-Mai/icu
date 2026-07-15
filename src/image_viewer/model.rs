@@ -3,7 +3,7 @@ pub use crate::converter::{
     OutputColorFormats as LvglColorFormat, OutputCompressedMethod as LvglCompression,
 };
 use clap::ValueEnum;
-use eframe::egui::{Color32, DroppedFile, TextureHandle};
+use eframe::egui::{Color32, DroppedFile, TextureHandle, Vec2};
 use icu_lib::endecoder::ImageInfo;
 use icu_lib::endecoder::utils::diff::ImageDiffResult;
 use icu_lib::midata::MiData;
@@ -83,6 +83,21 @@ pub enum FontMode {
 impl Default for FontMode {
     fn default() -> Self {
         FontMode::Atlas
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct GlyphCanvasView {
+    pub zoom: f32,
+    pub pan: Vec2,
+}
+
+impl Default for GlyphCanvasView {
+    fn default() -> Self {
+        Self {
+            zoom: 1.0,
+            pan: Vec2::ZERO,
+        }
     }
 }
 
@@ -250,6 +265,7 @@ pub struct ViewerState {
     pub font_grid_cached: Option<(String, Vec<TextureHandle>, usize)>,
     pub font_grid_big_cached: Option<(String, TextureHandle)>,
     pub font_bundle_index: usize,
+    pub glyph_canvas_view: GlyphCanvasView,
 }
 
 impl Default for ViewerState {
@@ -295,6 +311,7 @@ impl Default for ViewerState {
             font_grid_cached: None,
             font_grid_big_cached: None,
             font_bundle_index: 0,
+            glyph_canvas_view: GlyphCanvasView::default(),
         }
     }
 }

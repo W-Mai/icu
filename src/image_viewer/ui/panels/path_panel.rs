@@ -2,7 +2,7 @@ use crate::image_viewer::plotter::ImagePlotter;
 use eframe::egui;
 use icu_lib::midata::MiData;
 
-pub fn draw_path_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
+pub fn draw_path_side(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
     let Some(image) = state.current_image.clone() else {
         return;
     };
@@ -11,18 +11,15 @@ pub fn draw_path_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
     };
     let scene_data = scene_data.clone();
 
-    let frame = crate::image_viewer::ui::theme::side_panel_frame(ui.ctx());
-    egui::Panel::left("path_left").default_size(260.0).frame(frame).show(ui, |ui| {
-        egui::ScrollArea::vertical()
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                ui.spacing_mut().item_spacing.y = 8.0;
-                ui.add_space(4.0);
-        crate::image_viewer::ui::widgets::section_card(ui, "Scene", |ui| {
-            crate::image_viewer::ui::widgets::info_row(ui, "Ops", &scene_data.scene.ops.len().to_string());
-        });
-        ui.add_space(4.0);
-        crate::image_viewer::ui::widgets::section_card(ui, "Export", |ui| {
+    crate::image_viewer::ui::widgets::section_card(ui, "Scene", |ui| {
+        crate::image_viewer::ui::widgets::info_row(
+            ui,
+            "Ops",
+            &scene_data.scene.ops.len().to_string(),
+        );
+    });
+    ui.add_space(4.0);
+    crate::image_viewer::ui::widgets::section_card(ui, "Export", |ui| {
         if ui.button("Export PNG").clicked() {
             let (w, h) =
                 icu_lib::endecoder::mirui::scene_render::scene_dimensions(&scene_data.scene)
@@ -50,57 +47,65 @@ pub fn draw_path_panel(ui: &mut egui::Ui, state: &mut crate::image_viewer::model
                 let _ = std::fs::write(&path, bytes);
             }
         }
-        });
-        ui.separator();
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            for (i, op) in scene_data.scene.ops.iter().enumerate() {
-                let label = op_label(op);
-                if ui
-                    .selectable_label(
-                        state.selected_op == Some(i),
-                        format!("{}. {}", i, label),
-                    )
-                    .clicked()
-                {
-                    state.selected_op = Some(i);
-                }
-            }
-        });
-            });
     });
-
-    egui::CentralPanel::default().show(ui, |ui| {
-        let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-        egui::Frame::new()
-            .fill(p.mantle)
-            .stroke(egui::Stroke::new(1.0, p.surface0))
-            .inner_margin(egui::Margin { left: 8, right: 8, top: 4, bottom: 4 })
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    crate::image_viewer::ui::widgets::mode_tabs(
-                        ui,
-                        &mut state.path_mode,
-                        &[(crate::image_viewer::model::PathMode::Preview, "Preview")],
-                    );
-                });
-            });
-        ui.separator();
-
-        let highlight = if let Some(idx) = state.selected_op {
-            if let Some(op) = scene_data.scene.ops.get(idx) {
-                op_center(op)
-            } else {
-                None
+    ui.separator();
+    egui::ScrollArea::vertical().show(ui, |ui| {
+        for (i, op) in scene_data.scene.ops.iter().enumerate() {
+            let label = op_label(op);
+            if ui
+                .selectable_label(state.selected_op == Some(i), format!("{}. {}", i, label))
+                .clicked()
+            {
+                state.selected_op = Some(i);
             }
+        }
+    });
+}
+
+pub fn draw_path_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
+    let Some(image) = state.current_image.clone() else {
+        return;
+    };
+    let Some(MiData::PATH(scene_data)) = &image.midata else {
+        return;
+    };
+    let scene_data = scene_data.clone();
+
+    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+    egui::Frame::new()
+        .fill(p.mantle)
+        .stroke(egui::Stroke::new(1.0, p.surface0))
+        .inner_margin(egui::Margin {
+            left: 8,
+            right: 8,
+            top: 4,
+            bottom: 4,
+        })
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                crate::image_viewer::ui::widgets::mode_tabs(
+                    ui,
+                    &mut state.path_mode,
+                    &[(crate::image_viewer::model::PathMode::Preview, "Preview")],
+                );
+            });
+        });
+    ui.separator();
+
+    let highlight = if let Some(idx) = state.selected_op {
+        if let Some(op) = scene_data.scene.ops.get(idx) {
+            op_center(op)
         } else {
             None
-        };
-        let mut plotter = ImagePlotter::new("path_preview")
-            .anti_alias(state.context.anti_alias)
-            .show_grid(state.context.show_grid)
-            .highlight(highlight);
-        plotter.show(ui, &Some(image.clone()));
-    });
+        }
+    } else {
+        None
+    };
+    let mut plotter = ImagePlotter::new("path_preview")
+        .anti_alias(state.context.anti_alias)
+        .show_grid(state.context.show_grid)
+        .highlight(highlight);
+    plotter.show(ui, &Some(image.clone()));
 }
 
 fn op_center(op: &icu_lib::mirx::SceneOp) -> Option<[u32; 2]> {

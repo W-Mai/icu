@@ -9,7 +9,12 @@ pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
             ui.set_height(30.0);
 
             let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-            ui.label(egui::RichText::new("ICU").size(14.0).color(p.accent()).strong());
+            ui.label(
+                egui::RichText::new("ICU")
+                    .size(14.0)
+                    .color(p.accent())
+                    .strong(),
+            );
             ui.separator();
 
             if ui.button("📂 Open").clicked() {
@@ -43,8 +48,16 @@ pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
             egui::widgets::global_theme_preference_switch(ui);
 
             ui.separator();
-            crate::image_viewer::ui::widgets::toggle_labeled(ui, t!("show_grid"), &mut state.context.show_grid);
-            crate::image_viewer::ui::widgets::toggle_labeled(ui, t!("anti_aliasing"), &mut state.context.anti_alias);
+            crate::image_viewer::ui::widgets::toggle_labeled(
+                ui,
+                t!("show_grid"),
+                &mut state.context.show_grid,
+            );
+            crate::image_viewer::ui::widgets::toggle_labeled(
+                ui,
+                t!("anti_aliasing"),
+                &mut state.context.anti_alias,
+            );
 
             ui.separator();
             if ui.button(t!("clear")).clicked() {
@@ -63,14 +76,30 @@ pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
                 |ui| {
                     use crate::image_viewer::model::RightTab;
                     let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-                    if crate::image_viewer::ui::widgets::button_opts(ui, t!("image_diff").as_ref(), crate::image_viewer::ui::widgets::ButtonOpts { active: state.context.diff_active, ..Default::default() }).clicked()
+                    if crate::image_viewer::ui::widgets::button_opts(
+                        ui,
+                        t!("image_diff").as_ref(),
+                        crate::image_viewer::ui::widgets::ButtonOpts {
+                            active: state.context.diff_active,
+                            ..Default::default()
+                        },
+                    )
+                    .clicked()
                         && !state.context.diff_active
                     {
                         state.context.diff_active = true;
                         state.context.right_tab = RightTab::Diff;
                     }
                     let convert_active = state.context.right_tab == RightTab::Convert;
-                    if crate::image_viewer::ui::widgets::button_opts(ui, t!("convert_panel").as_ref(), crate::image_viewer::ui::widgets::ButtonOpts { active: convert_active, ..Default::default() }).clicked()
+                    if crate::image_viewer::ui::widgets::button_opts(
+                        ui,
+                        t!("convert_panel").as_ref(),
+                        crate::image_viewer::ui::widgets::ButtonOpts {
+                            active: convert_active,
+                            ..Default::default()
+                        },
+                    )
+                    .clicked()
                         && !convert_active
                     {
                         state.context.right_tab = RightTab::Convert;
@@ -84,63 +113,73 @@ pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
 
 pub fn draw_bottom_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
     let frame = crate::image_viewer::ui::theme::top_panel_frame(ui.ctx());
-    egui::Panel::bottom("bottom_panel").frame(frame).show(ui, |ui| {
-        const VERSION: &str = env!("CARGO_PKG_VERSION");
-        let show_lesser = ui.ctx().viewport_rect().width() <= 450.0;
-        use egui::special_emojis::GITHUB;
+    egui::Panel::bottom("bottom_panel")
+        .frame(frame)
+        .show(ui, |ui| {
+            const VERSION: &str = env!("CARGO_PKG_VERSION");
+            let show_lesser = ui.ctx().viewport_rect().width() <= 450.0;
+            use egui::special_emojis::GITHUB;
 
-        ui.horizontal_wrapped(|ui| {
-            let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-            let small = |text: &str| egui::RichText::new(text).size(11.0).color(p.overlay0);
+            ui.horizontal_wrapped(|ui| {
+                let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+                let small = |text: &str| egui::RichText::new(text).size(11.0).color(p.overlay0);
 
-            ui.label(small(&format!("v{VERSION}")));
-            ui.separator();
-            ui.label(small(&format!(
-                "{} files",
-                state.items.iter().filter(|i| matches!(i, crate::image_viewer::model::SidebarItem::Image(_))).count()
-            )));
-            if let Some(idx) = state.selected_index {
-                if let Some(item) = state.items.get(idx) {
-                    let name = match item {
-                        crate::image_viewer::model::SidebarItem::Image(i) => {
-                            std::path::Path::new(&i.path)
-                                .file_name()
-                                .map(|n| n.to_string_lossy().into_owned())
-                                .unwrap_or_else(|| i.path.clone())
-                        }
-                        crate::image_viewer::model::SidebarItem::Glyph(g) => g.name.clone(),
-                    };
-                    ui.separator();
-                    ui.label(small(&name));
-                }
-            }
-            ui.separator();
-            crate::image_viewer::ui::widgets::kbd(ui, "⌘O");
-            ui.label(small("Open"));
-            crate::image_viewer::ui::widgets::kbd(ui, "⌘D");
-            ui.label(small("Diff"));
-            crate::image_viewer::ui::widgets::kbd(ui, "⌘E");
-            ui.label(small("Export"));
-
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                egui::ComboBox::from_id_salt("Language")
-                    .selected_text(t!("language"))
-                    .show_ui(ui, |ui| {
-                        let lang_choices = [("en-US", "English"), ("zh-CN", "简体中文")];
-                        for (code, label) in lang_choices {
-                            if ui
-                                .selectable_value(&mut state.context.language, code.to_owned(), label)
-                                .clicked()
-                            {
-                                rust_i18n::set_locale(code);
-                            }
-                        }
-                    });
+                ui.label(small(&format!("v{VERSION}")));
                 ui.separator();
-                draw_footer_links(ui, VERSION, show_lesser, GITHUB);
+                ui.label(small(&format!(
+                    "{} files",
+                    state
+                        .items
+                        .iter()
+                        .filter(|i| matches!(i, crate::image_viewer::model::SidebarItem::Image(_)))
+                        .count()
+                )));
+                if let Some(idx) = state.selected_index {
+                    if let Some(item) = state.items.get(idx) {
+                        let name = match item {
+                            crate::image_viewer::model::SidebarItem::Image(i) => {
+                                std::path::Path::new(&i.path)
+                                    .file_name()
+                                    .map(|n| n.to_string_lossy().into_owned())
+                                    .unwrap_or_else(|| i.path.clone())
+                            }
+                            crate::image_viewer::model::SidebarItem::Glyph(g) => g.name.clone(),
+                        };
+                        ui.separator();
+                        ui.label(small(&name));
+                    }
+                }
+                ui.separator();
+                crate::image_viewer::ui::widgets::kbd(ui, "⌘O");
+                ui.label(small("Open"));
+                crate::image_viewer::ui::widgets::kbd(ui, "⌘D");
+                ui.label(small("Diff"));
+                crate::image_viewer::ui::widgets::kbd(ui, "⌘E");
+                ui.label(small("Export"));
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    egui::ComboBox::from_id_salt("Language")
+                        .selected_text(t!("language"))
+                        .show_ui(ui, |ui| {
+                            let lang_choices = [("en-US", "English"), ("zh-CN", "简体中文")];
+                            for (code, label) in lang_choices {
+                                if ui
+                                    .selectable_value(
+                                        &mut state.context.language,
+                                        code.to_owned(),
+                                        label,
+                                    )
+                                    .clicked()
+                                {
+                                    rust_i18n::set_locale(code);
+                                }
+                            }
+                        });
+                    ui.separator();
+                    draw_footer_links(ui, VERSION, show_lesser, GITHUB);
+                });
             });
         });
-    });
 }
 
 fn draw_footer_links(ui: &mut egui::Ui, version: &str, show_lesser: bool, github_icon: char) {

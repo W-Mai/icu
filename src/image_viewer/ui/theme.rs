@@ -120,11 +120,7 @@ pub mod tokens {
     }
 
     pub fn palette(ctx: &eframe::egui::Context) -> super::palette::Theme {
-        if is_dark(ctx) {
-            MOCHA
-        } else {
-            LATTE
-        }
+        if is_dark(ctx) { MOCHA } else { LATTE }
     }
 }
 
@@ -152,10 +148,9 @@ fn apply_theme_to_style(style: &mut egui::Style, t: &palette::Theme, is_dark: bo
         TextStyle::Heading,
         FontId::new(13.0, FontFamily::Proportional),
     );
-    style.text_styles.insert(
-        TextStyle::Body,
-        FontId::new(12.0, FontFamily::Proportional),
-    );
+    style
+        .text_styles
+        .insert(TextStyle::Body, FontId::new(12.0, FontFamily::Proportional));
     style.text_styles.insert(
         TextStyle::Button,
         FontId::new(12.0, FontFamily::Proportional),
@@ -164,9 +159,10 @@ fn apply_theme_to_style(style: &mut egui::Style, t: &palette::Theme, is_dark: bo
         TextStyle::Small,
         FontId::new(10.0, FontFamily::Proportional),
     );
-    style
-        .text_styles
-        .insert(TextStyle::Monospace, FontId::new(11.0, FontFamily::Monospace));
+    style.text_styles.insert(
+        TextStyle::Monospace,
+        FontId::new(11.0, FontFamily::Monospace),
+    );
 
     style.spacing.item_spacing = egui::vec2(6.0, 4.0);
     style.spacing.button_padding = egui::vec2(8.0, 3.0);
@@ -239,7 +235,7 @@ pub fn side_panel_frame(ctx: &egui::Context) -> egui::Frame {
     egui::Frame::new()
         .fill(p.mantle)
         .stroke(Stroke::new(1.0, p.surface1))
-        .inner_margin(Margin::same(8))
+        .inner_margin(Margin::same(0))
 }
 
 pub fn top_panel_frame(ctx: &egui::Context) -> egui::Frame {

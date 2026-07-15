@@ -12,10 +12,14 @@ pub fn draw_left_panel(
         .exact_size(260.0)
         .frame(frame)
         .show(ui, |ui| {
+            egui::Frame::new().inner_margin(egui::Margin::same(4)).show(ui, |ui| {
             let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
 
             let header_h = 28.0;
-            let (hdr_rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), header_h), egui::Sense::hover());
+            let (hdr_rect, _) = ui.allocate_exact_size(
+                egui::vec2(ui.available_width(), header_h),
+                egui::Sense::hover(),
+            );
             if ui.is_rect_visible(hdr_rect) {
                 ui.painter().text(
                     egui::pos2(hdr_rect.left() + 4.0, hdr_rect.center().y),
@@ -30,9 +34,25 @@ pub fn draw_left_panel(
                     egui::vec2(24.0, 20.0),
                 );
                 let add_resp = ui.interact(add_rect, ui.id().with("sb_add"), egui::Sense::click());
-                let add_fill = if add_resp.hovered() { p.surface1 } else { Color32::TRANSPARENT };
-                ui.painter().rect(add_rect, egui::CornerRadius::same(4), add_fill, egui::Stroke::NONE, egui::StrokeKind::Inside);
-                ui.painter().text(add_rect.center(), egui::Align2::CENTER_CENTER, "＋", egui::FontId::proportional(14.0), p.subtext0);
+                let add_fill = if add_resp.hovered() {
+                    p.surface1
+                } else {
+                    Color32::TRANSPARENT
+                };
+                ui.painter().rect(
+                    add_rect,
+                    egui::CornerRadius::same(4),
+                    add_fill,
+                    egui::Stroke::NONE,
+                    egui::StrokeKind::Inside,
+                );
+                ui.painter().text(
+                    add_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    "＋",
+                    egui::FontId::proportional(14.0),
+                    p.subtext0,
+                );
                 if add_resp.clicked() {
                     #[cfg(not(target_arch = "wasm32"))]
                     {
@@ -40,13 +60,21 @@ pub fn draw_left_panel(
                             .pick_files()
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|p| eframe::egui::DroppedFile { path: Some(p), ..Default::default() })
+                            .map(|p| eframe::egui::DroppedFile {
+                                path: Some(p),
+                                ..Default::default()
+                            })
                             .collect();
                         if !files.is_empty() {
-                            let new_items: Vec<SidebarItem> = crate::image_viewer::utils::process_images(&files).into_iter().map(SidebarItem::Image).collect();
+                            let new_items: Vec<SidebarItem> =
+                                crate::image_viewer::utils::process_images(&files)
+                                    .into_iter()
+                                    .map(SidebarItem::Image)
+                                    .collect();
                             state.items.extend(new_items);
                             if state.selected_index.is_none() {
-                                if let Some(SidebarItem::Image(img)) = state.items.first().cloned() {
+                                if let Some(SidebarItem::Image(img)) = state.items.first().cloned()
+                                {
                                     state.current_image = Some(img);
                                     state.selected_index = Some(0);
                                 }
@@ -58,10 +86,27 @@ pub fn draw_left_panel(
                     egui::pos2(hdr_rect.right() - 16.0, btn_y),
                     egui::vec2(24.0, 20.0),
                 );
-                let clr_resp = ui.interact(clr_rect, ui.id().with("sb_clear"), egui::Sense::click());
-                let clr_fill = if clr_resp.hovered() { p.surface1 } else { Color32::TRANSPARENT };
-                ui.painter().rect(clr_rect, egui::CornerRadius::same(4), clr_fill, egui::Stroke::NONE, egui::StrokeKind::Inside);
-                ui.painter().text(clr_rect.center(), egui::Align2::CENTER_CENTER, "✕", egui::FontId::proportional(12.0), p.red);
+                let clr_resp =
+                    ui.interact(clr_rect, ui.id().with("sb_clear"), egui::Sense::click());
+                let clr_fill = if clr_resp.hovered() {
+                    p.surface1
+                } else {
+                    Color32::TRANSPARENT
+                };
+                ui.painter().rect(
+                    clr_rect,
+                    egui::CornerRadius::same(4),
+                    clr_fill,
+                    egui::Stroke::NONE,
+                    egui::StrokeKind::Inside,
+                );
+                ui.painter().text(
+                    clr_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    "✕",
+                    egui::FontId::proportional(12.0),
+                    p.red,
+                );
                 if clr_resp.clicked() {
                     state.items.clear();
                     reset_callback(state);
@@ -77,15 +122,11 @@ pub fn draw_left_panel(
                     ui.add_space(2.0);
                 }
             });
+            });
         });
 }
 
-fn draw_sidebar_item(
-    ui: &mut egui::Ui,
-    state: &mut ViewerState,
-    index: usize,
-    item: &SidebarItem,
-) {
+fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, item: &SidebarItem) {
     let is_selected = state.selected_index == Some(index);
     let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
 
@@ -126,7 +167,8 @@ fn draw_sidebar_item(
             Color32::TRANSPARENT
         };
         if fill != Color32::TRANSPARENT {
-            ui.painter().rect_filled(rect, egui::CornerRadius::same(4), fill);
+            ui.painter()
+                .rect_filled(rect, egui::CornerRadius::same(4), fill);
         }
 
         if let SidebarItem::Glyph(_) = item {
@@ -134,7 +176,8 @@ fn draw_sidebar_item(
                 egui::pos2(rect.left() + 1.0, rect.top() + 4.0),
                 egui::vec2(2.0, rect.height() - 8.0),
             );
-            ui.painter().rect_filled(bar, egui::CornerRadius::same(0), p.peach);
+            ui.painter()
+                .rect_filled(bar, egui::CornerRadius::same(0), p.peach);
         }
 
         let thumb_size = 36.0;
@@ -144,8 +187,14 @@ fn draw_sidebar_item(
         );
         match item {
             SidebarItem::Image(image_item) => {
-                ui.painter().rect_filled(thumb_rect, egui::CornerRadius::same(4), p.surface0);
-                ui.painter().rect_stroke(thumb_rect, egui::CornerRadius::same(4), egui::Stroke::new(1.0, p.surface1), egui::StrokeKind::Inside);
+                ui.painter()
+                    .rect_filled(thumb_rect, egui::CornerRadius::same(4), p.surface0);
+                ui.painter().rect_stroke(
+                    thumb_rect,
+                    egui::CornerRadius::same(4),
+                    egui::Stroke::new(1.0, p.surface1),
+                    egui::StrokeKind::Inside,
+                );
                 let tex = ui.ctx().load_texture(
                     format!("sb_thumb_{}", index),
                     egui::ColorImage {
@@ -159,7 +208,10 @@ fn draw_sidebar_item(
                 let inner = thumb_rect.shrink(2.0);
                 let draw_h = inner.height();
                 let draw_w = draw_h * img_aspect;
-                let img_rect = egui::Rect::from_center_size(inner.center(), egui::vec2(draw_w.min(inner.width()), draw_h));
+                let img_rect = egui::Rect::from_center_size(
+                    inner.center(),
+                    egui::vec2(draw_w.min(inner.width()), draw_h),
+                );
                 ui.painter().image(
                     tex.id(),
                     img_rect,
@@ -168,12 +220,14 @@ fn draw_sidebar_item(
                 );
             }
             SidebarItem::Glyph(g) => {
-                ui.painter().rect_filled(
+                ui.painter()
+                    .rect_filled(thumb_rect, egui::CornerRadius::same(4), p.surface0);
+                ui.painter().rect_stroke(
                     thumb_rect,
                     egui::CornerRadius::same(4),
-                    p.surface0,
+                    egui::Stroke::new(1.0, p.surface1),
+                    egui::StrokeKind::Inside,
                 );
-                ui.painter().rect_stroke(thumb_rect, egui::CornerRadius::same(4), egui::Stroke::new(1.0, p.surface1), egui::StrokeKind::Inside);
                 ui.painter().text(
                     thumb_rect.center(),
                     egui::Align2::CENTER_CENTER,
@@ -208,10 +262,14 @@ fn draw_sidebar_item(
         let badge_w = badge_galley.size().x + 10.0;
         let badge_h = badge_galley.size().y + 2.0;
         let badge_rect = egui::Rect::from_min_size(
-            egui::pos2(rect.right() - badge_w - 8.0, rect.center().y - badge_h / 2.0),
+            egui::pos2(
+                rect.right() - badge_w - 8.0,
+                rect.center().y - badge_h / 2.0,
+            ),
             egui::vec2(badge_w, badge_h),
         );
-        ui.painter().rect_filled(badge_rect, egui::CornerRadius::same(3), badge_color);
+        ui.painter()
+            .rect_filled(badge_rect, egui::CornerRadius::same(3), badge_color);
         ui.painter().galley(
             badge_rect.center() - 0.5 * badge_galley.size(),
             badge_galley,
@@ -301,4 +359,3 @@ fn draw_diff_selection_buttons(ui: &mut egui::Ui, state: &mut ViewerState, index
         }
     });
 }
-

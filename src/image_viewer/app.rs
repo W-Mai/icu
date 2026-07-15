@@ -26,6 +26,7 @@ impl MyEguiApp {
                 .unwrap_or_default(),
             ..Default::default()
         };
+        state.context.right_tab = crate::image_viewer::model::RightTab::Info;
 
         if let Some(SidebarItem::Image(first)) = state.items.first().cloned() {
             state.current_image = Some(first.clone());
@@ -105,7 +106,7 @@ impl MyEguiApp {
             self.state.items.extend(new_items);
 
             if self.state.items.len() == 1 {
-                self.state.context.right_tab = crate::image_viewer::model::RightTab::Convert;
+                self.state.context.right_tab = crate::image_viewer::model::RightTab::Info;
             }
 
             if let Some(SidebarItem::Image(image)) = self.state.items.first().cloned() {
@@ -260,7 +261,6 @@ impl eframe::App for MyEguiApp {
         ui::draw_right_panel_container(ui, &mut self.state);
 
         ui::draw_central_panel(ui, &mut self.state);
-        ui::draw_image_info(ui.ctx(), &mut self.state);
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {

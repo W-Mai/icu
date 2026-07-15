@@ -81,29 +81,22 @@ pub fn mode_tabs<T: Copy + PartialEq>(
                 .x
         })
         .collect();
-    let total_width: f32 = text_widths
-        .iter()
-        .map(|w| w + 2.0 * padding_x)
-        .sum::<f32>()
+    let total_width: f32 = text_widths.iter().map(|w| w + 2.0 * padding_x).sum::<f32>()
         + gap * (tabs.len().saturating_sub(1)) as f32;
     let desired_size = Vec2::new(total_width, height);
     let (outer, mut response) = ui.allocate_exact_size(desired_size, Sense::hover());
 
     if ui.is_rect_visible(outer) {
-        ui.painter().rect(
-            outer,
-            RADIUS,
-            p.surface0,
-            Stroke::NONE,
-            StrokeKind::Inside,
-        );
+        ui.painter()
+            .rect(outer, RADIUS, p.surface0, Stroke::NONE, StrokeKind::Inside);
     }
 
     let mut x = outer.left();
     let mut any_clicked = false;
     for (i, (value, label)) in tabs.iter().enumerate() {
         let tab_w = text_widths[i] + 2.0 * padding_x;
-        let tab_rect = egui::Rect::from_min_size(Pos2::new(x, outer.top()), Vec2::new(tab_w, height));
+        let tab_rect =
+            egui::Rect::from_min_size(Pos2::new(x, outer.top()), Vec2::new(tab_w, height));
         let id = ui.make_persistent_id(("mode-tabs", i));
         let tab_response = ui.interact(tab_rect, id, Sense::click());
 
@@ -167,13 +160,12 @@ pub fn button_opts(ui: &mut Ui, label: impl Into<egui::RichText>, opts: ButtonOp
     let pad_x = if opts.small { 6.0 } else { 10.0 };
     let pad_y = if opts.small { 2.0 } else { 4.0 };
 
-    let galley = ui
-        .painter()
-        .layout_no_wrap(label_text.text().to_string(), FontId::proportional(font_size), Color32::TRANSPARENT);
-    let desired = Vec2::new(
-        galley.size().x + 2.0 * pad_x,
-        galley.size().y + 2.0 * pad_y,
+    let galley = ui.painter().layout_no_wrap(
+        label_text.text().to_string(),
+        FontId::proportional(font_size),
+        Color32::TRANSPARENT,
     );
+    let desired = Vec2::new(galley.size().x + 2.0 * pad_x, galley.size().y + 2.0 * pad_y);
     let desired = if opts.full_width {
         Vec2::new(ui.available_width(), desired.y.max(28.0))
     } else {
@@ -210,24 +202,19 @@ pub fn button_opts(ui: &mut Ui, label: impl Into<egui::RichText>, opts: ButtonOp
             StrokeKind::Inside,
         );
         let label_rich = label_text.color(text_color).size(font_size);
-        let galley = ui
-            .painter()
-            .layout_no_wrap(label_rich.text().to_string(), FontId::proportional(font_size), text_color);
-        ui.painter().galley(
-            rect.center() - 0.5 * galley.size(),
-            galley,
+        let galley = ui.painter().layout_no_wrap(
+            label_rich.text().to_string(),
+            FontId::proportional(font_size),
             text_color,
         );
+        ui.painter()
+            .galley(rect.center() - 0.5 * galley.size(), galley, text_color);
     }
 
     response
 }
 
-pub fn section_card(
-    ui: &mut Ui,
-    title: &str,
-    add_contents: impl FnOnce(&mut Ui),
-) {
+pub fn section_card(ui: &mut Ui, title: &str, add_contents: impl FnOnce(&mut Ui)) {
     let p = theme::tokens::palette(ui.ctx());
     egui::Frame::new()
         .fill(p.surface0)
@@ -268,13 +255,9 @@ pub fn chip(ui: &mut Ui, text: &str, color: Color32) {
     let desired = galley.size() + Vec2::new(2.0 * pad_x, 2.0 * pad_y);
     let (rect, _) = ui.allocate_exact_size(desired, Sense::hover());
     if ui.is_rect_visible(rect) {
+        ui.painter().rect_filled(rect, CornerRadius::same(3), color);
         ui.painter()
-            .rect_filled(rect, CornerRadius::same(3), color);
-        ui.painter().galley(
-            rect.center() - 0.5 * galley.size(),
-            galley,
-            p.base,
-        );
+            .galley(rect.center() - 0.5 * galley.size(), galley, p.base);
     }
 }
 
@@ -325,10 +308,7 @@ pub fn kbd(ui: &mut Ui, key: &str) {
             Stroke::new(1.0, p.surface1),
             StrokeKind::Inside,
         );
-        ui.painter().galley(
-            rect.center() - 0.5 * galley.size(),
-            galley,
-            p.overlay0,
-        );
+        ui.painter()
+            .galley(rect.center() - 0.5 * galley.size(), galley, p.overlay0);
     }
 }

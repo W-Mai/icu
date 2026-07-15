@@ -1,7 +1,5 @@
-use crate::image_viewer::model::{ViewerState};
-use crate::image_viewer::model::{
-    ImageFormat, LvglColorFormat, LvglCompression, LvglVersion,
-};
+use crate::image_viewer::model::ViewerState;
+use crate::image_viewer::model::{ImageFormat, LvglColorFormat, LvglCompression, LvglVersion};
 use clap::ValueEnum;
 use eframe::egui;
 
@@ -44,7 +42,11 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                 .selected_text(format!("{:?}", state.context.convert_params.lvgl_version))
                 .show_ui(ui, |ui| {
                     for &version in LvglVersion::value_variants() {
-                        ui.selectable_value(&mut state.context.convert_params.lvgl_version, version, format!("{version:?}"));
+                        ui.selectable_value(
+                            &mut state.context.convert_params.lvgl_version,
+                            version,
+                            format!("{version:?}"),
+                        );
                     }
                 });
         });
@@ -53,7 +55,11 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                 .selected_text(format!("{:?}", state.context.convert_params.color_format))
                 .show_ui(ui, |ui| {
                     for &format in LvglColorFormat::value_variants() {
-                        ui.selectable_value(&mut state.context.convert_params.color_format, format, format!("{format:?}"));
+                        ui.selectable_value(
+                            &mut state.context.convert_params.color_format,
+                            format,
+                            format!("{format:?}"),
+                        );
                     }
                 });
         });
@@ -62,12 +68,18 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                 .selected_text(format!("{:?}", state.context.convert_params.compression))
                 .show_ui(ui, |ui| {
                     for &compression in LvglCompression::value_variants() {
-                        ui.selectable_value(&mut state.context.convert_params.compression, compression, format!("{compression:?}"));
+                        ui.selectable_value(
+                            &mut state.context.convert_params.compression,
+                            compression,
+                            format!("{compression:?}"),
+                        );
                     }
                 });
         });
         param_row(ui, t!("stride_align").as_ref(), |ui| {
-            ui.add(egui::DragValue::new(&mut state.context.convert_params.stride_align));
+            ui.add(egui::DragValue::new(
+                &mut state.context.convert_params.stride_align,
+            ));
         });
         param_row(ui, t!("dither").as_ref(), |ui| {
             crate::image_viewer::ui::widgets::toggle(ui, &mut state.context.convert_params.dither);
@@ -82,14 +94,28 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                 .selected_text(format!("{:?}", state.context.convert_params.color_format))
                 .show_ui(ui, |ui| {
                     for &format in LvglColorFormat::value_variants() {
-                        if matches!(format, LvglColorFormat::RGB565 | LvglColorFormat::RGB565Swapped | LvglColorFormat::RGB888 | LvglColorFormat::RGBA8888 | LvglColorFormat::BGRA8888 | LvglColorFormat::XRGB8888) {
-                            ui.selectable_value(&mut state.context.convert_params.color_format, format, format!("{format:?}"));
+                        if matches!(
+                            format,
+                            LvglColorFormat::RGB565
+                                | LvglColorFormat::RGB565Swapped
+                                | LvglColorFormat::RGB888
+                                | LvglColorFormat::RGBA8888
+                                | LvglColorFormat::BGRA8888
+                                | LvglColorFormat::XRGB8888
+                        ) {
+                            ui.selectable_value(
+                                &mut state.context.convert_params.color_format,
+                                format,
+                                format!("{format:?}"),
+                            );
                         }
                     }
                 });
         });
         param_row(ui, t!("stride_align").as_ref(), |ui| {
-            ui.add(egui::DragValue::new(&mut state.context.convert_params.stride_align));
+            ui.add(egui::DragValue::new(
+                &mut state.context.convert_params.stride_align,
+            ));
         });
         param_row(ui, t!("dither").as_ref(), |ui| {
             crate::image_viewer::ui::widgets::toggle(ui, &mut state.context.convert_params.dither);
@@ -99,9 +125,16 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new("Level").size(11.0).color(p.subtext0));
-                ui.add(egui::Slider::new(&mut state.context.convert_params.dither_level, 1..=30).text(""));
+                ui.add(
+                    egui::Slider::new(&mut state.context.convert_params.dither_level, 1..=30)
+                        .text(""),
+                );
             });
-            ui.label(egui::RichText::new("NeuQuant sample factor (1=best quality, 30=fastest)").size(9.0).color(p.overlay0));
+            ui.label(
+                egui::RichText::new("NeuQuant sample factor (1=best quality, 30=fastest)")
+                    .size(9.0)
+                    .color(p.overlay0),
+            );
         }
     }
 
@@ -119,15 +152,29 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
     ui.vertical_centered(|ui| {
         if state.is_converting {
             ui.spinner();
-            ui.label(egui::RichText::new(t!("converting").to_string()).size(12.0).color(p.overlay0));
+            ui.label(
+                egui::RichText::new(t!("converting").to_string())
+                    .size(12.0)
+                    .color(p.overlay0),
+            );
         } else {
-            let btn_text = if image_items.len() > 1 { t!("convert_all") } else { t!("convert") };
+            let btn_text = if image_items.len() > 1 {
+                t!("convert_all")
+            } else {
+                t!("convert")
+            };
             if ui
-                .add_sized([ui.available_width(), 32.0], egui::Button::new(egui::RichText::new(btn_text).heading()))
+                .add_sized(
+                    [ui.available_width(), 32.0],
+                    egui::Button::new(egui::RichText::new(btn_text).heading()),
+                )
                 .clicked()
             {
                 state.is_converting = true;
-                crate::image_viewer::utils::save_images(&image_items, &state.context.convert_params);
+                crate::image_viewer::utils::save_images(
+                    &image_items,
+                    &state.context.convert_params,
+                );
                 state.is_converting = false;
             }
         }

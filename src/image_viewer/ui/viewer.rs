@@ -6,147 +6,211 @@ use icu_lib::midata::MiData;
 use serde::Serialize;
 
 pub fn draw_central_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
-    use crate::image_viewer::model::SidebarItem;
+    let content_type = get_content_type(state);
 
+    egui::CentralPanel::default()
+        .frame(egui::Frame::NONE)
+        .show(ui, |ui| {
+            draw_content_side_panel(ui, state);
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(ui, |ui| {
+                    match content_type {
+                        ContentType::Rgba => draw_rgba_canvas(ui, state),
+                        ContentType::Font => panels::font_panel::draw_font_canvas(ui, state),
+                        ContentType::Path => panels::path_panel::draw_path_canvas(ui, state),
+                        ContentType::Indexed => panels::indexed_panel::draw_indexed_canvas(ui, state),
+                        ContentType::Glyph => panels::font_panel::draw_glyph_canvas(ui, state),
+                    }
+                });
+        });
+}
+
+pub fn draw_content_side_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
+    let content_type = get_content_type(state);
+    let side_frame = crate::image_viewer::ui::theme::side_panel_frame(ui.ctx());
+    egui::Panel::left("content_side")
+        .exact_size(220.0)
+        .resizable(false)
+        .frame(side_frame)
+        .show(ui, |ui| {
+            egui::ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    ui.spacing_mut().item_spacing.y = 8.0;
+                    ui.add_space(4.0);
+                    egui::Frame::new().inner_margin(egui::Margin::same(8)).show(ui, |ui| {
+                        match content_type {
+                            ContentType::Rgba => draw_rgba_side(ui, state),
+                            ContentType::Font => panels::font_panel::draw_font_side(ui, state),
+                            ContentType::Path => panels::path_panel::draw_path_side(ui, state),
+                            ContentType::Indexed => panels::indexed_panel::draw_indexed_side(ui, state),
+                            ContentType::Glyph => panels::font_panel::draw_glyph_side(ui, state),
+                        }
+                    });
+                });
+        });
+}
+
+#[derive(Clone, Copy)]
+enum ContentType {
+    Rgba,
+    Font,
+    Path,
+    Indexed,
+    Glyph,
+}
+
+fn get_content_type(state: &ViewerState) -> ContentType {
     if let Some(idx) = state.selected_index {
-        if let Some(SidebarItem::Glyph(_)) = state.items.get(idx) {
-            panels::draw_glyph_panel(ui, state);
-            return;
+        if let Some(crate::image_viewer::model::SidebarItem::Glyph(_)) = state.items.get(idx) {
+            return ContentType::Glyph;
         }
     }
 
     if let Some(image) = &state.current_image {
         if let Some(midata) = &image.midata {
             match midata {
-                MiData::FONT(_) => {
-                    panels::draw_font_panel(ui, state);
-                    return;
-                }
-                MiData::PATH(_) => {
-                    panels::draw_path_panel(ui, state);
-                    return;
-                }
-                MiData::INDEXED(_) => {
-                    panels::draw_indexed_panel(ui, state);
-                    return;
-                }
+                MiData::FONT(_) => return ContentType::Font,
+                MiData::PATH(_) => return ContentType::Path,
+                MiData::INDEXED(_) => return ContentType::Indexed,
                 _ => {}
             }
         }
     }
 
-    egui::CentralPanel::default().show(ui, |ui| {
-        let image_plotter = ImagePlotter::new("viewer")
-            .anti_alias(state.context.anti_alias)
-            .show_grid(state.context.show_grid)
-            .background_color(state.context.background_color)
-            .highlight(if state.hovered_diff_pixel.is_none() {
-                state.selected_diff_pixel
-            } else {
-                state.hovered_diff_pixel
-            })
-            .on_hover(&mut state.hovered_diff_pixel_from_plot);
-
-        if state.context.only_show_diff {
-            if let Some((diff_img, _)) = &state.diff_result {
-                image_plotter.badge(format!("{}×{} · diff", diff_img.width, diff_img.height)).show(ui, &Some(diff_img.clone()));
-            }
-        } else if let Some((diff_img, _)) = &state.diff_result
-            && state.context.diff_active
-        {
-            image_plotter.badge(format!("{}×{} · diff", diff_img.width, diff_img.height)).show(ui, &Some(diff_img.clone()));
-        } else if let Some(image) = &state.current_image {
-            image_plotter.badge(format!("{}×{} · {}", image.width, image.height, image.info.format)).show(ui, &Some(image.clone()));
-        } else {
-            let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-            let avail = ui.available_size();
-            let (rect, click_response) = ui.allocate_exact_size(avail, egui::Sense::click());
-            let hovered = click_response.hovered();
-            if ui.is_rect_visible(rect) {
-                let stroke_color = if hovered { p.accent() } else { p.surface1 };
-                paint_dashed_rect(ui.painter(), rect, egui::CornerRadius::same(12), stroke_color, 8.0, 6.0);
-            }
-            let text_color = if hovered { p.accent() } else { p.overlay0 };
-            let galley = ui.painter().layout(
-                t!("drag_here").to_string(),
-                egui::FontId::proportional(72.0),
-                text_color,
-                f32::INFINITY,
-            );
-            let text_pos = egui::pos2(
-                rect.center().x - galley.size().x / 2.0,
-                rect.center().y - galley.size().y / 2.0,
-            );
-            ui.painter().galley(text_pos, galley, text_color);
-            if click_response.clicked() {
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        let files: Vec<eframe::egui::DroppedFile> = rfd::FileDialog::new()
-                            .pick_files()
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(|p| eframe::egui::DroppedFile {
-                                path: Some(p),
-                                ..Default::default()
-                            })
-                            .collect();
-                        if !files.is_empty() {
-                            let new_items: Vec<crate::image_viewer::model::SidebarItem> =
-                                crate::image_viewer::utils::process_images(&files)
-                                    .into_iter()
-                                    .map(crate::image_viewer::model::SidebarItem::Image)
-                                    .collect();
-                            state.items.extend(new_items);
-                            if let Some(crate::image_viewer::model::SidebarItem::Image(img)) =
-                                state.items.first().cloned()
-                            {
-                                state.current_image = Some(img);
-                                state.selected_index = Some(0);
-                            }
-                        }
-                    }
-                }
-        }
-    });
+    ContentType::Rgba
 }
 
-/// Draws the image info window.
-pub fn draw_image_info(ctx: &egui::Context, state: &mut ViewerState) {
-    if let Some(current_image) = &state.current_image {
-        egui::Window::new(t!("image_info")).show(ctx, |ui| {
-            egui::Grid::new("info_grid")
-                .num_columns(2)
-                .spacing([40.0, 4.0])
-                .striped(true)
-                .show(ui, |ui| {
-                    ui.label(t!("width"));
-                    ui.label(format!("{}", current_image.info.width));
-                    ui.end_row();
+fn draw_rgba_side(ui: &mut egui::Ui, state: &mut ViewerState) {
+    crate::image_viewer::ui::widgets::section_card(ui, "Display", |ui| {
+        crate::image_viewer::ui::widgets::toggle_labeled(ui, "Grid", &mut state.context.show_grid);
+        crate::image_viewer::ui::widgets::toggle_labeled(
+            ui,
+            "Anti-alias",
+            &mut state.context.anti_alias,
+        );
+        ui.horizontal(|ui| {
+            ui.label("Background");
+            egui::color_picker::color_edit_button_srgba(
+                ui,
+                &mut state.context.background_color,
+                egui::color_picker::Alpha::Opaque,
+            );
+        });
+    });
 
-                    ui.label(t!("height"));
-                    ui.label(format!("{}", current_image.info.height));
-                    ui.end_row();
-
-                    ui.label(t!("format"));
-                    ui.label(&current_image.info.format);
-                    ui.end_row();
-
-                    ui.label(t!("size"));
-                    ui.label(format!("{} bytes", current_image.info.data_size));
-                    ui.end_row();
-                });
-
-            ui.separator();
-            ui.label(t!("other_info"));
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                ui_tree_view(ui, &current_image.info.other_info);
-            });
+    if let Some(image) = &state.current_image {
+        ui.add_space(4.0);
+        crate::image_viewer::ui::widgets::section_card(ui, "Image", |ui| {
+            crate::image_viewer::ui::widgets::info_row(
+                ui,
+                "Size",
+                &format!("{}×{}", image.width, image.height),
+            );
+            crate::image_viewer::ui::widgets::info_row(ui, "Format", &image.info.format);
+            crate::image_viewer::ui::widgets::info_row(
+                ui,
+                "Bytes",
+                &image.info.data_size.to_string(),
+            );
         });
     }
 }
 
+fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
+    let image_plotter = ImagePlotter::new("viewer")
+        .anti_alias(state.context.anti_alias)
+        .show_grid(state.context.show_grid)
+        .background_color(state.context.background_color)
+        .highlight(if state.hovered_diff_pixel.is_none() {
+            state.selected_diff_pixel
+        } else {
+            state.hovered_diff_pixel
+        })
+        .on_hover(&mut state.hovered_diff_pixel_from_plot);
+
+    if state.context.only_show_diff {
+        if let Some((diff_img, _)) = &state.diff_result {
+            image_plotter
+                .badge(format!("{}×{} · diff", diff_img.width, diff_img.height))
+                .show(ui, &Some(diff_img.clone()));
+        }
+    } else if let Some((diff_img, _)) = &state.diff_result
+        && state.context.diff_active
+    {
+        image_plotter
+            .badge(format!("{}×{} · diff", diff_img.width, diff_img.height))
+            .show(ui, &Some(diff_img.clone()));
+    } else if let Some(image) = &state.current_image {
+        image_plotter
+            .badge(format!(
+                "{}×{} · {}",
+                image.width, image.height, image.info.format
+            ))
+            .show(ui, &Some(image.clone()));
+    } else {
+        let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+        let avail = ui.available_size();
+        let (rect, click_response) = ui.allocate_exact_size(avail, egui::Sense::click());
+        let hovered = click_response.hovered();
+        if ui.is_rect_visible(rect) {
+            let stroke_color = if hovered { p.accent() } else { p.surface1 };
+            paint_dashed_rect(
+                ui.painter(),
+                rect,
+                egui::CornerRadius::same(12),
+                stroke_color,
+                8.0,
+                6.0,
+            );
+        }
+        let text_color = if hovered { p.accent() } else { p.overlay0 };
+        let galley = ui.painter().layout(
+            t!("drag_here").to_string(),
+            egui::FontId::proportional(72.0),
+            text_color,
+            f32::INFINITY,
+        );
+        let text_pos = egui::pos2(
+            rect.center().x - galley.size().x / 2.0,
+            rect.center().y - galley.size().y / 2.0,
+        );
+        ui.painter().galley(text_pos, galley, text_color);
+        if click_response.clicked() {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let files: Vec<eframe::egui::DroppedFile> = rfd::FileDialog::new()
+                    .pick_files()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|p| eframe::egui::DroppedFile {
+                        path: Some(p),
+                        ..Default::default()
+                    })
+                    .collect();
+                if !files.is_empty() {
+                    let new_items: Vec<crate::image_viewer::model::SidebarItem> =
+                        crate::image_viewer::utils::process_images(&files)
+                            .into_iter()
+                            .map(crate::image_viewer::model::SidebarItem::Image)
+                            .collect();
+                    state.items.extend(new_items);
+                    if let Some(crate::image_viewer::model::SidebarItem::Image(img)) =
+                        state.items.first().cloned()
+                    {
+                        state.current_image = Some(img);
+                        state.selected_index = Some(0);
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 /// Renders a serializable value as a YAML tree.
-fn ui_tree_view(ui: &mut egui::Ui, value: &impl Serialize) {
+pub fn ui_tree_view(ui: &mut egui::Ui, value: &impl Serialize) {
     if let Ok(yaml_value) = serde_yaml::to_value(value) {
         ui_yaml_tree(ui, &yaml_value);
     } else {
@@ -155,7 +219,7 @@ fn ui_tree_view(ui: &mut egui::Ui, value: &impl Serialize) {
 }
 
 /// Recursive helper to render YAML data.
-fn ui_yaml_tree(ui: &mut egui::Ui, value: &serde_yaml::Value) {
+pub fn ui_yaml_tree(ui: &mut egui::Ui, value: &serde_yaml::Value) {
     match value {
         serde_yaml::Value::Null => {
             ui.label("~");
@@ -226,31 +290,17 @@ fn paint_dashed_rect(
     while t < rect.width() {
         let x1 = rect.left() + t;
         let x2 = (x1 + dash).min(rect.right());
-        painter.line_segment(
-            [egui::pos2(x1, tl.y), egui::pos2(x2, tl.y)],
-            stroke,
-        );
-        painter.line_segment(
-            [egui::pos2(x1, br.y), egui::pos2(x2, br.y)],
-            stroke,
-        );
+        painter.line_segment([egui::pos2(x1, tl.y), egui::pos2(x2, tl.y)], stroke);
+        painter.line_segment([egui::pos2(x1, br.y), egui::pos2(x2, br.y)], stroke);
         t += step;
     }
     let mut t = 0.0;
     while t < rect.height() {
         let y1 = rect.top() + t;
         let y2 = (y1 + dash).min(rect.bottom());
-        painter.line_segment(
-            [egui::pos2(tl.x, y1), egui::pos2(tl.x, y2)],
-            stroke,
-        );
-        painter.line_segment(
-            [egui::pos2(tr.x, y1), egui::pos2(tr.x, y2)],
-            stroke,
-        );
+        painter.line_segment([egui::pos2(tl.x, y1), egui::pos2(tl.x, y2)], stroke);
+        painter.line_segment([egui::pos2(tr.x, y1), egui::pos2(tr.x, y2)], stroke);
         t += step;
     }
     let _ = corner;
 }
-
-

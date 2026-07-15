@@ -4,22 +4,18 @@ use eframe::egui::Color32;
 use icu_lib::endecoder::EnDecoder;
 use icu_lib::midata::MiData;
 
-pub fn draw_indexed_panel(
-    ui: &mut egui::Ui,
+fn selected_indexed(
     state: &mut crate::image_viewer::model::ViewerState,
-) {
+) -> Option<icu_lib::midata::IndexedImageData> {
     if state.context.diff_active {
-        return;
+        return None;
     }
-    let Some(image) = state.current_image.clone() else {
-        return;
+    let indexed = match state.current_image.as_ref()?.midata.as_ref()? {
+        MiData::INDEXED(indexed) => indexed.clone(),
+        _ => return None,
     };
-    let Some(MiData::INDEXED(indexed)) = &image.midata else {
-        return;
-    };
-    let indexed = indexed.clone();
 
-    let indexed = if state.indexed_dither > 0 {
+    Some(if state.indexed_dither > 0 {
         if state.indexed_dither != state.indexed_dither_cached {
             state.indexed_dither_cached = state.indexed_dither;
             state.indexed_requantized =
@@ -30,37 +26,48 @@ pub fn draw_indexed_panel(
         state.indexed_requantized = None;
         state.indexed_dither_cached = u32::MAX;
         indexed
+    })
+}
+
+pub fn draw_indexed_side(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
+    let Some(indexed) = selected_indexed(state) else {
+        return;
     };
 
     let mut hovered_palette: Option<u8> = None;
 
-    let frame = crate::image_viewer::ui::theme::side_panel_frame(ui.ctx());
-    egui::Panel::left("indexed_left").default_size(260.0).frame(frame).show(ui, |ui| {
-        egui::ScrollArea::vertical()
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                ui.spacing_mut().item_spacing.y = 8.0;
-                ui.add_space(4.0);
-        crate::image_viewer::ui::widgets::section_card(ui, "Indexed Info", |ui| {
-            crate::image_viewer::ui::widgets::info_row(ui, "BPP", &indexed.bpp.to_string());
-            crate::image_viewer::ui::widgets::info_row(ui, "Palette", &indexed.palette.len().to_string());
-            crate::image_viewer::ui::widgets::info_row(ui, "Size", &format!("{}×{}", indexed.width, indexed.height));
+    crate::image_viewer::ui::widgets::section_card(ui, "Indexed Info", |ui| {
+        crate::image_viewer::ui::widgets::info_row(ui, "BPP", &indexed.bpp.to_string());
+        crate::image_viewer::ui::widgets::info_row(
+            ui,
+            "Palette",
+            &indexed.palette.len().to_string(),
+        );
+        crate::image_viewer::ui::widgets::info_row(
+            ui,
+            "Size",
+            &format!("{}×{}", indexed.width, indexed.height),
+        );
+    });
+    ui.add_space(4.0);
+    crate::image_viewer::ui::widgets::section_card(ui, "Display", |ui| {
+        let prev_quality = state.indexed_show_quality;
+        crate::image_viewer::ui::widgets::toggle_labeled(
+            ui,
+            "Quality View",
+            &mut state.indexed_show_quality,
+        );
+        if state.indexed_show_quality != prev_quality {
+            state.indexed_hover_palette = None;
+        }
+        ui.horizontal(|ui| {
+            ui.label("Dither:");
+            ui.add(egui::Slider::new(&mut state.indexed_dither, 0..=30).text("level"));
         });
-        ui.add_space(4.0);
-        crate::image_viewer::ui::widgets::section_card(ui, "Display", |ui| {
-            let prev_quality = state.indexed_show_quality;
-            crate::image_viewer::ui::widgets::toggle_labeled(ui, "Quality View", &mut state.indexed_show_quality);
-            if state.indexed_show_quality != prev_quality {
-                state.indexed_hover_palette = None;
-            }
-            ui.horizontal(|ui| {
-                ui.label("Dither:");
-                ui.add(egui::Slider::new(&mut state.indexed_dither, 0..=30).text("level"));
-            });
-        });
-        ui.add_space(4.0);
-        crate::image_viewer::ui::widgets::section_card(ui, "Palette", |ui| {
-            ui.label("(hover to highlight, click to edit)");
+    });
+    ui.add_space(4.0);
+    crate::image_viewer::ui::widgets::section_card(ui, "Palette", |ui| {
+        ui.label("(hover to highlight, click to edit)");
         let cols = match indexed.bpp {
             1 => 2,
             2 => 4,
@@ -104,9 +111,9 @@ pub fn draw_indexed_panel(
         } else {
             state.indexed_hover_palette = hovered_palette;
         }
-        });
-        ui.add_space(4.0);
-        crate::image_viewer::ui::widgets::section_card(ui, "Export", |ui| {
+    });
+    ui.add_space(4.0);
+    crate::image_viewer::ui::widgets::section_card(ui, "Export", |ui| {
         if ui.button("Export PNG").clicked() {
             let img = indexed.rgba.clone();
             if let Some(path) = super::pick_save_file(&[("PNG", &["png"])], &"indexed.png") {
@@ -129,109 +136,119 @@ pub fn draw_indexed_panel(
                 }
             }
         }
+    });
+}
+
+pub fn draw_indexed_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
+    let Some(image) = state.current_image.clone() else {
+        return;
+    };
+    let Some(indexed) = selected_indexed(state) else {
+        return;
+    };
+
+    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+    egui::Frame::new()
+        .fill(p.mantle)
+        .stroke(egui::Stroke::new(1.0, p.surface0))
+        .inner_margin(egui::Margin {
+            left: 8,
+            right: 8,
+            top: 4,
+            bottom: 4,
+        })
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                crate::image_viewer::ui::widgets::mode_tabs(
+                    ui,
+                    &mut state.indexed_view_mode,
+                    &[
+                        (crate::image_viewer::model::IndexedViewMode::RGBA, "RGBA"),
+                        (
+                            crate::image_viewer::model::IndexedViewMode::IndexMap,
+                            "Index Map",
+                        ),
+                    ],
+                );
+            });
         });
-            });
-    });
+    ui.separator();
 
-    egui::CentralPanel::default().show(ui, |ui| {
-        let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-        egui::Frame::new()
-            .fill(p.mantle)
-            .stroke(egui::Stroke::new(1.0, p.surface0))
-            .inner_margin(egui::Margin { left: 8, right: 8, top: 4, bottom: 4 })
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    crate::image_viewer::ui::widgets::mode_tabs(
-                        ui,
-                        &mut state.indexed_view_mode,
-                        &[
-                            (crate::image_viewer::model::IndexedViewMode::RGBA, "RGBA"),
-                            (crate::image_viewer::model::IndexedViewMode::IndexMap, "Index Map"),
-                        ],
-                    );
-                });
-            });
-        ui.separator();
+    let composited = if state.indexed_show_quality {
+        let mut stack = icu_lib::postprocess::OverlayStack::new(indexed.rgba.clone());
+        stack.push(Box::new(icu_lib::postprocess::QualityOverlay::new(
+            &indexed,
+            indexed.rgba.clone(),
+        )));
+        stack.composite().clone()
+    } else if let Some(palette_idx) = state.indexed_hover_palette {
+        let mut stack = icu_lib::postprocess::OverlayStack::new(indexed.rgba.clone());
+        stack.push(Box::new(icu_lib::postprocess::IndexHoverOverlay::new(
+            &indexed,
+            palette_idx,
+        )));
+        stack.composite().clone()
+    } else {
+        indexed.rgba.clone()
+    };
+    let w = composited.width();
+    let h = composited.height();
+    let image_data: Vec<Color32> = composited
+        .chunks(4)
+        .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
+        .collect();
+    let view_item = crate::image_viewer::model::ImageItem {
+        path: image.path.clone(),
+        info: image.info.clone(),
+        width: w,
+        height: h,
+        image_data,
+        midata: None,
+    };
+    let mut plotter = ImagePlotter::new("indexed_view")
+        .anti_alias(state.context.anti_alias)
+        .show_grid(state.context.show_grid);
 
-        let composited = if state.indexed_show_quality {
-            let mut stack = icu_lib::postprocess::OverlayStack::new(indexed.rgba.clone());
-            stack.push(Box::new(icu_lib::postprocess::QualityOverlay::new(
-                &indexed,
-                indexed.rgba.clone(),
-            )));
-            stack.composite().clone()
-        } else if let Some(palette_idx) = state.indexed_hover_palette {
-            let mut stack = icu_lib::postprocess::OverlayStack::new(indexed.rgba.clone());
-            stack.push(Box::new(icu_lib::postprocess::IndexHoverOverlay::new(
-                &indexed,
-                palette_idx,
-            )));
-            stack.composite().clone()
-        } else {
-            indexed.rgba.clone()
-        };
-        let w = composited.width();
-        let h = composited.height();
-        let image_data: Vec<Color32> = composited
-            .chunks(4)
-            .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
-            .collect();
-        let view_item = crate::image_viewer::model::ImageItem {
-            path: image.path.clone(),
-            info: image.info.clone(),
-            width: w,
-            height: h,
-            image_data,
-            midata: None,
-        };
-        let mut plotter = ImagePlotter::new("indexed_view")
-            .anti_alias(state.context.anti_alias)
-            .show_grid(state.context.show_grid);
-
-        match state.indexed_view_mode {
-            crate::image_viewer::model::IndexedViewMode::RGBA => {
-                plotter.show(ui, &Some(view_item));
-            }
-            crate::image_viewer::model::IndexedViewMode::IndexMap => {
-                let palette_count = indexed.palette.len().max(1) as u32;
-                let max_index = (1u32 << indexed.bpp) - 1;
-                let (iw, ih) = (indexed.width, indexed.height);
-                let map_data: Vec<Color32> = indexed
-                    .indexes
-                    .iter()
-                    .map(|&idx| {
-                        let normalized = if max_index > 0 {
-                            idx as u32 * 255 / max_index
-                        } else {
-                            0
-                        };
-                        let c = normalized as u8;
-                        let pal_color = indexed
-                            .palette
-                            .get(idx as usize)
-                            .copied()
-                            .unwrap_or([0, 0, 0, 255]);
-                        let pal_fade = 0.4;
-                        let r = (c as f32 * pal_fade
-                            + pal_color[0] as f32 * (1.0 - pal_fade)) as u8;
-                        let g = (c as f32 * pal_fade
-                            + pal_color[1] as f32 * (1.0 - pal_fade)) as u8;
-                        let b = (c as f32 * pal_fade
-                            + pal_color[2] as f32 * (1.0 - pal_fade)) as u8;
-                        Color32::from_rgb(r, g, b)
-                    })
-                    .collect();
-                let map_item = crate::image_viewer::model::ImageItem {
-                    path: image.path.clone(),
-                    info: image.info.clone(),
-                    width: iw,
-                    height: ih,
-                    image_data: map_data,
-                    midata: None,
-                };
-                let _ = palette_count;
-                plotter.show(ui, &Some(map_item));
-            }
+    match state.indexed_view_mode {
+        crate::image_viewer::model::IndexedViewMode::RGBA => {
+            plotter.show(ui, &Some(view_item));
         }
-    });
+        crate::image_viewer::model::IndexedViewMode::IndexMap => {
+            let palette_count = indexed.palette.len().max(1) as u32;
+            let max_index = (1u32 << indexed.bpp) - 1;
+            let (iw, ih) = (indexed.width, indexed.height);
+            let map_data: Vec<Color32> = indexed
+                .indexes
+                .iter()
+                .map(|&idx| {
+                    let normalized = if max_index > 0 {
+                        idx as u32 * 255 / max_index
+                    } else {
+                        0
+                    };
+                    let c = normalized as u8;
+                    let pal_color = indexed
+                        .palette
+                        .get(idx as usize)
+                        .copied()
+                        .unwrap_or([0, 0, 0, 255]);
+                    let pal_fade = 0.4;
+                    let r = (c as f32 * pal_fade + pal_color[0] as f32 * (1.0 - pal_fade)) as u8;
+                    let g = (c as f32 * pal_fade + pal_color[1] as f32 * (1.0 - pal_fade)) as u8;
+                    let b = (c as f32 * pal_fade + pal_color[2] as f32 * (1.0 - pal_fade)) as u8;
+                    Color32::from_rgb(r, g, b)
+                })
+                .collect();
+            let map_item = crate::image_viewer::model::ImageItem {
+                path: image.path.clone(),
+                info: image.info.clone(),
+                width: iw,
+                height: ih,
+                image_data: map_data,
+                midata: None,
+            };
+            let _ = palette_count;
+            plotter.show(ui, &Some(map_item));
+        }
+    }
 }

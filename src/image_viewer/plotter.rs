@@ -303,7 +303,10 @@ impl<'a> ImagePlotter<'a> {
                     );
                     let pad = egui::vec2(8.0, 4.0);
                     let coord_rect = egui::Rect::from_min_size(
-                        egui::pos2(plot_rect.left() + 8.0, plot_rect.bottom() - galley.size().y - pad.y - 8.0),
+                        egui::pos2(
+                            plot_rect.left() + 8.0,
+                            plot_rect.bottom() - galley.size().y - pad.y - 8.0,
+                        ),
                         galley.size() + pad * 2.0,
                     );
                     ui.painter().rect(
@@ -328,7 +331,10 @@ impl<'a> ImagePlotter<'a> {
                     );
                     let pad = egui::vec2(10.0, 4.0);
                     let badge_rect = egui::Rect::from_min_size(
-                        egui::pos2(plot_rect.right() - galley.size().x - pad.x - 8.0, plot_rect.top() + 8.0),
+                        egui::pos2(
+                            plot_rect.right() - galley.size().x - pad.x - 8.0,
+                            plot_rect.top() + 8.0,
+                        ),
                         galley.size() + pad * 2.0,
                     );
                     ui.painter().rect(

@@ -10,7 +10,7 @@ pub mod widgets;
 
 pub use image_list::draw_left_panel;
 pub use layout::{draw_bottom_panel, draw_top_panel};
-pub use viewer::{draw_central_panel, draw_image_info};
+pub use viewer::draw_central_panel;
 
 use crate::image_viewer::model::{RightTab, ViewerState};
 use eframe::egui;
@@ -19,17 +19,26 @@ pub fn draw_right_panel_container(ui: &mut egui::Ui, state: &mut ViewerState) {
     let frame = theme::side_panel_frame(ui.ctx());
     egui::Panel::right("RightPanel")
         .exact_size(300.0)
-        .resizable(true)
+        .resizable(false)
         .frame(frame)
         .show(ui, |ui| {
             let p = theme::tokens::palette(ui.ctx());
             egui::Frame::new()
                 .fill(p.surface0)
                 .stroke(egui::Stroke::new(1.0, p.surface1))
-                .inner_margin(egui::Margin { left: 8, right: 8, top: 4, bottom: 4 })
+                .inner_margin(egui::Margin {
+                    left: 8,
+                    right: 8,
+                    top: 4,
+                    bottom: 4,
+                })
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        let tabs = [(RightTab::Info, "Info"), (RightTab::Convert, "Convert"), (RightTab::Diff, "Diff")];
+                        let tabs = [
+                            (RightTab::Info, "Info"),
+                            (RightTab::Convert, "Convert"),
+                            (RightTab::Diff, "Diff"),
+                        ];
                         widgets::mode_tabs(ui, &mut state.context.right_tab, &tabs);
                     });
                 });
@@ -39,13 +48,13 @@ pub fn draw_right_panel_container(ui: &mut egui::Ui, state: &mut ViewerState) {
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 8.0;
                     ui.allocate_space(egui::vec2(12.0, 0.0));
-                    egui::Frame::new().inner_margin(egui::Margin::same(12)).show(ui, |ui| {
-                        match state.context.right_tab {
+                    egui::Frame::new()
+                        .inner_margin(egui::Margin::same(12))
+                        .show(ui, |ui| match state.context.right_tab {
                             RightTab::Info => draw_info_tab(ui, state),
                             RightTab::Convert => convert_panel::draw_convert_options(ui, state),
                             RightTab::Diff => diff_panel::draw_diff_panel_contents(ui, state),
-                        }
-                    });
+                        });
                 });
         });
 }
@@ -85,9 +94,13 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                 if let Some(idx) = state.selected_op {
                     if let Some(op) = scene_data.scene.ops.get(idx) {
                         ui.add_space(8.0);
-                        widgets::section_card(ui, &format!("Op #{}: {}", idx, panels::path_panel::op_label(op)), |ui| {
-                            panels::path_panel::op_inspector(ui, op);
-                        });
+                        widgets::section_card(
+                            ui,
+                            &format!("Op #{}: {}", idx, panels::path_panel::op_label(op)),
+                            |ui| {
+                                panels::path_panel::op_inspector(ui, op);
+                            },
+                        );
                     }
                 }
             }
@@ -98,12 +111,20 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                     icu_lib::midata::FontData::Mirx(font) => {
                         widgets::section_card(ui, "Font Metadata", |ui| {
                             widgets::info_row(ui, "Kind", &format!("{:?}", font.chunk_header.kind));
-                            widgets::info_row(ui, "Source Size", &font.atlas.source_size.to_string());
+                            widgets::info_row(
+                                ui,
+                                "Source Size",
+                                &font.atlas.source_size.to_string(),
+                            );
                             widgets::info_row(ui, "Bit Depth", &font.atlas.bit_depth.to_string());
                             widgets::info_row(ui, "Glyphs", &font.atlas.glyph_count.to_string());
                             widgets::info_row(ui, "Ascender", &font.atlas.ascender.to_string());
                             widgets::info_row(ui, "Descender", &font.atlas.descender.to_string());
-                            widgets::info_row(ui, "Line Height", &font.atlas.line_height.to_string());
+                            widgets::info_row(
+                                ui,
+                                "Line Height",
+                                &font.atlas.line_height.to_string(),
+                            );
                         });
                     }
                     icu_lib::midata::FontData::MirxBundle(fonts) => {
@@ -119,7 +140,11 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                             widgets::info_row(ui, "Ascender", &f.ascender.to_string());
                             widgets::info_row(ui, "Descender", &f.descender.to_string());
                             widgets::info_row(ui, "Line Height", &f.line_height.to_string());
-                            widgets::info_row(ui, "Glyphs", &format!("{} / {}", f.glyphs.len(), f.glyph_count));
+                            widgets::info_row(
+                                ui,
+                                "Glyphs",
+                                &format!("{} / {}", f.glyphs.len(), f.glyph_count),
+                            );
                         });
                     }
                 }
@@ -131,6 +156,17 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                     widgets::info_row(ui, "BPP", &indexed.bpp.to_string());
                     widgets::info_row(ui, "Palette", &indexed.palette.len().to_string());
                     widgets::info_row(ui, "Size", &format!("{}×{}", indexed.width, indexed.height));
+                });
+            }
+
+            if !img.info.other_info.is_null() {
+                ui.add_space(8.0);
+                widgets::section_card(ui, "Metadata", |ui| {
+                    egui::ScrollArea::vertical()
+                        .max_height(300.0)
+                        .show(ui, |ui| {
+                            crate::image_viewer::ui::viewer::ui_tree_view(ui, &img.info.other_info);
+                        });
                 });
             }
         }
