@@ -5,6 +5,12 @@ use crate::utils;
 use eframe::egui;
 use eframe::egui::{Color32, DroppedFile};
 
+enum ExportKind {
+    Convert,
+    Png,
+    None,
+}
+
 pub struct MyEguiApp {
     state: ViewerState,
 }
@@ -39,9 +45,9 @@ impl MyEguiApp {
         let ctx = cc.egui_ctx.clone();
         std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_millis(1500));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(
-                egui::UserData::new("icu-screenshot".to_string()),
-            ));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::new(
+                "icu-screenshot".to_string(),
+            )));
         });
 
         Self { state }
@@ -186,7 +192,8 @@ impl eframe::App for MyEguiApp {
             ctx.request_repaint();
         }
 
-        let mod_down = ctx.input(|i| i.modifiers.mac_cmd || i.modifiers.ctrl || i.modifiers.command);
+        let mod_down =
+            ctx.input(|i| i.modifiers.mac_cmd || i.modifiers.ctrl || i.modifiers.command);
         if mod_down {
             if ctx.input(|i| i.key_pressed(egui::Key::O)) {
                 #[cfg(not(target_arch = "wasm32"))]
@@ -219,6 +226,26 @@ impl eframe::App for MyEguiApp {
                     self.state.context.right_tab = crate::image_viewer::model::RightTab::Diff;
                 }
             }
+            if ctx.input(|i| i.key_pressed(egui::Key::E)) {
+                use icu_lib::midata::MiData;
+                let kind = self.state.selected_index.and_then(|i| self.state.items.get(i)).and_then(|it| match it {
+                    SidebarItem::Image(img) => img.midata.as_ref().map(|m| match m {
+                        MiData::RGBA(_) => ExportKind::Convert,
+                        MiData::PATH(_) | MiData::INDEXED(_) => ExportKind::Png,
+                        _ => ExportKind::None,
+                    }),
+                    SidebarItem::Glyph(_) => Some(ExportKind::None),
+                });
+                match kind {
+                    Some(ExportKind::Convert) => {
+                        self.state.context.right_tab = crate::image_viewer::model::RightTab::Convert;
+                    }
+                    Some(ExportKind::Png) => {
+                        crate::image_viewer::ui::panels::export_current_as_png(&self.state);
+                    }
+                    _ => {}
+                }
+            }
         }
 
         self.ui_file_drag_and_drop(ctx);
@@ -227,20 +254,19 @@ impl eframe::App for MyEguiApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         let screenshot = ctx.input(|i| {
-            i.raw
-                .events
-                .iter()
-                .find_map(|e| {
-                    if let egui::Event::Screenshot { image, .. } = e {
-                        Some(image.clone())
-                    } else {
-                        None
-                    }
-                })
+            i.raw.events.iter().find_map(|e| {
+                if let egui::Event::Screenshot { image, .. } = e {
+                    Some(image.clone())
+                } else {
+                    None
+                }
+            })
         });
         if let Some(image) = screenshot {
             let [w, h] = image.size;
-            let path = std::env::current_dir().unwrap_or_default().join("screenshot.png");
+            let path = std::env::current_dir()
+                .unwrap_or_default()
+                .join("screenshot.png");
             let _ = image::save_buffer(
                 &path,
                 image.as_raw(),
