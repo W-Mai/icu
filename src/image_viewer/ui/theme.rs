@@ -126,7 +126,7 @@ pub mod tokens {
 
 pub const RADIUS: CornerRadius = CornerRadius::same(4);
 #[allow(dead_code)]
-pub const RADIUS_SM: CornerRadius = CornerRadius::same(3);
+pub const RADIUS_SM: CornerRadius = CornerRadius::same(4);
 #[allow(dead_code)]
 pub const RADIUS_LG: CornerRadius = CornerRadius::same(8);
 
@@ -236,6 +236,11 @@ pub fn side_panel_frame(ctx: &egui::Context) -> egui::Frame {
         .fill(p.mantle)
         .stroke(Stroke::new(1.0, p.surface1))
         .inner_margin(Margin::same(0))
+}
+
+pub fn central_panel_frame(ctx: &egui::Context) -> egui::Frame {
+    let p = tokens::palette(ctx);
+    egui::Frame::new().fill(p.base).inner_margin(Margin::same(0))
 }
 
 pub fn top_panel_frame(ctx: &egui::Context) -> egui::Frame {

@@ -9,51 +9,18 @@ pub fn draw_central_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
     let content_type = get_content_type(state);
 
     egui::CentralPanel::default()
-        .frame(egui::Frame::NONE)
-        .show(ui, |ui| {
-            draw_content_side_panel(ui, state);
-            egui::CentralPanel::default()
-                .frame(egui::Frame::NONE)
-                .show(ui, |ui| {
-                    match content_type {
-                        ContentType::Rgba => draw_rgba_canvas(ui, state),
-                        ContentType::Font => panels::font_panel::draw_font_canvas(ui, state),
-                        ContentType::Path => panels::path_panel::draw_path_canvas(ui, state),
-                        ContentType::Indexed => panels::indexed_panel::draw_indexed_canvas(ui, state),
-                        ContentType::Glyph => panels::font_panel::draw_glyph_canvas(ui, state),
-                    }
-                });
-        });
-}
-
-pub fn draw_content_side_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
-    let content_type = get_content_type(state);
-    let side_frame = crate::image_viewer::ui::theme::side_panel_frame(ui.ctx());
-    egui::Panel::left("content_side")
-        .exact_size(220.0)
-        .resizable(false)
-        .frame(side_frame)
-        .show(ui, |ui| {
-            egui::ScrollArea::vertical()
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    ui.spacing_mut().item_spacing.y = 8.0;
-                    ui.add_space(4.0);
-                    egui::Frame::new().inner_margin(egui::Margin::same(8)).show(ui, |ui| {
-                        match content_type {
-                            ContentType::Rgba => draw_rgba_side(ui, state),
-                            ContentType::Font => panels::font_panel::draw_font_side(ui, state),
-                            ContentType::Path => panels::path_panel::draw_path_side(ui, state),
-                            ContentType::Indexed => panels::indexed_panel::draw_indexed_side(ui, state),
-                            ContentType::Glyph => panels::font_panel::draw_glyph_side(ui, state),
-                        }
-                    });
-                });
+        .frame(crate::image_viewer::ui::theme::central_panel_frame(ui.ctx()))
+        .show(ui, |ui| match content_type {
+            ContentType::Rgba => draw_rgba_canvas(ui, state),
+            ContentType::Font => panels::font_panel::draw_font_canvas(ui, state),
+            ContentType::Path => panels::path_panel::draw_path_canvas(ui, state),
+            ContentType::Indexed => panels::indexed_panel::draw_indexed_canvas(ui, state),
+            ContentType::Glyph => panels::font_panel::draw_glyph_canvas(ui, state),
         });
 }
 
 #[derive(Clone, Copy)]
-enum ContentType {
+pub enum ContentType {
     Rgba,
     Font,
     Path,
@@ -61,7 +28,7 @@ enum ContentType {
     Glyph,
 }
 
-fn get_content_type(state: &ViewerState) -> ContentType {
+pub fn get_content_type(state: &ViewerState) -> ContentType {
     if let Some(idx) = state.selected_index {
         if let Some(crate::image_viewer::model::SidebarItem::Glyph(_)) = state.items.get(idx) {
             return ContentType::Glyph;
@@ -80,42 +47,6 @@ fn get_content_type(state: &ViewerState) -> ContentType {
     }
 
     ContentType::Rgba
-}
-
-fn draw_rgba_side(ui: &mut egui::Ui, state: &mut ViewerState) {
-    crate::image_viewer::ui::widgets::section_card(ui, "Display", |ui| {
-        crate::image_viewer::ui::widgets::toggle_labeled(ui, "Grid", &mut state.context.show_grid);
-        crate::image_viewer::ui::widgets::toggle_labeled(
-            ui,
-            "Anti-alias",
-            &mut state.context.anti_alias,
-        );
-        ui.horizontal(|ui| {
-            ui.label("Background");
-            egui::color_picker::color_edit_button_srgba(
-                ui,
-                &mut state.context.background_color,
-                egui::color_picker::Alpha::Opaque,
-            );
-        });
-    });
-
-    if let Some(image) = &state.current_image {
-        ui.add_space(4.0);
-        crate::image_viewer::ui::widgets::section_card(ui, "Image", |ui| {
-            crate::image_viewer::ui::widgets::info_row(
-                ui,
-                "Size",
-                &format!("{}×{}", image.width, image.height),
-            );
-            crate::image_viewer::ui::widgets::info_row(ui, "Format", &image.info.format);
-            crate::image_viewer::ui::widgets::info_row(
-                ui,
-                "Bytes",
-                &image.info.data_size.to_string(),
-            );
-        });
-    }
 }
 
 fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
@@ -207,8 +138,6 @@ fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
         }
     }
 }
-
-
 /// Renders a serializable value as a YAML tree.
 pub fn ui_tree_view(ui: &mut egui::Ui, value: &impl Serialize) {
     if let Ok(yaml_value) = serde_yaml::to_value(value) {
