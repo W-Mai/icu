@@ -12,20 +12,20 @@ pub fn draw_diff_panel_contents(ui: &mut egui::Ui, state: &mut ViewerState) {
 
     draw_diff_panel_controls(ui, state);
 
-    ui.separator();
-
     state.hovered_diff_pixel = None;
     if let Some((_, diff_result)) = &state.diff_result {
         if let (Some(i1), Some(i2)) = (state.diff_image1_index, state.diff_image2_index) {
             if i1 != i2 {
-                draw_diff_pixel_list(
-                    ui,
-                    &mut state.context,
-                    &mut state.selected_diff_pixel,
-                    &mut state.hovered_diff_pixel,
-                    state.hovered_diff_pixel_from_plot,
-                    diff_result,
-                );
+                widgets::section_card(ui, "Pixels", |ui| {
+                    draw_diff_pixel_list(
+                        ui,
+                        &mut state.context,
+                        &mut state.selected_diff_pixel,
+                        &mut state.hovered_diff_pixel,
+                        state.hovered_diff_pixel_from_plot,
+                        diff_result,
+                    );
+                });
             }
         }
     }
@@ -33,23 +33,26 @@ pub fn draw_diff_panel_contents(ui: &mut egui::Ui, state: &mut ViewerState) {
 
 /// Draws the control sliders and toggles for the difference view.
 fn draw_diff_panel_controls(ui: &mut egui::Ui, state: &mut ViewerState) {
-    widgets::toggle_labeled(
-        ui,
-        t!("only_show_diff_area"),
-        &mut state.context.only_show_diff,
-    );
-    ui.add(
-        egui::Slider::new(
-            &mut state.context.diff_tolerance,
-            state.context.min_diff..=state.context.max_diff,
-        )
-        .text(t!("diff_tolerance")),
-    );
-    if !state.context.only_show_diff {
-        draw_diff_blend_settings(ui, state);
-    } else {
-        state.context.fast_switch = false;
-    }
+    widgets::section_card(ui, "Controls", |ui| {
+        widgets::toggle_labeled(
+            ui,
+            t!("only_show_diff_area"),
+            &mut state.context.only_show_diff,
+        );
+        ui.add(
+            egui::Slider::new(
+                &mut state.context.diff_tolerance,
+                state.context.min_diff..=state.context.max_diff,
+            )
+            .text(t!("diff_tolerance")),
+        );
+        if !state.context.only_show_diff {
+            ui.add_space(4.0);
+            draw_diff_blend_settings(ui, state);
+        } else {
+            state.context.fast_switch = false;
+        }
+    });
 }
 
 /// Draws preset buttons for diff blend (Diff1, Blended, Diff2).
@@ -283,33 +286,25 @@ fn draw_diff_list_row(
 }
 
 fn draw_diff_blend_settings(ui: &mut egui::Ui, state: &mut ViewerState) {
-    egui::containers::Frame::new()
-        .inner_margin(6.0)
-        .outer_margin(4.0)
-        .stroke(egui::Stroke::new(
-            1.0,
-            ui.style().visuals.widgets.noninteractive.fg_stroke.color,
-        ))
-        .corner_radius(6.0)
-        .show(ui, |ui| {
-            let diff_blend_slider = ui.add(
-                egui::Slider::new(&mut state.context.diff_blend, 0.0..=1.0).text(t!("diff_blend")),
+    widgets::section_card(ui, "Blend", |ui| {
+        let diff_blend_slider = ui.add(
+            egui::Slider::new(&mut state.context.diff_blend, 0.0..=1.0).text(t!("diff_blend")),
+        );
+
+        if diff_blend_slider.double_clicked() {
+            state.context.diff_blend = 0.5;
+        }
+
+        draw_blend_preset_buttons(ui, state, diff_blend_slider.interact_rect.width());
+
+        widgets::toggle_labeled(ui, t!("fast_switch"), &mut state.context.fast_switch);
+        if state.context.fast_switch {
+            ui.add(
+                egui::Slider::new(&mut state.context.fast_switch_speed, 0.5..=10.0)
+                    .text(t!("switch_speed")),
             );
-
-            if diff_blend_slider.double_clicked() {
-                state.context.diff_blend = 0.5;
-            }
-
-            draw_blend_preset_buttons(ui, state, diff_blend_slider.interact_rect.width());
-
-            widgets::toggle_labeled(ui, t!("fast_switch"), &mut state.context.fast_switch);
-            if state.context.fast_switch {
-                ui.add(
-                    egui::Slider::new(&mut state.context.fast_switch_speed, 0.5..=10.0)
-                        .text(t!("switch_speed")),
-                );
-            }
-        });
+        }
+    });
 }
 
 fn draw_diff_sorting_controls(
