@@ -56,9 +56,11 @@ pub fn export_current_as_png(state: &ViewerState) {
     };
     match midata {
         MiData::PATH(scene_data) => {
-            let (w, h) = icu_lib::endecoder::mirui::scene_render::scene_dimensions(&scene_data.scene)
-                .unwrap_or((256, 256));
-            let png = icu_lib::endecoder::mirui::scene_render::render_scene(&scene_data.scene, w, h);
+            let (w, h) =
+                icu_lib::endecoder::mirui::scene_render::scene_dimensions(&scene_data.scene)
+                    .unwrap_or((256, 256));
+            let png =
+                icu_lib::endecoder::mirui::scene_render::render_scene(&scene_data.scene, w, h);
             if let Some(path) = pick_save_file(&[("PNG", &["png"])], "scene.png") {
                 let _ = png.save(&path);
             }

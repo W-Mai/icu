@@ -224,23 +224,29 @@ impl eframe::App for MyEguiApp {
                 self.state.context.diff_active = !self.state.context.diff_active;
                 if self.state.context.diff_active {
                     self.state.context.right_tab = crate::image_viewer::model::RightTab::Diff;
-                } else if self.state.context.right_tab == crate::image_viewer::model::RightTab::Diff {
+                } else if self.state.context.right_tab == crate::image_viewer::model::RightTab::Diff
+                {
                     self.state.context.right_tab = crate::image_viewer::model::RightTab::Info;
                 }
             }
             if ctx.input(|i| i.key_pressed(egui::Key::E)) {
                 use icu_lib::midata::MiData;
-                let kind = self.state.selected_index.and_then(|i| self.state.items.get(i)).and_then(|it| match it {
-                    SidebarItem::Image(img) => img.midata.as_ref().map(|m| match m {
-                        MiData::RGBA(_) => ExportKind::Convert,
-                        MiData::PATH(_) | MiData::INDEXED(_) => ExportKind::Png,
-                        _ => ExportKind::None,
-                    }),
-                    SidebarItem::Glyph(_) => Some(ExportKind::None),
-                });
+                let kind = self
+                    .state
+                    .selected_index
+                    .and_then(|i| self.state.items.get(i))
+                    .and_then(|it| match it {
+                        SidebarItem::Image(img) => img.midata.as_ref().map(|m| match m {
+                            MiData::RGBA(_) => ExportKind::Convert,
+                            MiData::PATH(_) | MiData::INDEXED(_) => ExportKind::Png,
+                            _ => ExportKind::None,
+                        }),
+                        SidebarItem::Glyph(_) => Some(ExportKind::None),
+                    });
                 match kind {
                     Some(ExportKind::Convert) => {
-                        self.state.context.right_tab = crate::image_viewer::model::RightTab::Convert;
+                        self.state.context.right_tab =
+                            crate::image_viewer::model::RightTab::Convert;
                     }
                     Some(ExportKind::Png) => {
                         crate::image_viewer::ui::panels::export_current_as_png(&self.state);

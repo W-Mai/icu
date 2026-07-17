@@ -29,27 +29,14 @@ fn selected_indexed(
     })
 }
 
-pub fn draw_indexed_side(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
-    let Some(indexed) = selected_indexed(state) else {
+pub fn draw_indexed_info_section(
+    ui: &mut egui::Ui,
+    state: &mut crate::image_viewer::model::ViewerState,
+) {
+    let Some(_indexed) = selected_indexed(state) else {
         return;
     };
 
-    let mut hovered_palette: Option<u8> = None;
-
-    crate::image_viewer::ui::widgets::section_card(ui, "Indexed Info", |ui| {
-        crate::image_viewer::ui::widgets::info_row(ui, "BPP", &indexed.bpp.to_string());
-        crate::image_viewer::ui::widgets::info_row(
-            ui,
-            "Palette",
-            &indexed.palette.len().to_string(),
-        );
-        crate::image_viewer::ui::widgets::info_row(
-            ui,
-            "Size",
-            &format!("{}×{}", indexed.width, indexed.height),
-        );
-    });
-    ui.add_space(4.0);
     crate::image_viewer::ui::widgets::section_card(ui, "Display", |ui| {
         let prev_quality = state.indexed_show_quality;
         crate::image_viewer::ui::widgets::toggle_labeled(
@@ -60,8 +47,22 @@ pub fn draw_indexed_side(ui: &mut egui::Ui, state: &mut crate::image_viewer::mod
         if state.indexed_show_quality != prev_quality {
             state.indexed_hover_palette = None;
         }
+    });
+}
+
+pub fn draw_indexed_convert_section(
+    ui: &mut egui::Ui,
+    state: &mut crate::image_viewer::model::ViewerState,
+) {
+    let Some(indexed) = selected_indexed(state) else {
+        return;
+    };
+
+    let mut hovered_palette: Option<u8> = None;
+
+    crate::image_viewer::ui::widgets::section_card(ui, "Dither", |ui| {
         ui.horizontal(|ui| {
-            ui.label("Dither:");
+            ui.label("Level:");
             ui.add(egui::Slider::new(&mut state.indexed_dither, 0..=30).text("level"));
         });
     });

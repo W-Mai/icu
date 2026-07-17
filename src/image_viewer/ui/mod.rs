@@ -18,34 +18,34 @@ use eframe::egui;
 pub fn draw_right_panel_container(ui: &mut egui::Ui, state: &mut ViewerState) {
     let frame = theme::side_panel_frame(ui.ctx());
     egui::Panel::right("RightPanel")
-        .exact_size(300.0)
-        .resizable(false)
+        .resizable(true)
         .frame(frame)
         .show(ui, |ui| {
             let p = theme::tokens::palette(ui.ctx());
             egui::Frame::new()
                 .fill(p.surface0)
-                .stroke(egui::Stroke::new(1.0, p.surface1))
-                .inner_margin(egui::Margin {
-                    left: 8,
-                    right: 8,
-                    top: 4,
-                    bottom: 4,
-                })
+                .stroke(egui::Stroke::NONE)
+                .inner_margin(egui::Margin::same(0))
                 .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        let prev_tab = state.context.right_tab;
-                        let tabs = [
-                            (RightTab::Info, "Info"),
-                            (RightTab::Convert, "Convert"),
-                            (RightTab::Diff, "Diff"),
-                        ];
-                        widgets::mode_tabs(ui, &mut state.context.right_tab, &tabs);
-                        if prev_tab == RightTab::Diff && state.context.right_tab != RightTab::Diff {
-                            state.context.diff_active = false;
-                        }
-                    });
+                    let prev_tab = state.context.right_tab;
+                    let tabs = [
+                        (RightTab::Info, "Info"),
+                        (RightTab::Convert, "Convert"),
+                        (RightTab::Diff, "Diff"),
+                    ];
+                    widgets::mode_tabs(ui, &mut state.context.right_tab, &tabs);
+                    if prev_tab == RightTab::Diff && state.context.right_tab != RightTab::Diff {
+                        state.context.diff_active = false;
+                    }
                 });
+            ui.painter()
+                .line_segment(
+                    [
+                        egui::pos2(ui.min_rect().left(), ui.min_rect().bottom()),
+                        egui::pos2(ui.max_rect().right(), ui.min_rect().bottom()),
+                    ],
+                    egui::Stroke::new(1.0, p.surface1),
+                );
 
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
@@ -56,11 +56,25 @@ pub fn draw_right_panel_container(ui: &mut egui::Ui, state: &mut ViewerState) {
                         .inner_margin(egui::Margin::same(12))
                         .show(ui, |ui| match state.context.right_tab {
                             RightTab::Info => draw_info_tab(ui, state),
-                            RightTab::Convert => convert_panel::draw_convert_options(ui, state),
+                            RightTab::Convert => draw_convert_tab(ui, state),
                             RightTab::Diff => diff_panel::draw_diff_panel_contents(ui, state),
                         });
                 });
         });
+}
+
+fn draw_convert_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
+    match viewer::get_content_type(state) {
+        viewer::ContentType::Rgba => convert_panel::draw_convert_options(ui, state),
+        viewer::ContentType::Font => panels::font_panel::draw_font_convert_section(ui, state),
+        viewer::ContentType::Path => panels::path_panel::draw_path_export_section(ui, state),
+        viewer::ContentType::Indexed => {
+            panels::indexed_panel::draw_indexed_convert_section(ui, state)
+        }
+        viewer::ContentType::Glyph => {
+            ui.label("No convert options for glyphs");
+        }
+    }
 }
 
 fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
@@ -72,7 +86,7 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
             return;
         }
     };
-    let item = match state.items.get(idx) {
+    let item = match state.items.get(idx).cloned() {
         Some(it) => it,
         None => {
             ui.label("No file selected");
@@ -80,7 +94,7 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
         }
     };
 
-    match item {
+    match &item {
         SidebarItem::Image(img) => {
             widgets::section_card(ui, "File Info", |ui| {
                 widgets::info_row(ui, "Name", &img.path);
@@ -152,6 +166,8 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                         });
                     }
                 }
+                ui.add_space(8.0);
+                panels::font_panel::draw_font_info_section(ui, state);
             }
 
             if let Some(icu_lib::midata::MiData::INDEXED(indexed)) = &img.midata {
@@ -161,6 +177,8 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                     widgets::info_row(ui, "Palette", &indexed.palette.len().to_string());
                     widgets::info_row(ui, "Size", &format!("{}×{}", indexed.width, indexed.height));
                 });
+                ui.add_space(8.0);
+                panels::indexed_panel::draw_indexed_info_section(ui, state);
             }
 
             if !img.info.other_info.is_null() {

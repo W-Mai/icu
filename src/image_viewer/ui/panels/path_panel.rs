@@ -2,7 +2,10 @@ use crate::image_viewer::plotter::ImagePlotter;
 use eframe::egui;
 use icu_lib::midata::MiData;
 
-pub fn draw_path_side(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
+pub fn draw_path_export_section(
+    ui: &mut egui::Ui,
+    state: &mut crate::image_viewer::model::ViewerState,
+) {
     let Some(image) = state.current_image.clone() else {
         return;
     };
@@ -11,14 +14,6 @@ pub fn draw_path_side(ui: &mut egui::Ui, state: &mut crate::image_viewer::model:
     };
     let scene_data = scene_data.clone();
 
-    crate::image_viewer::ui::widgets::section_card(ui, "Scene", |ui| {
-        crate::image_viewer::ui::widgets::info_row(
-            ui,
-            "Ops",
-            &scene_data.scene.ops.len().to_string(),
-        );
-    });
-    ui.add_space(4.0);
     crate::image_viewer::ui::widgets::section_card(ui, "Export", |ui| {
         if ui.button("Export PNG").clicked() {
             let (w, h) =
@@ -45,18 +40,6 @@ pub fn draw_path_side(ui: &mut egui::Ui, state: &mut crate::image_viewer::model:
             );
             if let Some(path) = super::pick_save_file(&[("mirx", &["mirx"])], &"scene.mirx") {
                 let _ = std::fs::write(&path, bytes);
-            }
-        }
-    });
-    ui.separator();
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        for (i, op) in scene_data.scene.ops.iter().enumerate() {
-            let label = op_label(op);
-            if ui
-                .selectable_label(state.selected_op == Some(i), format!("{}. {}", i, label))
-                .clicked()
-            {
-                state.selected_op = Some(i);
             }
         }
     });

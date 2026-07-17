@@ -82,46 +82,6 @@ fn selected_mirx_font<'a>(
     }
 }
 
-fn show_mirx_metadata(ui: &mut egui::Ui, font: &icu_lib::mirx::Font) {
-    crate::image_viewer::ui::widgets::section_card(ui, "Font Metadata", |ui| {
-        crate::image_viewer::ui::widgets::info_row(
-            ui,
-            "Kind",
-            &format!("{:?}", font.chunk_header.kind),
-        );
-        crate::image_viewer::ui::widgets::info_row(
-            ui,
-            "Source Size",
-            &font.atlas.source_size.to_string(),
-        );
-        crate::image_viewer::ui::widgets::info_row(
-            ui,
-            "Bit Depth",
-            &font.atlas.bit_depth.to_string(),
-        );
-        crate::image_viewer::ui::widgets::info_row(
-            ui,
-            "Glyphs",
-            &font.atlas.glyph_count.to_string(),
-        );
-        crate::image_viewer::ui::widgets::info_row(
-            ui,
-            "Ascender",
-            &font.atlas.ascender.to_string(),
-        );
-        crate::image_viewer::ui::widgets::info_row(
-            ui,
-            "Descender",
-            &font.atlas.descender.to_string(),
-        );
-        crate::image_viewer::ui::widgets::info_row(
-            ui,
-            "Line Height",
-            &font.atlas.line_height.to_string(),
-        );
-    });
-}
-
 fn reset_font_caches(state: &mut crate::image_viewer::model::ViewerState) {
     state.font_rendered_preview = None;
     state.font_atlas_cached = None;
@@ -142,34 +102,6 @@ fn selected_opened_glyph(
         Some(SidebarItem::Glyph(g)) => Some(g.clone()),
         _ => None,
     }
-}
-
-pub fn draw_glyph_side(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
-    let Some(glyph) = selected_opened_glyph(state) else {
-        return;
-    };
-
-    ui.label(
-        egui::RichText::new(format!(
-            "{} · U+{:04X} · {} path cmds",
-            glyph.char_repr,
-            glyph.codepoint,
-            glyph.outline.len()
-        ))
-        .size(11.0)
-        .color(ui.style().visuals.weak_text_color()),
-    );
-    ui.add_space(4.0);
-    glyph_metrics_card(
-        ui,
-        glyph.codepoint,
-        glyph.advance,
-        glyph.bearing.0,
-        glyph.bearing.1,
-        glyph.bbox,
-        glyph.outline.len(),
-        glyph.outline_approximate,
-    );
 }
 
 pub fn draw_glyph_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
@@ -204,7 +136,20 @@ pub fn draw_glyph_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mod
     );
 }
 
-pub fn draw_font_side(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
+fn font_text_color(ctx: &egui::Context) -> icu_lib::mirx::Color {
+    let fg = ctx.global_style().visuals.text_color();
+    icu_lib::mirx::Color {
+        r: fg.r(),
+        g: fg.g(),
+        b: fg.b(),
+        a: fg.a(),
+    }
+}
+
+pub fn draw_font_info_section(
+    ui: &mut egui::Ui,
+    state: &mut crate::image_viewer::model::ViewerState,
+) {
     let ctx = ui.ctx().clone();
     let Some(image) = state.current_image.clone() else {
         return;
@@ -213,154 +158,9 @@ pub fn draw_font_side(ui: &mut egui::Ui, state: &mut crate::image_viewer::model:
         return;
     };
 
-    let fg = ctx.global_style().visuals.text_color();
-    let text_color = icu_lib::mirx::Color {
-        r: fg.r(),
-        g: fg.g(),
-        b: fg.b(),
-        a: fg.a(),
-    };
-
     match font_data {
         FontData::Mirx(font) => {
-            show_mirx_metadata(ui, font);
-            ui.add_space(4.0);
-            crate::image_viewer::ui::widgets::section_card(ui, "Preview", |ui| {
-                ui.text_edit_singleline(&mut state.font_preview_text);
-                if ui.button("Render").clicked() {
-                    let img = icu_lib::endecoder::mirui::font_render::render_font_text(
-                        font,
-                        &state.font_preview_text,
-                        400,
-                        64,
-                        text_color,
-                    );
-                    state.font_rendered_preview = Some(img);
-                }
-            });
-            ui.add_space(4.0);
-            crate::image_viewer::ui::widgets::section_card(ui, "Glyph Diff", |ui| {
-                if ui.button("Select font to diff...").clicked() {
-                    if let Some(path) =
-                        super::pick_file(&[("Font", &["ttf", "otf", "ttc", "mirx"])])
-                    {
-                        state.font_diff_path = Some(path.to_string_lossy().into());
-                    }
-                }
-                if let Some(diff_path) = &state.font_diff_path {
-                    ui.label(format!("vs: {}", diff_path));
-                    if ui.button("Render Diff").clicked() {
-                        let img_a = icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
-                        let raw_b = std::fs::read(diff_path).unwrap_or_default();
-                        let ed = icu_lib::endecoder::mirui::Mirx;
-                        if ed.can_decode(&raw_b) {
-                            match ed.decode(raw_b) {
-                                icu_lib::midata::MiData::FONT(icu_lib::midata::FontData::Mirx(
-                                    font_b,
-                                )) => {
-                                    let img_b =
-                                        icu_lib::endecoder::mirui::font_render::render_font_atlas(
-                                            &font_b,
-                                        );
-                                    let (wa, ha) = img_a.dimensions();
-                                    let (wb, hb) = img_b.dimensions();
-                                    let (w, h) = (wa.max(wb), ha.max(hb));
-                                    let mut canvas_a = icu_lib::image::RgbaImage::new(w, h);
-                                    icu_lib::image::imageops::overlay(&mut canvas_a, &img_a, 0, 0);
-                                    let mut canvas_b = icu_lib::image::RgbaImage::new(w, h);
-                                    icu_lib::image::imageops::overlay(&mut canvas_b, &img_b, 0, 0);
-                                    let dr = icu_lib::endecoder::utils::diff::diff_image(
-                                        &icu_lib::midata::MiData::RGBA(canvas_a.clone()),
-                                        &icu_lib::midata::MiData::RGBA(canvas_b),
-                                    );
-                                    if let Some(dr) = dr {
-                                        let mut stack =
-                                            icu_lib::postprocess::OverlayStack::new(canvas_a);
-                                        stack.push(Box::new(
-                                            icu_lib::postprocess::DiffOverlay::new(dr, 1.0, 0.5),
-                                        ));
-                                        let composited = stack.composite().clone();
-                                        state.font_rendered_preview = Some(composited);
-                                        state.font_mode = FontMode::Rendered;
-                                    }
-                                }
-                                icu_lib::midata::MiData::FONT(
-                                    icu_lib::midata::FontData::MirxBundle(fonts_b),
-                                ) => {
-                                    if let Some(font_b) = fonts_b.first() {
-                                        let img_b = icu_lib::endecoder::mirui::font_render::render_font_atlas(font_b);
-                                        let (wa, ha) = img_a.dimensions();
-                                        let (wb, hb) = img_b.dimensions();
-                                        let (w, h) = (wa.max(wb), ha.max(hb));
-                                        let mut canvas_a = icu_lib::image::RgbaImage::new(w, h);
-                                        icu_lib::image::imageops::overlay(
-                                            &mut canvas_a,
-                                            &img_a,
-                                            0,
-                                            0,
-                                        );
-                                        let mut canvas_b = icu_lib::image::RgbaImage::new(w, h);
-                                        icu_lib::image::imageops::overlay(
-                                            &mut canvas_b,
-                                            &img_b,
-                                            0,
-                                            0,
-                                        );
-                                        let dr = icu_lib::endecoder::utils::diff::diff_image(
-                                            &icu_lib::midata::MiData::RGBA(canvas_a.clone()),
-                                            &icu_lib::midata::MiData::RGBA(canvas_b),
-                                        );
-                                        if let Some(dr) = dr {
-                                            let mut stack =
-                                                icu_lib::postprocess::OverlayStack::new(canvas_a);
-                                            stack.push(Box::new(
-                                                icu_lib::postprocess::DiffOverlay::new(
-                                                    dr, 1.0, 0.5,
-                                                ),
-                                            ));
-                                            let composited = stack.composite().clone();
-                                            state.font_rendered_preview = Some(composited);
-                                            state.font_mode = FontMode::Rendered;
-                                        }
-                                    }
-                                }
-                                icu_lib::midata::MiData::FONT(
-                                    icu_lib::midata::FontData::FreeType(_),
-                                ) => {}
-                                _ => {}
-                            }
-                        }
-                    }
-                }
-            });
-            ui.add_space(4.0);
-            crate::image_viewer::ui::widgets::section_card(ui, "Merge Fonts", |ui| {
-                if ui.button("Add font file...").clicked() {
-                    if let Some(path) = super::pick_file(&[("mirx", &["mirx"])]) {
-                        state.merge_font_paths.push(path.to_string_lossy().into());
-                    }
-                }
-                for (i, p) in state.merge_font_paths.clone().iter().enumerate() {
-                    ui.horizontal(|ui| {
-                        ui.label(format!("{}", p));
-                        if ui.button("×").clicked() {
-                            state.merge_font_paths.remove(i);
-                        }
-                    });
-                }
-                if state.merge_font_paths.len() >= 2 && ui.button("Merge & Save").clicked() {
-                    let inputs: Vec<Vec<u8>> = state
-                        .merge_font_paths
-                        .iter()
-                        .filter_map(|p| std::fs::read(p).ok())
-                        .collect();
-                    let merged = icu_lib::endecoder::mirui::font_bake::merge_font_chunks(&inputs);
-                    if let Some(path) = super::pick_save_file(&[("mirx", &["mirx"])], "bundle.mirx")
-                    {
-                        let _ = std::fs::write(&path, merged);
-                    }
-                }
-            });
+            draw_font_preview_section(ui, state, font, font_text_color(&ctx));
         }
         FontData::MirxBundle(fonts) => {
             if fonts.is_empty() {
@@ -395,256 +195,266 @@ pub fn draw_font_side(ui: &mut egui::Ui, state: &mut crate::image_viewer::model:
                 }
             }
             if let Some(font) = fonts.get(state.font_bundle_index).or_else(|| fonts.first()) {
-                show_mirx_metadata(ui, font);
-                ui.separator();
-                ui.label("Preview text:");
-                ui.text_edit_singleline(&mut state.font_preview_text);
-                if ui.button("Render").clicked() {
-                    let img = icu_lib::endecoder::mirui::font_render::render_font_text(
-                        font,
-                        &state.font_preview_text,
-                        400,
-                        64,
-                        text_color,
-                    );
-                    state.font_rendered_preview = Some(img);
-                }
-                ui.separator();
-                ui.label("Glyph diff:");
-                if ui.button("Select font to diff...").clicked() {
-                    if let Some(path) =
-                        super::pick_file(&[("Font", &["ttf", "otf", "ttc", "mirx"])])
-                    {
-                        state.font_diff_path = Some(path.to_string_lossy().into());
-                    }
-                }
-                if let Some(diff_path) = &state.font_diff_path {
-                    ui.label(format!("vs: {}", diff_path));
-                    if ui.button("Render Diff").clicked() {
-                        let img_a = icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
-                        let raw_b = std::fs::read(diff_path).unwrap_or_default();
-                        let ed = icu_lib::endecoder::mirui::Mirx;
-                        if ed.can_decode(&raw_b) {
-                            match ed.decode(raw_b) {
-                                icu_lib::midata::MiData::FONT(icu_lib::midata::FontData::Mirx(
-                                    font_b,
-                                )) => {
-                                    let img_b =
-                                        icu_lib::endecoder::mirui::font_render::render_font_atlas(
-                                            &font_b,
-                                        );
-                                    let (wa, ha) = img_a.dimensions();
-                                    let (wb, hb) = img_b.dimensions();
-                                    let (w, h) = (wa.max(wb), ha.max(hb));
-                                    let mut canvas_a = icu_lib::image::RgbaImage::new(w, h);
-                                    icu_lib::image::imageops::overlay(&mut canvas_a, &img_a, 0, 0);
-                                    let mut canvas_b = icu_lib::image::RgbaImage::new(w, h);
-                                    icu_lib::image::imageops::overlay(&mut canvas_b, &img_b, 0, 0);
-                                    let dr = icu_lib::endecoder::utils::diff::diff_image(
-                                        &icu_lib::midata::MiData::RGBA(canvas_a.clone()),
-                                        &icu_lib::midata::MiData::RGBA(canvas_b),
-                                    );
-                                    if let Some(dr) = dr {
-                                        let mut stack =
-                                            icu_lib::postprocess::OverlayStack::new(canvas_a);
-                                        stack.push(Box::new(
-                                            icu_lib::postprocess::DiffOverlay::new(dr, 1.0, 0.5),
-                                        ));
-                                        let composited = stack.composite().clone();
-                                        state.font_rendered_preview = Some(composited);
-                                        state.font_mode = FontMode::Rendered;
-                                    }
-                                }
-                                icu_lib::midata::MiData::FONT(
-                                    icu_lib::midata::FontData::MirxBundle(fonts_b),
-                                ) => {
-                                    if let Some(font_b) = fonts_b.first() {
-                                        let img_b = icu_lib::endecoder::mirui::font_render::render_font_atlas(font_b);
-                                        let (wa, ha) = img_a.dimensions();
-                                        let (wb, hb) = img_b.dimensions();
-                                        let (w, h) = (wa.max(wb), ha.max(hb));
-                                        let mut canvas_a = icu_lib::image::RgbaImage::new(w, h);
-                                        icu_lib::image::imageops::overlay(
-                                            &mut canvas_a,
-                                            &img_a,
-                                            0,
-                                            0,
-                                        );
-                                        let mut canvas_b = icu_lib::image::RgbaImage::new(w, h);
-                                        icu_lib::image::imageops::overlay(
-                                            &mut canvas_b,
-                                            &img_b,
-                                            0,
-                                            0,
-                                        );
-                                        let dr = icu_lib::endecoder::utils::diff::diff_image(
-                                            &icu_lib::midata::MiData::RGBA(canvas_a.clone()),
-                                            &icu_lib::midata::MiData::RGBA(canvas_b),
-                                        );
-                                        if let Some(dr) = dr {
-                                            let mut stack =
-                                                icu_lib::postprocess::OverlayStack::new(canvas_a);
-                                            stack.push(Box::new(
-                                                icu_lib::postprocess::DiffOverlay::new(
-                                                    dr, 1.0, 0.5,
-                                                ),
-                                            ));
-                                            let composited = stack.composite().clone();
-                                            state.font_rendered_preview = Some(composited);
-                                            state.font_mode = FontMode::Rendered;
-                                        }
-                                    }
-                                }
-                                icu_lib::midata::MiData::FONT(
-                                    icu_lib::midata::FontData::FreeType(_),
-                                ) => {}
-                                _ => {}
-                            }
-                        }
-                    }
-                }
+                ui.add_space(4.0);
+                draw_font_preview_section(ui, state, font, font_text_color(&ctx));
+            }
+        }
+        FontData::FreeType(_) => {}
+    }
+}
+
+pub fn draw_font_convert_section(
+    ui: &mut egui::Ui,
+    state: &mut crate::image_viewer::model::ViewerState,
+) {
+    let Some(image) = state.current_image.clone() else {
+        return;
+    };
+    let Some(MiData::FONT(font_data)) = &image.midata else {
+        return;
+    };
+
+    match font_data {
+        FontData::Mirx(font) => {
+            draw_glyph_diff_section(ui, state, font);
+            ui.add_space(4.0);
+            draw_merge_fonts_section(ui, state);
+        }
+        FontData::MirxBundle(fonts) => {
+            if let Some(font) = fonts.get(state.font_bundle_index).or_else(|| fonts.first()) {
+                draw_glyph_diff_section(ui, state, font);
+                ui.add_space(4.0);
+                draw_merge_fonts_section(ui, state);
             }
         }
         FontData::FreeType(f) => {
-            crate::image_viewer::ui::widgets::section_card(ui, "FreeType Metadata", |ui| {
-                crate::image_viewer::ui::widgets::info_row(ui, "Family", &f.family);
-                crate::image_viewer::ui::widgets::info_row(ui, "Style", &f.style);
-                crate::image_viewer::ui::widgets::info_row(
-                    ui,
-                    "Units/em",
-                    &f.units_per_em.to_string(),
-                );
-                crate::image_viewer::ui::widgets::info_row(ui, "Ascender", &f.ascender.to_string());
-                crate::image_viewer::ui::widgets::info_row(
-                    ui,
-                    "Descender",
-                    &f.descender.to_string(),
-                );
-                crate::image_viewer::ui::widgets::info_row(
-                    ui,
-                    "Line Height",
-                    &f.line_height.to_string(),
-                );
-                crate::image_viewer::ui::widgets::info_row(
-                    ui,
-                    "Glyphs",
-                    &format!("{} / {}", f.glyphs.len(), f.glyph_count),
-                );
-            });
-            ui.add_space(4.0);
-            crate::image_viewer::ui::widgets::section_card(ui, "Bake to mirx", |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("size:");
-                    ui.add(egui::DragValue::new(&mut state.font_bake_size).range(8..=64));
-                    ui.label("format:");
-                    egui::ComboBox::from_label("")
-                        .selected_text(&state.font_bake_format)
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut state.font_bake_format, "sdf".into(), "sdf");
-                            ui.selectable_value(&mut state.font_bake_format, "gray".into(), "gray");
-                        });
-                    ui.label("bit_depth:");
-                    let valid_depths: &[u8] = if state.font_bake_format == "gray" {
-                        &[1, 2, 4, 8]
-                    } else {
-                        &[4, 8]
-                    };
-                    if !valid_depths.contains(&state.font_bake_bit_depth) {
-                        state.font_bake_bit_depth = valid_depths[0];
-                    }
-                    egui::ComboBox::from_id_salt("bake_bit_depth")
-                        .selected_text(format!("{}", state.font_bake_bit_depth))
-                        .show_ui(ui, |ui| {
-                            for &d in valid_depths {
-                                ui.selectable_value(
-                                    &mut state.font_bake_bit_depth,
-                                    d,
-                                    format!("{d}"),
-                                );
-                            }
-                        });
-                });
+            draw_font_bake_section(ui, state, &image, f);
+        }
+    }
+}
 
-                ui.add_space(4.0);
-                crate::image_viewer::ui::widgets::mode_tabs(
-                    ui,
-                    &mut state.font_bake_charset_tab,
-                    &[
-                        (BakeCharsetTab::Text, "Text"),
-                        (BakeCharsetTab::Range, "Range"),
-                        (BakeCharsetTab::File, "File"),
-                    ],
-                );
-                ui.add_space(4.0);
+fn draw_font_preview_section(
+    ui: &mut egui::Ui,
+    state: &mut crate::image_viewer::model::ViewerState,
+    font: &icu_lib::mirx::Font,
+    text_color: icu_lib::mirx::Color,
+) {
+    crate::image_viewer::ui::widgets::section_card(ui, "Preview", |ui| {
+        ui.text_edit_singleline(&mut state.font_preview_text);
+        if ui.button("Render").clicked() {
+            let img = icu_lib::endecoder::mirui::font_render::render_font_text(
+                font,
+                &state.font_preview_text,
+                400,
+                64,
+                text_color,
+            );
+            state.font_rendered_preview = Some(img);
+        }
+    });
+}
 
-                match state.font_bake_charset_tab {
-                    BakeCharsetTab::Text => {
-                        ui.text_edit_multiline(&mut state.font_bake_charset_text);
-                    }
-                    BakeCharsetTab::Range => {
-                        ui.text_edit_multiline(&mut state.font_bake_charset_ranges);
-                        ui.label(
-                            egui::RichText::new(
-                                "Format: U+XXXX-U+YYYY, one range per line or comma-separated",
-                            )
-                            .size(9.0)
-                            .color(ui.style().visuals.weak_text_color()),
-                        );
-                    }
-                    BakeCharsetTab::File => {
-                        ui.horizontal(|ui| {
-                            if ui.button("Choose charset file…").clicked() {
-                                if let Some(path) = super::pick_file(&[("Text", &["txt"])]) {
-                                    state.font_bake_charset_file =
-                                        Some(path.to_string_lossy().into());
-                                }
-                            }
-                            if let Some(p) = &state.font_bake_charset_file {
-                                ui.label(p);
-                            }
-                        });
-                    }
-                }
+fn draw_glyph_diff_section(
+    ui: &mut egui::Ui,
+    state: &mut crate::image_viewer::model::ViewerState,
+    font: &icu_lib::mirx::Font,
+) {
+    crate::image_viewer::ui::widgets::section_card(ui, "Glyph Diff", |ui| {
+        if ui.button("Select font to diff...").clicked() {
+            if let Some(path) = super::pick_file(&[("Font", &["ttf", "otf", "ttc", "mirx"])]) {
+                state.font_diff_path = Some(path.to_string_lossy().into());
+            }
+        }
+        if let Some(diff_path) = state.font_diff_path.clone() {
+            ui.label(format!("vs: {}", diff_path));
+            if ui.button("Render Diff").clicked() {
+                render_font_diff(state, font, &diff_path);
+            }
+        }
+    });
+}
 
-                if ui.button("Bake & Save").clicked() {
-                    let kind = if state.font_bake_format == "gray" {
-                        icu_lib::mirx::FontChunkKind::Grayscale
-                    } else {
-                        icu_lib::mirx::FontChunkKind::Sdf
-                    };
-                    let charset = collect_charset(state);
-                    if charset.is_empty() {
-                        log::warn!("bake charset is empty");
-                        return;
-                    }
-                    let params = icu_lib::endecoder::mirui::font_bake::FontBakeParams {
-                        kind,
-                        source_size: state.font_bake_size,
-                        bit_depth: state.font_bake_bit_depth as u8,
-                        spread: (state.font_bake_size / 4).max(1),
-                        charset,
-                    };
-                    let raw = std::fs::read(&image.path).unwrap_or_default();
-                    if let Some(font) =
-                        icu_lib::endecoder::mirui::font_bake::bake_font(&raw, &params)
-                    {
-                        let payload = font.encode();
-                        let bytes = icu_lib::mirx::encode_chunk_generic(
-                            icu_lib::mirx::chunk_type::FONT,
-                            icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
-                            &payload,
-                        );
-                        if let Some(path) = super::pick_save_file(
-                            &[("mirx", &["mirx"])],
-                            &format!("{}_{}.mirx", f.family, state.font_bake_format),
-                        ) {
-                            let _ = std::fs::write(&path, bytes);
-                        }
-                    }
+fn render_font_diff(
+    state: &mut crate::image_viewer::model::ViewerState,
+    font: &icu_lib::mirx::Font,
+    diff_path: &str,
+) {
+    let img_a = icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
+    let raw_b = std::fs::read(diff_path).unwrap_or_default();
+    let ed = icu_lib::endecoder::mirui::Mirx;
+    if !ed.can_decode(&raw_b) {
+        return;
+    }
+    let MiData::FONT(font_data) = ed.decode(raw_b) else {
+        return;
+    };
+    let Some(font_b) = selected_mirx_font(&font_data, 0) else {
+        return;
+    };
+    let img_b = icu_lib::endecoder::mirui::font_render::render_font_atlas(font_b);
+    let (wa, ha) = img_a.dimensions();
+    let (wb, hb) = img_b.dimensions();
+    let (w, h) = (wa.max(wb), ha.max(hb));
+    let mut canvas_a = icu_lib::image::RgbaImage::new(w, h);
+    icu_lib::image::imageops::overlay(&mut canvas_a, &img_a, 0, 0);
+    let mut canvas_b = icu_lib::image::RgbaImage::new(w, h);
+    icu_lib::image::imageops::overlay(&mut canvas_b, &img_b, 0, 0);
+    let dr = icu_lib::endecoder::utils::diff::diff_image(
+        &MiData::RGBA(canvas_a.clone()),
+        &MiData::RGBA(canvas_b),
+    );
+    if let Some(dr) = dr {
+        let mut stack = icu_lib::postprocess::OverlayStack::new(canvas_a);
+        stack.push(Box::new(icu_lib::postprocess::DiffOverlay::new(
+            dr, 1.0, 0.5,
+        )));
+        state.font_rendered_preview = Some(stack.composite().clone());
+        state.font_mode = FontMode::Rendered;
+    }
+}
+
+fn draw_merge_fonts_section(
+    ui: &mut egui::Ui,
+    state: &mut crate::image_viewer::model::ViewerState,
+) {
+    crate::image_viewer::ui::widgets::section_card(ui, "Merge Fonts", |ui| {
+        if ui.button("Add font file...").clicked() {
+            if let Some(path) = super::pick_file(&[("mirx", &["mirx"])]) {
+                state.merge_font_paths.push(path.to_string_lossy().into());
+            }
+        }
+        for (i, p) in state.merge_font_paths.clone().iter().enumerate() {
+            ui.horizontal(|ui| {
+                ui.label(p);
+                if ui.button("×").clicked() {
+                    state.merge_font_paths.remove(i);
                 }
             });
         }
-    }
+        if state.merge_font_paths.len() >= 2 && ui.button("Merge & Save").clicked() {
+            let inputs: Vec<Vec<u8>> = state
+                .merge_font_paths
+                .iter()
+                .filter_map(|p| std::fs::read(p).ok())
+                .collect();
+            let merged = icu_lib::endecoder::mirui::font_bake::merge_font_chunks(&inputs);
+            if let Some(path) = super::pick_save_file(&[("mirx", &["mirx"])], "bundle.mirx") {
+                let _ = std::fs::write(&path, merged);
+            }
+        }
+    });
+}
+
+fn draw_font_bake_section(
+    ui: &mut egui::Ui,
+    state: &mut crate::image_viewer::model::ViewerState,
+    image: &crate::image_viewer::model::ImageItem,
+    f: &icu_lib::midata::FreeTypeFontData,
+) {
+    crate::image_viewer::ui::widgets::section_card(ui, "Bake to mirx", |ui| {
+        ui.horizontal(|ui| {
+            ui.label("size:");
+            ui.add(egui::DragValue::new(&mut state.font_bake_size).range(8..=64));
+            ui.label("format:");
+            egui::ComboBox::from_label("")
+                .selected_text(&state.font_bake_format)
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut state.font_bake_format, "sdf".into(), "sdf");
+                    ui.selectable_value(&mut state.font_bake_format, "gray".into(), "gray");
+                });
+            ui.label("bit_depth:");
+            let valid_depths: &[u8] = if state.font_bake_format == "gray" {
+                &[1, 2, 4, 8]
+            } else {
+                &[4, 8]
+            };
+            if !valid_depths.contains(&state.font_bake_bit_depth) {
+                state.font_bake_bit_depth = valid_depths[0];
+            }
+            egui::ComboBox::from_id_salt("bake_bit_depth")
+                .selected_text(format!("{}", state.font_bake_bit_depth))
+                .show_ui(ui, |ui| {
+                    for &d in valid_depths {
+                        ui.selectable_value(&mut state.font_bake_bit_depth, d, format!("{d}"));
+                    }
+                });
+        });
+
+        ui.add_space(4.0);
+        crate::image_viewer::ui::widgets::mode_tabs(
+            ui,
+            &mut state.font_bake_charset_tab,
+            &[
+                (BakeCharsetTab::Text, "Text"),
+                (BakeCharsetTab::Range, "Range"),
+                (BakeCharsetTab::File, "File"),
+            ],
+        );
+        ui.add_space(4.0);
+
+        match state.font_bake_charset_tab {
+            BakeCharsetTab::Text => {
+                ui.text_edit_multiline(&mut state.font_bake_charset_text);
+            }
+            BakeCharsetTab::Range => {
+                ui.text_edit_multiline(&mut state.font_bake_charset_ranges);
+                ui.label(
+                    egui::RichText::new(
+                        "Format: U+XXXX-U+YYYY, one range per line or comma-separated",
+                    )
+                    .size(9.0)
+                    .color(ui.style().visuals.weak_text_color()),
+                );
+            }
+            BakeCharsetTab::File => {
+                ui.horizontal(|ui| {
+                    if ui.button("Choose charset file…").clicked() {
+                        if let Some(path) = super::pick_file(&[("Text", &["txt"])]) {
+                            state.font_bake_charset_file = Some(path.to_string_lossy().into());
+                        }
+                    }
+                    if let Some(p) = &state.font_bake_charset_file {
+                        ui.label(p);
+                    }
+                });
+            }
+        }
+
+        if ui.button("Bake & Save").clicked() {
+            let kind = if state.font_bake_format == "gray" {
+                icu_lib::mirx::FontChunkKind::Grayscale
+            } else {
+                icu_lib::mirx::FontChunkKind::Sdf
+            };
+            let charset = collect_charset(state);
+            if charset.is_empty() {
+                log::warn!("bake charset is empty");
+                return;
+            }
+            let params = icu_lib::endecoder::mirui::font_bake::FontBakeParams {
+                kind,
+                source_size: state.font_bake_size,
+                bit_depth: state.font_bake_bit_depth as u8,
+                spread: (state.font_bake_size / 4).max(1),
+                charset,
+            };
+            let raw = std::fs::read(&image.path).unwrap_or_default();
+            if let Some(font) = icu_lib::endecoder::mirui::font_bake::bake_font(&raw, &params) {
+                let payload = font.encode();
+                let bytes = icu_lib::mirx::encode_chunk_generic(
+                    icu_lib::mirx::chunk_type::FONT,
+                    icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
+                    &payload,
+                );
+                if let Some(path) = super::pick_save_file(
+                    &[("mirx", &["mirx"])],
+                    &format!("{}_{}.mirx", f.family, state.font_bake_format),
+                ) {
+                    let _ = std::fs::write(&path, bytes);
+                }
+            }
+        }
+    });
 }
 
 pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
@@ -857,24 +667,24 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                         .stroke(egui::Stroke::new(1.0, p.surface0))
                         .inner_margin(egui::Margin::same(8))
                         .show(ui, |ui| {
-                        if let Some(idx) = state.selected_glyph {
-                            if let Some(m) = font.metrics.get(idx) {
-                                let ch = char::from_u32(m.codepoint).unwrap_or('?');
-                                ui.heading(format!(
-                                    "Glyph #{}: '{}' (U+{:04X})",
-                                    idx, ch, m.codepoint
-                                ));
-                                ui.label(format!(
-                                    "advance: {}  bearing: ({}, {})",
-                                    m.advance, m.bearing_x, m.bearing_y
-                                ));
-                                let big_key = format!("{}_{}", grid_key_clone, idx);
-                                let need_big = match &state.font_grid_big_cached {
-                                    Some((k, _)) => k != &big_key,
-                                    None => true,
-                                };
-                                if need_big {
-                                    let big =
+                            if let Some(idx) = state.selected_glyph {
+                                if let Some(m) = font.metrics.get(idx) {
+                                    let ch = char::from_u32(m.codepoint).unwrap_or('?');
+                                    ui.heading(format!(
+                                        "Glyph #{}: '{}' (U+{:04X})",
+                                        idx, ch, m.codepoint
+                                    ));
+                                    ui.label(format!(
+                                        "advance: {}  bearing: ({}, {})",
+                                        m.advance, m.bearing_x, m.bearing_y
+                                    ));
+                                    let big_key = format!("{}_{}", grid_key_clone, idx);
+                                    let need_big = match &state.font_grid_big_cached {
+                                        Some((k, _)) => k != &big_key,
+                                        None => true,
+                                    };
+                                    if need_big {
+                                        let big =
                                         icu_lib::endecoder::mirui::font_render::render_font_text(
                                             font,
                                             &ch.to_string(),
@@ -882,28 +692,28 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                                             128,
                                             text_color,
                                         );
-                                    let ci = egui::ColorImage::from_rgba_unmultiplied(
-                                        [128, 128],
-                                        big.as_raw(),
-                                    );
-                                    let tex = ctx.load_texture(
-                                        "glyph_big",
-                                        ci,
-                                        egui::TextureOptions::LINEAR,
-                                    );
-                                    state.font_grid_big_cached = Some((big_key, tex));
+                                        let ci = egui::ColorImage::from_rgba_unmultiplied(
+                                            [128, 128],
+                                            big.as_raw(),
+                                        );
+                                        let tex = ctx.load_texture(
+                                            "glyph_big",
+                                            ci,
+                                            egui::TextureOptions::LINEAR,
+                                        );
+                                        state.font_grid_big_cached = Some((big_key, tex));
+                                    }
+                                    if let Some((_, tex)) = &state.font_grid_big_cached {
+                                        ui.image(egui::load::SizedTexture::new(
+                                            tex.id(),
+                                            [128.0, 128.0],
+                                        ));
+                                    }
                                 }
-                                if let Some((_, tex)) = &state.font_grid_big_cached {
-                                    ui.image(egui::load::SizedTexture::new(
-                                        tex.id(),
-                                        [128.0, 128.0],
-                                    ));
-                                }
+                            } else {
+                                ui.label("Click a glyph to inspect");
                             }
-                        } else {
-                            ui.label("Click a glyph to inspect");
-                        }
-                    });
+                        });
                 }
                 FontData::MirxBundle(fonts) => {
                     if let Some(font) = fonts.get(state.font_bundle_index).or_else(|| fonts.first())
@@ -1304,13 +1114,8 @@ fn draw_glyph_vector_view(
     let gh = (max_y - min_y).max(1) as f32;
 
     if response.contains_pointer() {
-        let (zoom_delta, scroll_delta, pointer) = ui.input(|i| {
-            (
-                i.zoom_delta(),
-                i.smooth_scroll_delta,
-                i.pointer.hover_pos(),
-            )
-        });
+        let (zoom_delta, scroll_delta, pointer) =
+            ui.input(|i| (i.zoom_delta(), i.smooth_scroll_delta, i.pointer.hover_pos()));
         if zoom_delta != 1.0 {
             let old_zoom = view.zoom;
             let new_zoom = (old_zoom * zoom_delta).clamp(0.1, 64.0);
