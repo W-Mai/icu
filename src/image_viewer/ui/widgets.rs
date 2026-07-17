@@ -64,39 +64,20 @@ pub fn mode_tabs<T: Copy + PartialEq>(
     tabs: &[(T, &str)],
 ) -> Response {
     let p = theme::tokens::palette(ui.ctx());
-    let height = 24.0f32;
-    let padding_x = 12.0f32;
-    let gap = 0.0f32;
-
-    let text_widths: Vec<f32> = tabs
-        .iter()
-        .map(|(_, label)| {
-            ui.painter()
-                .layout_no_wrap(
-                    label.to_string(),
-                    FontId::proportional(12.0),
-                    Color32::TRANSPARENT,
-                )
-                .size()
-                .x
-        })
-        .collect();
-    let total_width: f32 = text_widths.iter().map(|w| w + 2.0 * padding_x).sum::<f32>()
-        + gap * (tabs.len().saturating_sub(1)) as f32;
+    let height = 30.0f32;
+    let underline_h = 2.0f32;
+    let n = tabs.len().max(1);
+    let total_width = ui.available_width();
+    let tab_w = total_width / n as f32;
     let desired_size = Vec2::new(total_width, height);
     let (outer, mut response) = ui.allocate_exact_size(desired_size, Sense::hover());
 
-    if ui.is_rect_visible(outer) {
-        ui.painter()
-            .rect(outer, RADIUS, p.surface0, Stroke::NONE, StrokeKind::Inside);
-    }
-
-    let mut x = outer.left();
     let mut any_clicked = false;
     for (i, (value, label)) in tabs.iter().enumerate() {
-        let tab_w = text_widths[i] + 2.0 * padding_x;
-        let tab_rect =
-            egui::Rect::from_min_size(Pos2::new(x, outer.top()), Vec2::new(tab_w, height));
+        let tab_rect = egui::Rect::from_min_size(
+            Pos2::new(outer.left() + tab_w * i as f32, outer.top()),
+            Vec2::new(tab_w, height),
+        );
         let id = ui.make_persistent_id(("mode-tabs", i));
         let tab_response = ui.interact(tab_rect, id, Sense::click());
 
@@ -106,33 +87,30 @@ pub fn mode_tabs<T: Copy + PartialEq>(
         }
 
         let is_selected = *selected == *value;
+        let hovered = tab_response.hovered();
         if ui.is_rect_visible(tab_rect) {
-            let fill = if is_selected {
-                p.mantle
+            let text_color = if is_selected {
+                p.accent()
+            } else if hovered {
+                p.subtext0
             } else {
-                Color32::TRANSPARENT
+                p.overlay0
             };
-            if fill != Color32::TRANSPARENT {
-                ui.painter().rect_filled(
-                    egui::Rect::from_min_size(
-                        Pos2::new(tab_rect.left() + 2.0, tab_rect.top() + 2.0),
-                        Vec2::new(tab_w - 4.0, height - 4.0),
-                    ),
-                    RADIUS_SM,
-                    fill,
-                );
-            }
-            let text_color = if is_selected { p.accent() } else { p.overlay0 };
             ui.painter().text(
                 tab_rect.center(),
                 Align2::CENTER_CENTER,
                 *label,
-                FontId::proportional(12.0),
+                FontId::proportional(11.0),
                 text_color,
             );
+            if is_selected {
+                let underline_rect = egui::Rect::from_min_size(
+                    Pos2::new(tab_rect.left(), tab_rect.bottom() - underline_h),
+                    Vec2::new(tab_w, underline_h),
+                );
+                ui.painter().rect_filled(underline_rect, CornerRadius::same(0), p.accent());
+            }
         }
-
-        x += tab_w + gap;
     }
 
     if any_clicked {
@@ -216,23 +194,25 @@ pub fn button_opts(ui: &mut Ui, label: impl Into<egui::RichText>, opts: ButtonOp
 
 pub fn section_card(ui: &mut Ui, title: &str, add_contents: impl FnOnce(&mut Ui)) {
     let p = theme::tokens::palette(ui.ctx());
+    if !title.is_empty() {
+        ui.label(
+            egui::RichText::new(title.to_uppercase())
+                .size(10.0)
+                .color(p.overlay0)
+                .strong(),
+        );
+        ui.add_space(4.0);
+    }
     egui::Frame::new()
         .fill(p.surface0)
-        .stroke(Stroke::new(1.0, p.surface0))
-        .corner_radius(RADIUS)
+        .stroke(Stroke::new(1.0, p.surface1))
+        .corner_radius(RADIUS_SM)
         .inner_margin(Margin::same(10))
         .show(ui, |ui| {
-            if !title.is_empty() {
-                ui.label(
-                    egui::RichText::new(title.to_uppercase())
-                        .size(10.0)
-                        .color(p.overlay0)
-                        .strong(),
-                );
-                ui.add_space(6.0);
-            }
+            ui.set_min_width(ui.max_rect().width() - 20.0);
             add_contents(ui);
         });
+    ui.add_space(12.0);
 }
 
 pub fn section_header(ui: &mut Ui, title: &str) {
