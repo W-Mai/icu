@@ -85,10 +85,16 @@ pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
                         },
                     )
                     .clicked()
-                        && !state.context.diff_active
                     {
-                        state.context.diff_active = true;
-                        state.context.right_tab = RightTab::Diff;
+                        if state.context.diff_active {
+                            state.context.diff_active = false;
+                            if state.context.right_tab == RightTab::Diff {
+                                state.context.right_tab = RightTab::Info;
+                            }
+                        } else {
+                            state.context.diff_active = true;
+                            state.context.right_tab = RightTab::Diff;
+                        }
                     }
                     let convert_active = state.context.right_tab == RightTab::Convert;
                     if crate::image_viewer::ui::widgets::button_opts(
@@ -103,6 +109,7 @@ pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
                         && !convert_active
                     {
                         state.context.right_tab = RightTab::Convert;
+                        state.context.diff_active = false;
                     }
                     let _ = p;
                 },

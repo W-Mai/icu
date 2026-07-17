@@ -34,12 +34,16 @@ pub fn draw_right_panel_container(ui: &mut egui::Ui, state: &mut ViewerState) {
                 })
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
+                        let prev_tab = state.context.right_tab;
                         let tabs = [
                             (RightTab::Info, "Info"),
                             (RightTab::Convert, "Convert"),
                             (RightTab::Diff, "Diff"),
                         ];
                         widgets::mode_tabs(ui, &mut state.context.right_tab, &tabs);
+                        if prev_tab == RightTab::Diff && state.context.right_tab != RightTab::Diff {
+                            state.context.diff_active = false;
+                        }
                     });
                 });
 

@@ -224,6 +224,8 @@ impl eframe::App for MyEguiApp {
                 self.state.context.diff_active = !self.state.context.diff_active;
                 if self.state.context.diff_active {
                     self.state.context.right_tab = crate::image_viewer::model::RightTab::Diff;
+                } else if self.state.context.right_tab == crate::image_viewer::model::RightTab::Diff {
+                    self.state.context.right_tab = crate::image_viewer::model::RightTab::Info;
                 }
             }
             if ctx.input(|i| i.key_pressed(egui::Key::E)) {
