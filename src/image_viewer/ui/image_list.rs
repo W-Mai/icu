@@ -12,117 +12,121 @@ pub fn draw_left_panel(
         .exact_size(260.0)
         .frame(frame)
         .show(ui, |ui| {
-            egui::Frame::new().inner_margin(egui::Margin::same(4)).show(ui, |ui| {
-            let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+            egui::Frame::new()
+                .inner_margin(egui::Margin::same(4))
+                .show(ui, |ui| {
+                    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
 
-            let header_h = 28.0;
-            let (hdr_rect, _) = ui.allocate_exact_size(
-                egui::vec2(ui.available_width(), header_h),
-                egui::Sense::hover(),
-            );
-            if ui.is_rect_visible(hdr_rect) {
-                ui.painter().text(
-                    egui::pos2(hdr_rect.left() + 4.0, hdr_rect.center().y),
-                    egui::Align2::LEFT_CENTER,
-                    format!("FILES ({})", state.items.len()),
-                    egui::FontId::proportional(11.0),
-                    p.overlay0,
-                );
-                let btn_y = hdr_rect.center().y;
-                let add_rect = egui::Rect::from_center_size(
-                    egui::pos2(hdr_rect.right() - 40.0, btn_y),
-                    egui::vec2(24.0, 20.0),
-                );
-                let add_resp = ui.interact(add_rect, ui.id().with("sb_add"), egui::Sense::click());
-                let add_fill = if add_resp.hovered() {
-                    p.surface1
-                } else {
-                    Color32::TRANSPARENT
-                };
-                ui.painter().rect(
-                    add_rect,
-                    egui::CornerRadius::same(4),
-                    add_fill,
-                    egui::Stroke::NONE,
-                    egui::StrokeKind::Inside,
-                );
-                ui.painter().text(
-                    add_rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    "＋",
-                    egui::FontId::proportional(14.0),
-                    p.subtext0,
-                );
-                if add_resp.clicked() {
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        let files: Vec<eframe::egui::DroppedFile> = rfd::FileDialog::new()
-                            .pick_files()
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(|p| eframe::egui::DroppedFile {
-                                path: Some(p),
-                                ..Default::default()
-                            })
-                            .collect();
-                        if !files.is_empty() {
-                            let new_items: Vec<SidebarItem> =
-                                crate::image_viewer::utils::process_images(&files)
+                    let header_h = 28.0;
+                    let (hdr_rect, _) = ui.allocate_exact_size(
+                        egui::vec2(ui.available_width(), header_h),
+                        egui::Sense::hover(),
+                    );
+                    if ui.is_rect_visible(hdr_rect) {
+                        ui.painter().text(
+                            egui::pos2(hdr_rect.left() + 4.0, hdr_rect.center().y),
+                            egui::Align2::LEFT_CENTER,
+                            format!("FILES ({})", state.items.len()),
+                            egui::FontId::proportional(11.0),
+                            p.overlay0,
+                        );
+                        let btn_y = hdr_rect.center().y;
+                        let add_rect = egui::Rect::from_center_size(
+                            egui::pos2(hdr_rect.right() - 40.0, btn_y),
+                            egui::vec2(24.0, 20.0),
+                        );
+                        let add_resp =
+                            ui.interact(add_rect, ui.id().with("sb_add"), egui::Sense::click());
+                        let add_fill = if add_resp.hovered() {
+                            p.surface1
+                        } else {
+                            Color32::TRANSPARENT
+                        };
+                        ui.painter().rect(
+                            add_rect,
+                            egui::CornerRadius::same(4),
+                            add_fill,
+                            egui::Stroke::NONE,
+                            egui::StrokeKind::Inside,
+                        );
+                        ui.painter().text(
+                            add_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "＋",
+                            egui::FontId::proportional(14.0),
+                            p.subtext0,
+                        );
+                        if add_resp.clicked() {
+                            #[cfg(not(target_arch = "wasm32"))]
+                            {
+                                let files: Vec<eframe::egui::DroppedFile> = rfd::FileDialog::new()
+                                    .pick_files()
+                                    .unwrap_or_default()
                                     .into_iter()
-                                    .map(SidebarItem::Image)
+                                    .map(|p| eframe::egui::DroppedFile {
+                                        path: Some(p),
+                                        ..Default::default()
+                                    })
                                     .collect();
-                            state.items.extend(new_items);
-                            if state.selected_index.is_none() {
-                                if let Some(SidebarItem::Image(img)) = state.items.first().cloned()
-                                {
-                                    state.current_image = Some(img);
-                                    state.selected_index = Some(0);
+                                if !files.is_empty() {
+                                    let new_items: Vec<SidebarItem> =
+                                        crate::image_viewer::utils::process_images(&files)
+                                            .into_iter()
+                                            .map(SidebarItem::Image)
+                                            .collect();
+                                    state.items.extend(new_items);
+                                    if state.selected_index.is_none() {
+                                        if let Some(SidebarItem::Image(img)) =
+                                            state.items.first().cloned()
+                                        {
+                                            state.current_image = Some(img);
+                                            state.selected_index = Some(0);
+                                        }
+                                    }
                                 }
                             }
                         }
+                        let clr_rect = egui::Rect::from_center_size(
+                            egui::pos2(hdr_rect.right() - 16.0, btn_y),
+                            egui::vec2(24.0, 20.0),
+                        );
+                        let clr_resp =
+                            ui.interact(clr_rect, ui.id().with("sb_clear"), egui::Sense::click());
+                        let clr_fill = if clr_resp.hovered() {
+                            p.surface1
+                        } else {
+                            Color32::TRANSPARENT
+                        };
+                        ui.painter().rect(
+                            clr_rect,
+                            egui::CornerRadius::same(4),
+                            clr_fill,
+                            egui::Stroke::NONE,
+                            egui::StrokeKind::Inside,
+                        );
+                        ui.painter().text(
+                            clr_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "✕",
+                            egui::FontId::proportional(12.0),
+                            p.red,
+                        );
+                        if clr_resp.clicked() {
+                            state.items.clear();
+                            reset_callback(state);
+                        }
                     }
-                }
-                let clr_rect = egui::Rect::from_center_size(
-                    egui::pos2(hdr_rect.right() - 16.0, btn_y),
-                    egui::vec2(24.0, 20.0),
-                );
-                let clr_resp =
-                    ui.interact(clr_rect, ui.id().with("sb_clear"), egui::Sense::click());
-                let clr_fill = if clr_resp.hovered() {
-                    p.surface1
-                } else {
-                    Color32::TRANSPARENT
-                };
-                ui.painter().rect(
-                    clr_rect,
-                    egui::CornerRadius::same(4),
-                    clr_fill,
-                    egui::Stroke::NONE,
-                    egui::StrokeKind::Inside,
-                );
-                ui.painter().text(
-                    clr_rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    "✕",
-                    egui::FontId::proportional(12.0),
-                    p.red,
-                );
-                if clr_resp.clicked() {
-                    state.items.clear();
-                    reset_callback(state);
-                }
-            }
 
-            ui.separator();
+                    ui.separator();
 
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.allocate_space(egui::vec2(4.0, 0.0));
-                for (index, item) in state.items.clone().iter().enumerate() {
-                    draw_sidebar_item(ui, state, index, item);
-                    ui.add_space(2.0);
-                }
-            });
-            });
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        ui.allocate_space(egui::vec2(4.0, 0.0));
+                        for (index, item) in state.items.clone().iter().enumerate() {
+                            draw_sidebar_item(ui, state, index, item);
+                            ui.add_space(2.0);
+                        }
+                    });
+                });
         });
 }
 
@@ -281,6 +285,7 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
         state.selected_index = Some(index);
         if let SidebarItem::Image(image_item) = item {
             state.current_image = Some(image_item.clone());
+            state.font_mode = crate::image_viewer::model::FontMode::Atlas;
         }
     }
     if response.hovered() {
