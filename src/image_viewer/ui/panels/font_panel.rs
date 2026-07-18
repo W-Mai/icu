@@ -239,9 +239,9 @@ fn draw_font_preview_section(
     font: &icu_lib::mirx::Font,
     text_color: icu_lib::mirx::Color,
 ) {
-    crate::image_viewer::ui::widgets::section_card(ui, "Preview", |ui| {
+    crate::image_viewer::ui::widgets::section_card(ui, t!("section_preview").as_ref(), |ui| {
         ui.text_edit_singleline(&mut state.font_preview_text);
-        if ui.button("Render").clicked() {
+        if ui.button(t!("btn_render")).clicked() {
             let img = icu_lib::endecoder::mirui::font_render::render_font_text(
                 font,
                 &state.font_preview_text,
@@ -259,15 +259,15 @@ fn draw_glyph_diff_section(
     state: &mut crate::image_viewer::model::ViewerState,
     font: &icu_lib::mirx::Font,
 ) {
-    crate::image_viewer::ui::widgets::section_card(ui, "Glyph Diff", |ui| {
-        if ui.button("Select font to diff...").clicked() {
+    crate::image_viewer::ui::widgets::section_card(ui, t!("section_glyph_diff").as_ref(), |ui| {
+        if ui.button(t!("btn_select_font_to_diff")).clicked() {
             if let Some(path) = super::pick_file(&[("Font", &["ttf", "otf", "ttc", "mirx"])]) {
                 state.font_diff_path = Some(path.to_string_lossy().into());
             }
         }
         if let Some(diff_path) = state.font_diff_path.clone() {
             ui.label(format!("vs: {}", diff_path));
-            if ui.button("Render Diff").clicked() {
+            if ui.button(t!("btn_render_diff")).clicked() {
                 render_font_diff(state, font, &diff_path);
             }
         }
@@ -317,8 +317,8 @@ fn draw_merge_fonts_section(
     ui: &mut egui::Ui,
     state: &mut crate::image_viewer::model::ViewerState,
 ) {
-    crate::image_viewer::ui::widgets::section_card(ui, "Merge Fonts", |ui| {
-        if ui.button("Add font file...").clicked() {
+    crate::image_viewer::ui::widgets::section_card(ui, t!("section_merge_fonts").as_ref(), |ui| {
+        if ui.button(t!("btn_add_font_file")).clicked() {
             if let Some(path) = super::pick_file(&[("mirx", &["mirx"])]) {
                 state.merge_font_paths.push(path.to_string_lossy().into());
             }
@@ -331,7 +331,7 @@ fn draw_merge_fonts_section(
                 }
             });
         }
-        if state.merge_font_paths.len() >= 2 && ui.button("Merge & Save").clicked() {
+        if state.merge_font_paths.len() >= 2 && ui.button(t!("btn_merge_save")).clicked() {
             let inputs: Vec<Vec<u8>> = state
                 .merge_font_paths
                 .iter()
@@ -351,18 +351,18 @@ fn draw_font_bake_section(
     image: &crate::image_viewer::model::ImageItem,
     f: &icu_lib::midata::FreeTypeFontData,
 ) {
-    crate::image_viewer::ui::widgets::section_card(ui, "Bake to mirx", |ui| {
+    crate::image_viewer::ui::widgets::section_card(ui, t!("section_bake_to_mirx").as_ref(), |ui| {
         ui.horizontal(|ui| {
-            ui.label("size:");
+            ui.label(t!("label_size"));
             ui.add(egui::DragValue::new(&mut state.font_bake_size).range(8..=64));
-            ui.label("format:");
+            ui.label(t!("label_format"));
             egui::ComboBox::from_label("")
                 .selected_text(&state.font_bake_format)
                 .show_ui(ui, |ui| {
                     ui.selectable_value(&mut state.font_bake_format, "sdf".into(), "sdf");
                     ui.selectable_value(&mut state.font_bake_format, "gray".into(), "gray");
                 });
-            ui.label("bit_depth:");
+            ui.label(t!("label_bit_depth"));
             let valid_depths: &[u8] = if state.font_bake_format == "gray" {
                 &[1, 2, 4, 8]
             } else {
@@ -385,9 +385,9 @@ fn draw_font_bake_section(
             ui,
             &mut state.font_bake_charset_tab,
             &[
-                (BakeCharsetTab::Text, "Text"),
-                (BakeCharsetTab::Range, "Range"),
-                (BakeCharsetTab::File, "File"),
+                (BakeCharsetTab::Text, t!("tab_text").as_ref()),
+                (BakeCharsetTab::Range, t!("tab_range").as_ref()),
+                (BakeCharsetTab::File, t!("tab_file").as_ref()),
             ],
         );
         ui.add_space(4.0);
@@ -399,17 +399,15 @@ fn draw_font_bake_section(
             BakeCharsetTab::Range => {
                 ui.text_edit_multiline(&mut state.font_bake_charset_ranges);
                 ui.label(
-                    egui::RichText::new(
-                        "Format: U+XXXX-U+YYYY, one range per line or comma-separated",
-                    )
+                    egui::RichText::new(t!("charset_range_hint"))
                     .size(9.0)
                     .color(ui.style().visuals.weak_text_color()),
                 );
             }
             BakeCharsetTab::File => {
                 ui.horizontal(|ui| {
-                    if ui.button("Choose charset file…").clicked() {
-                        if let Some(path) = super::pick_file(&[("Text", &["txt"])]) {
+                    if ui.button(t!("btn_choose_charset_file")).clicked() {
+                        if let Some(path) = super::pick_file(&[(t!("tab_text").as_ref(), &["txt"])]) {
                             state.font_bake_charset_file = Some(path.to_string_lossy().into());
                         }
                     }
@@ -420,7 +418,7 @@ fn draw_font_bake_section(
             }
         }
 
-        if ui.button("Bake & Save").clicked() {
+        if ui.button(t!("btn_bake_save")).clicked() {
             let kind = if state.font_bake_format == "gray" {
                 icu_lib::mirx::FontChunkKind::Grayscale
             } else {
@@ -503,9 +501,9 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                     ui,
                     &mut state.font_mode,
                     &[
-                        (FontMode::Atlas, "Atlas"),
-                        (FontMode::Rendered, "Rendered"),
-                        (FontMode::Grid, "Grid"),
+                        (FontMode::Atlas, t!("tab_atlas").as_ref()),
+                        (FontMode::Rendered, t!("tab_rendered").as_ref()),
+                        (FontMode::Grid, t!("tab_grid").as_ref()),
                     ],
                 );
             });
@@ -544,7 +542,7 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                     [w as f32, h as f32],
                 ));
             } else {
-                ui.label("Rendering not available for this font type");
+                ui.label(t!("rendering_not_available"));
             }
         }
         FontMode::Grid => {
@@ -711,7 +709,7 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                                     }
                                 }
                             } else {
-                                ui.label("Click a glyph to inspect");
+                                ui.label(t!("click_glyph_to_inspect"));
                             }
                         });
                 }
@@ -747,7 +745,7 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                                         }
                                     }
                                 } else {
-                                    ui.label("Click a glyph to inspect");
+                                    ui.label(t!("click_glyph_to_inspect"));
                                 }
                             });
                     }
@@ -784,7 +782,7 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                                     }
                                 }
                             } else {
-                                ui.label("Click a glyph to inspect");
+                                ui.label(t!("click_glyph_to_inspect"));
                             }
                         });
                 }
@@ -921,9 +919,7 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
             } else {
                 ui.centered_and_justified(|ui| {
                     ui.label(
-                        egui::RichText::new(
-                            "Select a glyph in Grid mode to view its vector outline",
-                        )
+                        egui::RichText::new(t!("select_glyph_in_grid"))
                         .color(ui.style().visuals.weak_text_color()),
                     );
                 });
@@ -1163,21 +1159,21 @@ fn draw_glyph_vector_view(
         painter.text(
             to_screen(left_x as i32, max_y as i32) + egui::vec2(2.0, -2.0),
             egui::Align2::LEFT_BOTTOM,
-            "bearing_x",
+            t!("label_bearing_x"),
             egui::FontId::monospace(8.0),
             p.overlay0,
         );
         painter.text(
             to_screen(right_x as i32, max_y as i32) + egui::vec2(2.0, -2.0),
             egui::Align2::LEFT_BOTTOM,
-            "advance",
+            t!("label_advance"),
             egui::FontId::monospace(8.0),
             p.overlay0,
         );
         painter.text(
             to_screen(min_x as i32, baseline_y) + egui::vec2(2.0, 2.0),
             egui::Align2::LEFT_TOP,
-            "baseline",
+            t!("label_baseline"),
             egui::FontId::monospace(8.0),
             p.overlay0,
         );
@@ -1187,9 +1183,9 @@ fn draw_glyph_vector_view(
                 canvas_rect.center(),
                 egui::Align2::CENTER_CENTER,
                 if approximate {
-                    "⚠ Approximate contour from atlas — no Bezier data"
+                    t!("approximate_contour_warning")
                 } else {
-                    "No outline data"
+                    t!("no_outline_data")
                 },
                 egui::FontId::proportional(11.0),
                 p.peach,
@@ -1287,7 +1283,9 @@ fn glyph_metrics_card(
     approximate: bool,
 ) {
     let (bx, by, bw, bh) = bbox;
-    crate::image_viewer::ui::widgets::section_card(ui, "Glyph Metrics", |ui| {
+    crate::image_viewer::ui::widgets::section_card(ui, t!("section_glyph_metrics").as_ref(), |ui| {
+        let source_atlas = t!("source_atlas_approximate").to_string();
+        let source_freetype = t!("source_freetype_true_vector").to_string();
         egui::Grid::new("glyph_metrics_grid")
             .num_columns(2)
             .spacing([16.0, 4.0])
@@ -1303,18 +1301,18 @@ fn glyph_metrics_card(
                     );
                     ui.end_row();
                 };
-                row(ui, "Codepoint", &format!("U+{:04X}", codepoint));
-                row(ui, "Advance", &format!("{}px", advance));
-                row(ui, "Bearing", &format!("({}, {})", bearing_x, bearing_y));
-                row(ui, "BBox", &format!("({}, {}, {}, {})", bx, by, bw, bh));
-                row(ui, "Outline cmds", &format!("{}", outline_len));
+                row(ui, t!("codepoint").as_ref(), &format!("U+{:04X}", codepoint));
+                row(ui, t!("advance").as_ref(), &format!("{}px", advance));
+                row(ui, t!("bearing").as_ref(), &format!("({}, {})", bearing_x, bearing_y));
+                row(ui, t!("bbox").as_ref(), &format!("({}, {}, {}, {})", bx, by, bw, bh));
+                row(ui, t!("outline_cmds").as_ref(), &format!("{}", outline_len));
                 row(
                     ui,
-                    "Source",
+                    t!("source").as_ref(),
                     if approximate {
-                        "atlas (approximate)"
+                        source_atlas.as_str()
                     } else {
-                        "FreeType (true vector)"
+                        source_freetype.as_str()
                     },
                 );
             });

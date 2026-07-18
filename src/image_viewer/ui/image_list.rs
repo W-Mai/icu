@@ -26,7 +26,7 @@ pub fn draw_left_panel(
                         ui.painter().text(
                             egui::pos2(hdr_rect.left() + 4.0, hdr_rect.center().y),
                             egui::Align2::LEFT_CENTER,
-                            format!("FILES ({})", state.items.len()),
+                            t!("files_header", count = state.items.len()).to_string(),
                             egui::FontId::proportional(11.0),
                             p.overlay0,
                         );
@@ -151,9 +151,9 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
         }
         SidebarItem::Glyph(g) => {
             let meta_str = if g.outline_approximate {
-                "1 glyph · atlas".to_string()
+                t!("meta_glyph_atlas").to_string()
             } else {
-                format!("1 glyph · {} cmds", g.outline.len())
+                t!("meta_glyph_cmds", count = g.outline.len()).to_string()
             };
             (g.name.clone(), meta_str, "GLYPH", p.peach)
         }
@@ -293,25 +293,25 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
     }
 
     response.context_menu(|ui| {
-        if ui.button("Open").clicked() {
+        if ui.button(t!("ctx_open")).clicked() {
             state.selected_index = Some(index);
             if let SidebarItem::Image(image_item) = item {
                 state.current_image = Some(image_item.clone());
             }
             ui.close();
         }
-        if ui.button("Info").clicked() {
+        if ui.button(t!("ctx_info")).clicked() {
             state.context.right_tab = crate::image_viewer::model::RightTab::Info;
             state.selected_index = Some(index);
             ui.close();
         }
-        if ui.button("Export…").clicked() {
+        if ui.button(t!("ctx_export")).clicked() {
             state.context.right_tab = crate::image_viewer::model::RightTab::Convert;
             state.selected_index = Some(index);
             ui.close();
         }
         ui.separator();
-        if ui.button("Remove").clicked() {
+        if ui.button(t!("ctx_remove")).clicked() {
             if state.selected_index == Some(index) {
                 state.selected_index = None;
                 state.current_image = None;

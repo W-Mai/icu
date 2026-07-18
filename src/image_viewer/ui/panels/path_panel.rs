@@ -14,8 +14,8 @@ pub fn draw_path_export_section(
     };
     let scene_data = scene_data.clone();
 
-    crate::image_viewer::ui::widgets::section_card(ui, "Export", |ui| {
-        if ui.button("Export PNG").clicked() {
+    crate::image_viewer::ui::widgets::section_card(ui, t!("section_export").as_ref(), |ui| {
+        if ui.button(t!("btn_export_png")).clicked() {
             let (w, h) =
                 icu_lib::endecoder::mirui::scene_render::scene_dimensions(&scene_data.scene)
                     .unwrap_or((256, 256));
@@ -25,13 +25,13 @@ pub fn draw_path_export_section(
                 let _ = img.save(&path);
             }
         }
-        if ui.button("Export SVG").clicked() {
+        if ui.button(t!("btn_export_svg")).clicked() {
             let svg = icu_lib::endecoder::svg::export::scene_to_svg(&scene_data.scene, 0, 0);
             if let Some(path) = super::pick_save_file(&[("SVG", &["svg"])], &"scene.svg") {
                 let _ = std::fs::write(&path, svg);
             }
         }
-        if ui.button("Export mirx").clicked() {
+        if ui.button(t!("btn_export_mirx")).clicked() {
             let payload = scene_data.scene.encode().unwrap_or_default();
             let bytes = icu_lib::mirx::encode_chunk_generic(
                 icu_lib::mirx::chunk_type::VECTOR,
@@ -69,7 +69,7 @@ pub fn draw_path_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                 crate::image_viewer::ui::widgets::mode_tabs(
                     ui,
                     &mut state.path_mode,
-                    &[(crate::image_viewer::model::PathMode::Preview, "Preview")],
+                    &[(crate::image_viewer::model::PathMode::Preview, t!("section_preview").as_ref())],
                 );
             });
         });

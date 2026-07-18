@@ -35,7 +35,7 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
     ui.add_space(12.0);
 
     if state.context.convert_params.output_format == ImageFormat::LVGL {
-        crate::image_viewer::ui::widgets::section_card(ui, "LVGL Settings", |ui| {
+        crate::image_viewer::ui::widgets::section_card(ui, t!("section_lvgl_settings").as_ref(), |ui| {
             param_row(ui, t!("lvgl_version").as_ref(), |ui| {
                 egui::ComboBox::from_id_salt("lvgl_version")
                     .selected_text(format!("{:?}", state.context.convert_params.lvgl_version))
@@ -90,7 +90,7 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
     }
 
     if state.context.convert_params.output_format == ImageFormat::MIRX {
-        crate::image_viewer::ui::widgets::section_card(ui, "MIRX Settings", |ui| {
+        crate::image_viewer::ui::widgets::section_card(ui, t!("section_mirx_settings").as_ref(), |ui| {
             param_row(ui, t!("color_format").as_ref(), |ui| {
                 egui::ComboBox::from_id_salt("mirx_color_format")
                     .selected_text(format!("{:?}", state.context.convert_params.color_format))
@@ -129,14 +129,14 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
             if state.context.convert_params.dither {
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Level").size(11.0).color(p.subtext0));
+                    ui.label(egui::RichText::new(t!("dither_level")).size(11.0).color(p.subtext0));
                     ui.add(
                         egui::Slider::new(&mut state.context.convert_params.dither_level, 1..=30)
                             .text(""),
                     );
                 });
                 ui.label(
-                    egui::RichText::new("NeuQuant sample factor (1=best quality, 30=fastest)")
+                    egui::RichText::new(t!("neuquant_hint"))
                         .size(9.0)
                         .color(p.overlay0),
                 );

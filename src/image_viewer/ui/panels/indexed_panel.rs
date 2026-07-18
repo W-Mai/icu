@@ -37,11 +37,11 @@ pub fn draw_indexed_info_section(
         return;
     };
 
-    crate::image_viewer::ui::widgets::section_card(ui, "Display", |ui| {
+    crate::image_viewer::ui::widgets::section_card(ui, t!("section_display").as_ref(), |ui| {
         let prev_quality = state.indexed_show_quality;
         crate::image_viewer::ui::widgets::toggle_labeled(
             ui,
-            "Quality View",
+            t!("toggle_quality_view"),
             &mut state.indexed_show_quality,
         );
         if state.indexed_show_quality != prev_quality {
@@ -60,15 +60,15 @@ pub fn draw_indexed_convert_section(
 
     let mut hovered_palette: Option<u8> = None;
 
-    crate::image_viewer::ui::widgets::section_card(ui, "Dither", |ui| {
+    crate::image_viewer::ui::widgets::section_card(ui, t!("section_dither").as_ref(), |ui| {
         ui.horizontal(|ui| {
-            ui.label("Level:");
+            ui.label(t!("label_level"));
             ui.add(egui::Slider::new(&mut state.indexed_dither, 0..=30).text("level"));
         });
     });
     ui.add_space(4.0);
-    crate::image_viewer::ui::widgets::section_card(ui, "Palette", |ui| {
-        ui.label("(hover to highlight, click to edit)");
+    crate::image_viewer::ui::widgets::section_card(ui, t!("section_palette").as_ref(), |ui| {
+        ui.label(t!("palette_hint"));
         let cols = match indexed.bpp {
             1 => 2,
             2 => 4,
@@ -114,14 +114,14 @@ pub fn draw_indexed_convert_section(
         }
     });
     ui.add_space(4.0);
-    crate::image_viewer::ui::widgets::section_card(ui, "Export", |ui| {
-        if ui.button("Export PNG").clicked() {
+    crate::image_viewer::ui::widgets::section_card(ui, t!("section_export").as_ref(), |ui| {
+        if ui.button(t!("btn_export_png")).clicked() {
             let img = indexed.rgba.clone();
             if let Some(path) = super::pick_save_file(&[("PNG", &["png"])], &"indexed.png") {
                 let _ = img.save(&path);
             }
         }
-        if ui.button("Export LVGL").clicked() {
+        if ui.button(t!("btn_export_lvgl")).clicked() {
             let cf = match indexed.bpp {
                 1 => icu_lib::endecoder::ColorFormat::I1,
                 2 => icu_lib::endecoder::ColorFormat::I2,
@@ -164,10 +164,10 @@ pub fn draw_indexed_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::m
                     ui,
                     &mut state.indexed_view_mode,
                     &[
-                        (crate::image_viewer::model::IndexedViewMode::RGBA, "RGBA"),
+                        (crate::image_viewer::model::IndexedViewMode::RGBA, t!("tab_rgba").as_ref()),
                         (
                             crate::image_viewer::model::IndexedViewMode::IndexMap,
-                            "Index Map",
+                            t!("tab_index_map").as_ref(),
                         ),
                     ],
                 );
