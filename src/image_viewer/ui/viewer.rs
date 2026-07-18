@@ -86,10 +86,11 @@ fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
         let (rect, click_response) = ui.allocate_exact_size(avail, egui::Sense::click());
         let hovered = click_response.hovered();
         if ui.is_rect_visible(rect) {
+            let dashed_rect = rect.shrink(24.0);
             let stroke_color = if hovered { p.accent() } else { p.surface1 };
             paint_dashed_rect(
                 ui.painter(),
-                rect,
+                dashed_rect,
                 egui::CornerRadius::same(12),
                 stroke_color,
                 8.0,
@@ -143,7 +144,7 @@ pub fn ui_tree_view(ui: &mut egui::Ui, value: &impl Serialize) {
     if let Ok(yaml_value) = serde_yaml::to_value(value) {
         ui_yaml_tree(ui, &yaml_value);
     } else {
-        ui.label("Error displaying data");
+        ui.label(t!("error_displaying_data"));
     }
 }
 

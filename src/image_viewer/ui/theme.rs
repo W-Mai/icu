@@ -86,11 +86,11 @@ pub mod palette {
         overlay1: Color32::from_rgb(140, 143, 161),
         overlay0: Color32::from_rgb(156, 160, 176),
         surface2: Color32::from_rgb(172, 176, 190),
-        surface1: Color32::from_rgb(188, 192, 204),
-        surface0: Color32::from_rgb(204, 208, 218),
+        surface1: Color32::from_rgb(220, 224, 232),
+        surface0: Color32::from_rgb(230, 233, 239),
         base: Color32::from_rgb(239, 241, 245),
-        mantle: Color32::from_rgb(230, 233, 239),
-        crust: Color32::from_rgb(220, 224, 232),
+        mantle: Color32::from_rgb(220, 224, 232),
+        crust: Color32::from_rgb(214, 218, 226),
     };
 
     #[allow(dead_code)]
@@ -201,19 +201,22 @@ fn apply_theme_to_style(style: &mut egui::Style, t: &palette::Theme, is_dark: bo
 
     v.widgets.noninteractive.bg_fill = t.base;
     v.widgets.noninteractive.weak_bg_fill = t.base;
-    v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, t.overlay1);
+    v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, t.surface1);
     v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, t.text);
     v.widgets.noninteractive.corner_radius = RADIUS;
+    v.faint_bg_color = if is_dark { t.surface0 } else { t.surface1 };
 
-    v.widgets.inactive.bg_fill = Color32::TRANSPARENT;
+    let input_stroke = Stroke::new(1.0, t.surface1);
+    let inactive_fill = t.surface1;
+    v.widgets.inactive.bg_fill = inactive_fill;
     v.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
-    v.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::TRANSPARENT);
+    v.widgets.inactive.bg_stroke = input_stroke;
     v.widgets.inactive.fg_stroke = Stroke::new(1.0, t.subtext0);
     v.widgets.inactive.corner_radius = RADIUS;
 
     v.widgets.hovered.bg_fill = t.surface1;
     v.widgets.hovered.weak_bg_fill = t.surface1;
-    v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::TRANSPARENT);
+    v.widgets.hovered.bg_stroke = Stroke::new(1.0, t.surface1);
     v.widgets.hovered.fg_stroke = Stroke::new(1.0, t.text);
     v.widgets.hovered.corner_radius = RADIUS;
 
@@ -225,15 +228,17 @@ fn apply_theme_to_style(style: &mut egui::Style, t: &palette::Theme, is_dark: bo
 
     v.widgets.open.bg_fill = t.surface0;
     v.widgets.open.weak_bg_fill = t.surface0;
-    v.widgets.open.bg_stroke = Stroke::new(1.0, t.overlay1);
+    v.widgets.open.bg_stroke = Stroke::new(1.0, t.surface1);
     v.widgets.open.fg_stroke = Stroke::new(1.0, t.text);
     v.widgets.open.corner_radius = RADIUS;
 }
 
 pub fn side_panel_frame(ctx: &egui::Context) -> egui::Frame {
     let p = tokens::palette(ctx);
+    let is_dark = tokens::is_dark(ctx);
+    let fill = if is_dark { p.mantle } else { Color32::WHITE };
     egui::Frame::new()
-        .fill(p.mantle)
+        .fill(fill)
         .stroke(Stroke::new(1.0, p.surface1))
         .inner_margin(Margin::same(0))
 }
@@ -245,8 +250,10 @@ pub fn central_panel_frame(ctx: &egui::Context) -> egui::Frame {
 
 pub fn top_panel_frame(ctx: &egui::Context) -> egui::Frame {
     let p = tokens::palette(ctx);
+    let is_dark = tokens::is_dark(ctx);
+    let fill = if is_dark { p.mantle } else { Color32::WHITE };
     egui::Frame::new()
-        .fill(p.mantle)
+        .fill(fill)
         .stroke(Stroke::new(1.0, p.surface1))
         .inner_margin(Margin {
             left: 12,

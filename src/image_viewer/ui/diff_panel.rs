@@ -16,7 +16,7 @@ pub fn draw_diff_panel_contents(ui: &mut egui::Ui, state: &mut ViewerState) {
     if let Some((_, diff_result)) = &state.diff_result {
         if let (Some(i1), Some(i2)) = (state.diff_image1_index, state.diff_image2_index) {
             if i1 != i2 {
-                widgets::section_card(ui, "Pixels", |ui| {
+                widgets::section_card(ui, t!("section_pixels").as_ref(), |ui| {
                     draw_diff_pixel_list(
                         ui,
                         &mut state.context,
@@ -33,7 +33,7 @@ pub fn draw_diff_panel_contents(ui: &mut egui::Ui, state: &mut ViewerState) {
 
 /// Draws the control sliders and toggles for the difference view.
 fn draw_diff_panel_controls(ui: &mut egui::Ui, state: &mut ViewerState) {
-    widgets::section_card(ui, "Controls", |ui| {
+    widgets::section_card(ui, t!("section_diff_controls").as_ref(), |ui| {
         widgets::toggle_labeled(
             ui,
             t!("only_show_diff_area"),
@@ -48,7 +48,21 @@ fn draw_diff_panel_controls(ui: &mut egui::Ui, state: &mut ViewerState) {
         );
         if !state.context.only_show_diff {
             ui.add_space(4.0);
-            draw_diff_blend_settings(ui, state);
+            let diff_blend_slider = ui.add(
+                egui::Slider::new(&mut state.context.diff_blend, 0.0..=1.0)
+                    .text(t!("diff_blend")),
+            );
+            if diff_blend_slider.double_clicked() {
+                state.context.diff_blend = 0.5;
+            }
+            draw_blend_preset_buttons(ui, state, diff_blend_slider.interact_rect.width());
+            widgets::toggle_labeled(ui, t!("fast_switch"), &mut state.context.fast_switch);
+            if state.context.fast_switch {
+                ui.add(
+                    egui::Slider::new(&mut state.context.fast_switch_speed, 0.5..=10.0)
+                        .text(t!("switch_speed")),
+                );
+            }
         } else {
             state.context.fast_switch = false;
         }
@@ -194,10 +208,10 @@ fn draw_diff_list_header(ui: &mut egui::Ui) {
         .spacing([8.0, 4.0])
         .min_col_width(60.0)
         .show(ui, |ui| {
-            ui.label("(X, Y)");
-            ui.label("color1");
-            ui.label("color2");
-            ui.label("diff");
+            ui.label(t!("header_xy"));
+            ui.label(t!("header_color1"));
+            ui.label(t!("header_color2"));
+            ui.label(t!("header_diff"));
         });
 }
 
@@ -285,28 +299,6 @@ fn draw_diff_list_row(
     target_rect
 }
 
-fn draw_diff_blend_settings(ui: &mut egui::Ui, state: &mut ViewerState) {
-    widgets::section_card(ui, "Blend", |ui| {
-        let diff_blend_slider = ui.add(
-            egui::Slider::new(&mut state.context.diff_blend, 0.0..=1.0).text(t!("diff_blend")),
-        );
-
-        if diff_blend_slider.double_clicked() {
-            state.context.diff_blend = 0.5;
-        }
-
-        draw_blend_preset_buttons(ui, state, diff_blend_slider.interact_rect.width());
-
-        widgets::toggle_labeled(ui, t!("fast_switch"), &mut state.context.fast_switch);
-        if state.context.fast_switch {
-            ui.add(
-                egui::Slider::new(&mut state.context.fast_switch_speed, 0.5..=10.0)
-                    .text(t!("switch_speed")),
-            );
-        }
-    });
-}
-
 fn draw_diff_sorting_controls(
     ui: &mut egui::Ui,
     context: &mut crate::image_viewer::model::AppContext,
@@ -353,7 +345,7 @@ fn draw_diff_pagination_controls(
         if ui.button(">").clicked() && context.diff_page_index + 1 < total_pages {
             context.diff_page_index += 1;
         }
-        ui.label(format!("Total: {total_pixels}"));
+        ui.label(t!("total_pixels", count = total_pixels));
     });
 }
 
