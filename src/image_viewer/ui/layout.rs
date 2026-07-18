@@ -10,14 +10,14 @@ pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
 
             let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
             ui.label(
-                egui::RichText::new("ICU")
+                egui::RichText::new(t!("app_title_short"))
                     .size(14.0)
                     .color(p.accent())
                     .strong(),
             );
             ui.separator();
 
-            if ui.button("📂 Open").clicked() {
+            if ui.button(t!("btn_open")).clicked() {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     let files: Vec<eframe::egui::DroppedFile> = rfd::FileDialog::new()
@@ -69,51 +69,6 @@ pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
                 &mut state.context.background_color,
                 Alpha::BlendOrAdditive,
             );
-
-            ui.allocate_ui_with_layout(
-                ui.available_size(),
-                egui::Layout::right_to_left(egui::Align::Center),
-                |ui| {
-                    use crate::image_viewer::model::RightTab;
-                    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-                    if crate::image_viewer::ui::widgets::button_opts(
-                        ui,
-                        t!("image_diff").as_ref(),
-                        crate::image_viewer::ui::widgets::ButtonOpts {
-                            active: state.context.diff_active,
-                            ..Default::default()
-                        },
-                    )
-                    .clicked()
-                    {
-                        if state.context.diff_active {
-                            state.context.diff_active = false;
-                            if state.context.right_tab == RightTab::Diff {
-                                state.context.right_tab = RightTab::Info;
-                            }
-                        } else {
-                            state.context.diff_active = true;
-                            state.context.right_tab = RightTab::Diff;
-                        }
-                    }
-                    let convert_active = state.context.right_tab == RightTab::Convert;
-                    if crate::image_viewer::ui::widgets::button_opts(
-                        ui,
-                        t!("convert_panel").as_ref(),
-                        crate::image_viewer::ui::widgets::ButtonOpts {
-                            active: convert_active,
-                            ..Default::default()
-                        },
-                    )
-                    .clicked()
-                        && !convert_active
-                    {
-                        state.context.right_tab = RightTab::Convert;
-                        state.context.diff_active = false;
-                    }
-                    let _ = p;
-                },
-            );
         });
     });
 }
@@ -133,14 +88,12 @@ pub fn draw_bottom_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
 
                 ui.label(small(&format!("v{VERSION}")));
                 ui.separator();
-                ui.label(small(&format!(
-                    "{} files",
-                    state
-                        .items
-                        .iter()
-                        .filter(|i| matches!(i, crate::image_viewer::model::SidebarItem::Image(_)))
-                        .count()
-                )));
+                let file_count = state
+                    .items
+                    .iter()
+                    .filter(|i| matches!(i, crate::image_viewer::model::SidebarItem::Image(_)))
+                    .count();
+                ui.label(small(&t!("n_files", count = file_count).to_string()));
                 if let Some(idx) = state.selected_index {
                     if let Some(item) = state.items.get(idx) {
                         let name = match item {
@@ -158,11 +111,11 @@ pub fn draw_bottom_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
                 }
                 ui.separator();
                 crate::image_viewer::ui::widgets::kbd(ui, "⌘O");
-                ui.label(small("Open"));
+                ui.label(small(t!("kbd_open").as_ref()));
                 crate::image_viewer::ui::widgets::kbd(ui, "⌘D");
-                ui.label(small("Diff"));
+                ui.label(small(t!("kbd_diff").as_ref()));
                 crate::image_viewer::ui::widgets::kbd(ui, "⌘E");
-                ui.label(small("Export"));
+                ui.label(small(t!("kbd_export").as_ref()));
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     egui::ComboBox::from_id_salt("Language")

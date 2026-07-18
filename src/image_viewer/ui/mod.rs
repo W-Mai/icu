@@ -28,14 +28,23 @@ pub fn draw_right_panel_container(ui: &mut egui::Ui, state: &mut ViewerState) {
                 .inner_margin(egui::Margin::same(0))
                 .show(ui, |ui| {
                     let prev_tab = state.context.right_tab;
+                    let info_label = t!("tab_info").to_string();
+                    let convert_label = t!("tab_convert").to_string();
+                    let diff_label = t!("tab_diff").to_string();
                     let tabs = [
-                        (RightTab::Info, "Info"),
-                        (RightTab::Convert, "Convert"),
-                        (RightTab::Diff, "Diff"),
+                        (RightTab::Info, info_label.as_str()),
+                        (RightTab::Convert, convert_label.as_str()),
+                        (RightTab::Diff, diff_label.as_str()),
                     ];
                     widgets::mode_tabs(ui, &mut state.context.right_tab, &tabs);
-                    if prev_tab == RightTab::Diff && state.context.right_tab != RightTab::Diff {
-                        state.context.diff_active = false;
+                    match (prev_tab, state.context.right_tab) {
+                        (RightTab::Diff, new) if new != RightTab::Diff => {
+                            state.context.diff_active = false;
+                        }
+                        (_, RightTab::Diff) => {
+                            state.context.diff_active = true;
+                        }
+                        _ => {}
                     }
                 });
             ui.painter()
@@ -72,7 +81,7 @@ fn draw_convert_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
             panels::indexed_panel::draw_indexed_convert_section(ui, state)
         }
         viewer::ContentType::Glyph => {
-            ui.label("No convert options for glyphs");
+            ui.label(t!("no_convert_for_glyphs"));
         }
     }
 }
@@ -82,31 +91,31 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
     let idx = match state.selected_index {
         Some(i) => i,
         None => {
-            ui.label("No file selected");
+            ui.label(t!("no_file_selected"));
             return;
         }
     };
     let item = match state.items.get(idx).cloned() {
         Some(it) => it,
         None => {
-            ui.label("No file selected");
+            ui.label(t!("no_file_selected"));
             return;
         }
     };
 
     match &item {
         SidebarItem::Image(img) => {
-            widgets::section_card(ui, "File Info", |ui| {
-                widgets::info_row(ui, "Name", &img.path);
-                widgets::info_row(ui, "Width", &img.width.to_string());
-                widgets::info_row(ui, "Height", &img.height.to_string());
-                widgets::info_row(ui, "Format", &img.info.format);
-                widgets::info_row(ui, "Size", &format!("{} bytes", img.info.data_size));
+            widgets::section_card(ui, t!("section_file_info").as_ref(), |ui| {
+                widgets::info_row(ui, t!("name").as_ref(), &img.path);
+                widgets::info_row(ui, t!("width").as_ref(), &img.width.to_string());
+                widgets::info_row(ui, t!("height").as_ref(), &img.height.to_string());
+                widgets::info_row(ui, t!("format").as_ref(), &img.info.format);
+                widgets::info_row(ui, t!("size").as_ref(), &format!("{} bytes", img.info.data_size));
             });
 
             if let Some(icu_lib::midata::MiData::PATH(scene_data)) = &img.midata {
                 ui.add_space(8.0);
-                widgets::section_card(ui, "Scene", |ui| {
+                widgets::section_card(ui, t!("section_scene").as_ref(), |ui| {
                     ui.label(format!("ops: {}", scene_data.scene.ops.len()));
                 });
                 if let Some(idx) = state.selected_op {
@@ -127,40 +136,40 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                 ui.add_space(8.0);
                 match font_data {
                     icu_lib::midata::FontData::Mirx(font) => {
-                        widgets::section_card(ui, "Font Metadata", |ui| {
-                            widgets::info_row(ui, "Kind", &format!("{:?}", font.chunk_header.kind));
+                        widgets::section_card(ui, t!("section_font_metadata").as_ref(), |ui| {
+                            widgets::info_row(ui, t!("kind").as_ref(), &format!("{:?}", font.chunk_header.kind));
                             widgets::info_row(
                                 ui,
-                                "Source Size",
+                                t!("source_size").as_ref(),
                                 &font.atlas.source_size.to_string(),
                             );
-                            widgets::info_row(ui, "Bit Depth", &font.atlas.bit_depth.to_string());
-                            widgets::info_row(ui, "Glyphs", &font.atlas.glyph_count.to_string());
-                            widgets::info_row(ui, "Ascender", &font.atlas.ascender.to_string());
-                            widgets::info_row(ui, "Descender", &font.atlas.descender.to_string());
+                            widgets::info_row(ui, t!("bit_depth").as_ref(), &font.atlas.bit_depth.to_string());
+                            widgets::info_row(ui, t!("glyphs").as_ref(), &font.atlas.glyph_count.to_string());
+                            widgets::info_row(ui, t!("ascender").as_ref(), &font.atlas.ascender.to_string());
+                            widgets::info_row(ui, t!("descender").as_ref(), &font.atlas.descender.to_string());
                             widgets::info_row(
                                 ui,
-                                "Line Height",
+                                t!("line_height").as_ref(),
                                 &font.atlas.line_height.to_string(),
                             );
                         });
                     }
                     icu_lib::midata::FontData::MirxBundle(fonts) => {
-                        widgets::section_card(ui, "Font Bundle", |ui| {
-                            widgets::info_row(ui, "Fonts", &fonts.len().to_string());
+                        widgets::section_card(ui, t!("section_font_bundle").as_ref(), |ui| {
+                            widgets::info_row(ui, t!("fonts").as_ref(), &fonts.len().to_string());
                         });
                     }
                     icu_lib::midata::FontData::FreeType(f) => {
-                        widgets::section_card(ui, "FreeType Metadata", |ui| {
-                            widgets::info_row(ui, "Family", &f.family);
-                            widgets::info_row(ui, "Style", &f.style);
-                            widgets::info_row(ui, "Units/em", &f.units_per_em.to_string());
-                            widgets::info_row(ui, "Ascender", &f.ascender.to_string());
-                            widgets::info_row(ui, "Descender", &f.descender.to_string());
-                            widgets::info_row(ui, "Line Height", &f.line_height.to_string());
+                        widgets::section_card(ui, t!("section_freetype_metadata").as_ref(), |ui| {
+                            widgets::info_row(ui, t!("family").as_ref(), &f.family);
+                            widgets::info_row(ui, t!("style").as_ref(), &f.style);
+                            widgets::info_row(ui, t!("units_per_em").as_ref(), &f.units_per_em.to_string());
+                            widgets::info_row(ui, t!("ascender").as_ref(), &f.ascender.to_string());
+                            widgets::info_row(ui, t!("descender").as_ref(), &f.descender.to_string());
+                            widgets::info_row(ui, t!("line_height").as_ref(), &f.line_height.to_string());
                             widgets::info_row(
                                 ui,
-                                "Glyphs",
+                                t!("glyphs").as_ref(),
                                 &format!("{} / {}", f.glyphs.len(), f.glyph_count),
                             );
                         });
@@ -172,10 +181,10 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
 
             if let Some(icu_lib::midata::MiData::INDEXED(indexed)) = &img.midata {
                 ui.add_space(8.0);
-                widgets::section_card(ui, "Indexed Info", |ui| {
-                    widgets::info_row(ui, "BPP", &indexed.bpp.to_string());
-                    widgets::info_row(ui, "Palette", &indexed.palette.len().to_string());
-                    widgets::info_row(ui, "Size", &format!("{}×{}", indexed.width, indexed.height));
+                widgets::section_card(ui, t!("section_indexed_info").as_ref(), |ui| {
+                    widgets::info_row(ui, t!("bpp").as_ref(), &indexed.bpp.to_string());
+                    widgets::info_row(ui, t!("palette").as_ref(), &indexed.palette.len().to_string());
+                    widgets::info_row(ui, t!("size").as_ref(), &format!("{}×{}", indexed.width, indexed.height));
                 });
                 ui.add_space(8.0);
                 panels::indexed_panel::draw_indexed_info_section(ui, state);
@@ -183,7 +192,7 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
 
             if !img.info.other_info.is_null() {
                 ui.add_space(8.0);
-                widgets::section_card(ui, "Metadata", |ui| {
+                widgets::section_card(ui, t!("section_metadata").as_ref(), |ui| {
                     egui::ScrollArea::vertical()
                         .max_height(300.0)
                         .show(ui, |ui| {
@@ -193,20 +202,22 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
             }
         }
         SidebarItem::Glyph(g) => {
-            widgets::section_card(ui, "Glyph Properties", |ui| {
-                widgets::info_row(ui, "Codepoint", &format!("U+{:04X}", g.codepoint));
-                widgets::info_row(ui, "Character", &g.char_repr);
-                widgets::info_row(ui, "Advance", &format!("{}px", g.advance));
-                widgets::info_row(ui, "Bearing", &format!("{:?}", g.bearing));
-                widgets::info_row(ui, "BBox", &format!("{:?}", g.bbox));
-                widgets::info_row(ui, "Outline cmds", &g.outline.len().to_string());
+            widgets::section_card(ui, t!("section_glyph_properties").as_ref(), |ui| {
+                let source_atlas = t!("source_atlas_approximate").to_string();
+                let source_freetype = t!("source_freetype_true_vector").to_string();
+                widgets::info_row(ui, t!("codepoint").as_ref(), &format!("U+{:04X}", g.codepoint));
+                widgets::info_row(ui, t!("character").as_ref(), &g.char_repr);
+                widgets::info_row(ui, t!("advance").as_ref(), &format!("{}px", g.advance));
+                widgets::info_row(ui, t!("bearing").as_ref(), &format!("{:?}", g.bearing));
+                widgets::info_row(ui, t!("bbox").as_ref(), &format!("{:?}", g.bbox));
+                widgets::info_row(ui, t!("outline_cmds").as_ref(), &g.outline.len().to_string());
                 widgets::info_row(
                     ui,
-                    "Source",
+                    t!("source").as_ref(),
                     if g.outline_approximate {
-                        "atlas (approximate)"
+                        source_atlas.as_str()
                     } else {
-                        "FreeType (true vector)"
+                        source_freetype.as_str()
                     },
                 );
             });

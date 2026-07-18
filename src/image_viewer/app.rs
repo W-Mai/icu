@@ -221,12 +221,13 @@ impl eframe::App for MyEguiApp {
                 }
             }
             if ctx.input(|i| i.key_pressed(egui::Key::D)) {
-                self.state.context.diff_active = !self.state.context.diff_active;
-                if self.state.context.diff_active {
-                    self.state.context.right_tab = crate::image_viewer::model::RightTab::Diff;
-                } else if self.state.context.right_tab == crate::image_viewer::model::RightTab::Diff
-                {
-                    self.state.context.right_tab = crate::image_viewer::model::RightTab::Info;
+                use crate::image_viewer::model::RightTab;
+                if self.state.context.right_tab == RightTab::Diff {
+                    self.state.context.right_tab = RightTab::Info;
+                    self.state.context.diff_active = false;
+                } else {
+                    self.state.context.right_tab = RightTab::Diff;
+                    self.state.context.diff_active = true;
                 }
             }
             if ctx.input(|i| i.key_pressed(egui::Key::E)) {
