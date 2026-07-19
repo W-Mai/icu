@@ -1,5 +1,29 @@
 # Changelog
 
+## [v0.5.0] - 2026-07-19
+
+### 🔖 Version Tag
+
+- 🚀 **New Features**:
+    - ✨ **Egui 0.35 migration** — upgraded from egui 0.33 + egui_plot 0.34 to egui 0.35 + egui_plot 0.36; dropped `catppuccin-egui` in favor of an inline MOCHA/LATTE palette with `theme::apply` setting both `dark_style` and `light_style` so toggles switch instantly.
+    - ✨ **Three-column layout** — sidebar (260px) + main canvas + right inspector (300px), matching the original HTML prototype. Removed the extra `content_side` panel; per-mode controls migrated into the right panel's Info/Convert tabs.
+    - ✨ **Unified right panel with Info/Convert/Diff tabs** — type-specific metadata, convert options, and diff controls all live in one right panel. Tab switch auto-manages `diff_active` (selecting Diff enables diff mode, switching away disables it).
+    - ✨ **Glyph vector view** — FreeType glyphs render as true vector outlines with Bezier handles, baseline/bearing/advance annotations, zoom/pan (mouse wheel + drag), and touchpad pinch support. SDF/Gray atlas glyphs show approximate marching-squares contours with an "approximate" label.
+    - ✨ **Glyph double-click → sidebar** — double-clicking a glyph in the grid opens it as a standalone `OpenedGlyph` sidebar item with its outline and metrics, auto-switching to vector view.
+    - ✨ **Font bake charset 3-tab input** — Text (textarea) / Unicode Range (parser) / File (picker), with bit-depth validation (SDF 4/8, Gray 1/2/4/8).
+    - ✨ **MIRX convert detailed params** — Pixel Format dropdown, Dithering toggle + level slider (NeuQuant sample factor 1-30), Stride Align input.
+    - ✨ **Indexed Index Map view** — pre-rendered index-value-encoded texture with zoom overlay.
+    - ✨ **⌘E export shortcut** — dispatches export by current item type (RGBA → Convert tab, Path/Indexed → PNG save dialog, Glyph → no-op).
+    - ✨ **Full i18n** — all hardcoded UI strings translated (en-US / zh-CN). ~90 new locale keys covering section titles, buttons, tabs, labels, and hints.
+
+- 🎨 **Visual Polish**:
+    - Underline-style right panel tabs, section cards with visible borders, light theme palette realigned with HTML prototype, theme-aware central panel background.
+
+- 🐛 **Fixes**:
+    - Right panel squeeze when switching Info/Convert tabs resolved by consolidating side controls into the right inspector panel.
+    - Font mode stuck in Vector after selecting an image item — `font_mode` resets to Atlas on image selection.
+    - Diff button couldn't be toggled off — now a proper toggle linked to right tab state.
+
 ## [v0.4.0] - 2026-07-13
 
 ### 🔖 Version Tag
