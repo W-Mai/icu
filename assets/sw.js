@@ -2,6 +2,7 @@ var cacheName = 'icui-pwa';
 var filesToCache = [
   './',
   './index.html',
+  './loader.js',
   './icu_tool.js',
   './icu_tool_bg.wasm',
 ];
