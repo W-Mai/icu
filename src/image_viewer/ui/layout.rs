@@ -17,37 +17,6 @@ pub fn draw_top_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
             );
             ui.separator();
 
-            if ui.button(t!("btn_open")).clicked() {
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    let files: Vec<eframe::egui::DroppedFile> = rfd::FileDialog::new()
-                        .pick_files()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|p| eframe::egui::DroppedFile {
-                            path: Some(p),
-                            ..Default::default()
-                        })
-                        .collect();
-                    if !files.is_empty() {
-                        use crate::image_viewer::model::SidebarItem;
-                        let new_items: Vec<SidebarItem> =
-                            crate::image_viewer::utils::process_images(&files)
-                                .into_iter()
-                                .map(SidebarItem::Image)
-                                .collect();
-                        state.items.extend(new_items);
-                        if let Some(SidebarItem::Image(img)) = state.items.first().cloned() {
-                            state.current_image = Some(img);
-                            state.selected_index = Some(0);
-                        }
-                    }
-                }
-            }
-
-            egui::widgets::global_theme_preference_switch(ui);
-
-            ui.separator();
             crate::image_viewer::ui::widgets::toggle_labeled(
                 ui,
                 t!("show_grid"),
@@ -86,8 +55,6 @@ pub fn draw_bottom_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
                 let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
                 let small = |text: &str| egui::RichText::new(text).size(11.0).color(p.overlay0);
 
-                ui.label(small(&format!("v{VERSION}")));
-                ui.separator();
                 let file_count = state
                     .items
                     .iter()
@@ -118,6 +85,8 @@ pub fn draw_bottom_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
                 ui.label(small(t!("kbd_export").as_ref()));
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    egui::widgets::global_theme_preference_switch(ui);
+                    ui.separator();
                     egui::ComboBox::from_id_salt("Language")
                         .selected_text(t!("language"))
                         .show_ui(ui, |ui| {
