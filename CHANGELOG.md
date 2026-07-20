@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.6.0] - 2026-07-20
+
+### 🔖 Version Tag
+
+- 🚀 **New Features**:
+    - ✨ **Web file open** — `＋` button, empty canvas click, and `⌘O` now work on web via synchronous `<input type="file">` (bypasses wasm user-gesture restriction that blocked `rfd::AsyncFileDialog` in `spawn_local`). Native path unchanged.
+    - ✨ **Glyph convert** — glyphs export to SVG (PathCmd → SVG path), PNG/JPEG/.../LVGL/MIRX (rasterize outline → RGBA → existing encode path). Convert tab shows full format dropdown for glyph items.
+    - ✨ **FreeType font preview** — `draw_font_info_section` FreeType branch now renders preview text via new `render_freetype_text` (was empty before; otf/ttf fonts had no preview input).
+    - ✨ **Glyph sidebar indent** — opened glyph items indent 16px under their parent font, with peach left bar marker keeping original position.
+    - ✨ **New file focus** — adding files (via any method) selects the first new item instead of staying on the old selection.
+    - ✨ **Glyph vector double-click reset** — double-click on glyph vector canvas resets zoom/pan to fit.
+    - ✨ **⌘E for glyphs** — `⌘E` on a glyph switches to Convert tab (matching RGBA behavior).
+
+- 🐛 **Fixes**:
+    - Diff state (`diff_active` / `only_show_diff`) no longer persists across sessions — reset on startup so empty canvas shows FeedMe instead of a blank diff view.
+
 ## [v0.5.0] - 2026-07-19
 
 ### 🔖 Version Tag
