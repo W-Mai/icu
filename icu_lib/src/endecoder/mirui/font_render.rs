@@ -1,4 +1,5 @@
 use image::RgbaImage;
+use image::imageops::overlay;
 use mirui::render::backends::sw::SwRenderer;
 use mirui::render::canvas::Canvas;
 use mirui::render::font::Font;
@@ -209,6 +210,30 @@ pub fn render_freetype_glyphs(
         px.0[0] = color.r;
         px.0[1] = color.g;
         px.0[2] = color.b;
+    }
+    img
+}
+
+pub fn render_freetype_text(
+    font: &crate::midata::FreeTypeFontData,
+    text: &str,
+    width: u32,
+    height: u32,
+    color: mirx::Color,
+) -> RgbaImage {
+    if width == 0 || height == 0 || text.is_empty() {
+        return RgbaImage::new(0, 0);
+    }
+    let chars: Vec<char> = text.chars().collect();
+    if chars.is_empty() {
+        return RgbaImage::new(0, 0);
+    }
+    let cell_width = (width / chars.len() as u32).max(1);
+    let mut img = RgbaImage::new(width, height);
+    for (idx, ch) in chars.into_iter().enumerate() {
+        if let Some(glyph) = render_freetype_glyph_at(font, ch, cell_width, height, color) {
+            overlay(&mut img, &glyph, i64::from(idx as u32 * cell_width), 0);
+        }
     }
     img
 }
