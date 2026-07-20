@@ -4,6 +4,7 @@ use eframe::egui;
 use eframe::egui::Color32;
 use icu_lib::endecoder::EnDecoder;
 use icu_lib::midata::{FontData, MiData};
+use icu_lib::mirx;
 
 fn parse_charset_text(text: &str) -> Vec<char> {
     text.chars().collect()
@@ -199,8 +200,89 @@ pub fn draw_font_info_section(
                 draw_font_preview_section(ui, state, font, font_text_color(&ctx));
             }
         }
-        FontData::FreeType(_) => {}
+        FontData::FreeType(font) => {
+            draw_freetype_preview_section(ui, state, font, font_text_color(&ctx));
+        }
     }
+}
+
+pub fn draw_glyph_convert_section(
+    ui: &mut egui::Ui,
+    state: &mut crate::image_viewer::model::ViewerState,
+) {
+    let Some(glyph) = selected_opened_glyph(state) else {
+        return;
+    };
+
+    crate::image_viewer::ui::widgets::section_card(ui, t!("section_export").as_ref(), |ui| {
+        egui::ComboBox::from_id_salt("glyph_output_format")
+            .selected_text(state.glyph_convert_format.clone())
+            .width(ui.available_width())
+            .show_ui(ui, |ui| {
+                for format in ["PNG", "JPEG", "BMP", "GIF", "TIFF", "WEBP", "ICO", "LVGL", "MIRX", "SVG"] {
+                    ui.selectable_value(&mut state.glyph_convert_format, format.to_string(), format);
+                }
+            });
+
+        ui.add_space(12.0);
+
+        if !glyph.outline.is_empty() {
+            if ui
+                .add_sized(
+                    [ui.available_width(), 32.0],
+                    egui::Button::new(egui::RichText::new(t!("btn_export")).heading()),
+                )
+                .clicked()
+            {
+                match state.glyph_convert_format.as_str() {
+                    "SVG" => {
+                        let svg = glyph_outline_to_svg(&glyph.outline);
+                        if let Some(path) = super::pick_save_file(&[("SVG", &["svg"])], &format!("U+{:04X}.svg", glyph.codepoint)) {
+                            let _ = std::fs::write(&path, svg);
+                        }
+                    }
+                    _ => {
+                        let img = render_glyph_outline_image(&glyph.outline);
+                        let width = img.width();
+                        let height = img.height();
+                        let image_data = img
+                            .chunks(4)
+                            .map(|pixel| Color32::from_rgba_unmultiplied(pixel[0], pixel[1], pixel[2], pixel[3]))
+                            .collect::<Vec<Color32>>();
+                        let image_item = crate::image_viewer::model::ImageItem {
+                            path: format!("glyph U+{:04X}", glyph.codepoint),
+                            info: icu_lib::endecoder::ImageInfo {
+                                width,
+                                height,
+                                data_size: 0,
+                                format: "rgba".to_string(),
+                                other_info: serde_json::Value::Null,
+                            },
+                            width,
+                            height,
+                            image_data,
+                            midata: Some(MiData::RGBA(img)),
+                        };
+                        let mut params = state.context.convert_params.clone();
+                        params.output_format = match state.glyph_convert_format.as_str() {
+                            "PNG" => crate::image_viewer::model::ImageFormat::PNG,
+                            "JPEG" => crate::image_viewer::model::ImageFormat::JPEG,
+                            "BMP" => crate::image_viewer::model::ImageFormat::BMP,
+                            "GIF" => crate::image_viewer::model::ImageFormat::GIF,
+                            "TIFF" => crate::image_viewer::model::ImageFormat::TIFF,
+                            "WEBP" => crate::image_viewer::model::ImageFormat::WEBP,
+                            "ICO" => crate::image_viewer::model::ImageFormat::ICO,
+                            "MIRX" => crate::image_viewer::model::ImageFormat::MIRX,
+                            _ => crate::image_viewer::model::ImageFormat::LVGL,
+                        };
+                        crate::image_viewer::utils::save_images(&[image_item], &params);
+                    }
+                }
+            }
+        } else {
+            ui.label(t!("rendering_not_available"));
+        }
+    });
 }
 
 pub fn draw_font_convert_section(
@@ -243,6 +325,27 @@ fn draw_font_preview_section(
         ui.text_edit_singleline(&mut state.font_preview_text);
         if ui.button(t!("btn_render")).clicked() {
             let img = icu_lib::endecoder::mirui::font_render::render_font_text(
+                font,
+                &state.font_preview_text,
+                400,
+                64,
+                text_color,
+            );
+            state.font_rendered_preview = Some(img);
+        }
+    });
+}
+
+fn draw_freetype_preview_section(
+    ui: &mut egui::Ui,
+    state: &mut crate::image_viewer::model::ViewerState,
+    font: &icu_lib::midata::FreeTypeFontData,
+    text_color: icu_lib::mirx::Color,
+) {
+    crate::image_viewer::ui::widgets::section_card(ui, t!("section_preview").as_ref(), |ui| {
+        ui.text_edit_singleline(&mut state.font_preview_text);
+        if ui.button(t!("btn_render")).clicked() {
+            let img = icu_lib::endecoder::mirui::font_render::render_freetype_text(
                 font,
                 &state.font_preview_text,
                 400,
@@ -311,6 +414,186 @@ fn render_font_diff(
         state.font_rendered_preview = Some(stack.composite().clone());
         state.font_mode = FontMode::Rendered;
     }
+}
+
+fn glyph_outline_to_svg(outline: &[icu_lib::mirx::PathCmd]) -> String {
+    let Some((min_x, min_y, max_x, max_y)) = glyph_outline_bounds(outline) else {
+        return "<svg viewBox=\"0 0 1 1\"><path d=\"\" fill=\"black\"/></svg>".to_string();
+    };
+    let mut d = String::new();
+    for cmd in outline {
+        match cmd {
+            icu_lib::mirx::PathCmd::MoveTo(p) => {
+                push_svg_cmd(&mut d, 'M', &[p.x.to_f32(), p.y.to_f32()]);
+            }
+            icu_lib::mirx::PathCmd::LineTo(p) => {
+                push_svg_cmd(&mut d, 'L', &[p.x.to_f32(), p.y.to_f32()]);
+            }
+            icu_lib::mirx::PathCmd::QuadTo { ctrl, end } => {
+                push_svg_cmd(
+                    &mut d,
+                    'Q',
+                    &[
+                        ctrl.x.to_f32(),
+                        ctrl.y.to_f32(),
+                        end.x.to_f32(),
+                        end.y.to_f32(),
+                    ],
+                );
+            }
+            icu_lib::mirx::PathCmd::CubicTo { ctrl1, ctrl2, end } => {
+                push_svg_cmd(
+                    &mut d,
+                    'C',
+                    &[
+                        ctrl1.x.to_f32(),
+                        ctrl1.y.to_f32(),
+                        ctrl2.x.to_f32(),
+                        ctrl2.y.to_f32(),
+                        end.x.to_f32(),
+                        end.y.to_f32(),
+                    ],
+                );
+            }
+            icu_lib::mirx::PathCmd::Close => {
+                if !d.is_empty() {
+                    d.push(' ');
+                }
+                d.push('Z');
+            }
+        }
+    }
+    format!(
+        "<svg viewBox=\"{} {} {} {}\"><path d=\"{}\" fill=\"black\"/></svg>",
+        min_x,
+        min_y,
+        max_x - min_x,
+        max_y - min_y,
+        d
+    )
+}
+
+fn push_svg_cmd(d: &mut String, cmd: char, values: &[f32]) {
+    if !d.is_empty() {
+        d.push(' ');
+    }
+    d.push(cmd);
+    for value in values {
+        d.push(' ');
+        d.push_str(&format_number(*value));
+    }
+}
+
+fn format_number(v: f32) -> String {
+    let mut s = format!("{v:.3}");
+    while s.contains('.') && s.ends_with('0') {
+        s.pop();
+    }
+    if s.ends_with('.') {
+        s.pop();
+    }
+    if s.is_empty() {
+        "0".to_string()
+    } else {
+        s
+    }
+}
+
+fn glyph_outline_bounds(outline: &[icu_lib::mirx::PathCmd]) -> Option<(f32, f32, f32, f32)> {
+    let mut min_x = f32::INFINITY;
+    let mut min_y = f32::INFINITY;
+    let mut max_x = f32::NEG_INFINITY;
+    let mut max_y = f32::NEG_INFINITY;
+    let mut seen = false;
+    for cmd in outline {
+        match cmd {
+            icu_lib::mirx::PathCmd::MoveTo(p) | icu_lib::mirx::PathCmd::LineTo(p) => {
+                let x = p.x.to_f32();
+                let y = p.y.to_f32();
+                min_x = min_x.min(x);
+                min_y = min_y.min(y);
+                max_x = max_x.max(x);
+                max_y = max_y.max(y);
+                seen = true;
+            }
+            icu_lib::mirx::PathCmd::QuadTo { ctrl, end } => {
+                for p in [ctrl, end] {
+                    let x = p.x.to_f32();
+                    let y = p.y.to_f32();
+                    min_x = min_x.min(x);
+                    min_y = min_y.min(y);
+                    max_x = max_x.max(x);
+                    max_y = max_y.max(y);
+                    seen = true;
+                }
+            }
+            icu_lib::mirx::PathCmd::CubicTo { ctrl1, ctrl2, end } => {
+                for p in [ctrl1, ctrl2, end] {
+                    let x = p.x.to_f32();
+                    let y = p.y.to_f32();
+                    min_x = min_x.min(x);
+                    min_y = min_y.min(y);
+                    max_x = max_x.max(x);
+                    max_y = max_y.max(y);
+                    seen = true;
+                }
+            }
+            icu_lib::mirx::PathCmd::Close => continue,
+        }
+    }
+    seen.then_some((min_x, min_y, max_x, max_y))
+}
+
+fn render_glyph_outline_image(outline: &[icu_lib::mirx::PathCmd]) -> icu_lib::image::RgbaImage {
+    let Some((min_x, min_y, max_x, max_y)) = glyph_outline_bounds(outline) else {
+        return icu_lib::image::RgbaImage::new(0, 0);
+    };
+    let pad = 4.0f32;
+    let width = (max_x - min_x + pad * 2.0).ceil().max(1.0) as u32;
+    let height = (max_y - min_y + pad * 2.0).ceil().max(1.0) as u32;
+    let mut cmds = Vec::with_capacity(outline.len());
+    for cmd in outline {
+        match cmd {
+            icu_lib::mirx::PathCmd::MoveTo(p) => cmds.push(icu_lib::mirx::PathCmd::MoveTo(shift_cmd(*p, min_x, min_y, pad))),
+            icu_lib::mirx::PathCmd::LineTo(p) => cmds.push(icu_lib::mirx::PathCmd::LineTo(shift_cmd(*p, min_x, min_y, pad))),
+            icu_lib::mirx::PathCmd::QuadTo { ctrl, end } => {
+                cmds.push(icu_lib::mirx::PathCmd::QuadTo {
+                    ctrl: shift_cmd(*ctrl, min_x, min_y, pad),
+                    end: shift_cmd(*end, min_x, min_y, pad),
+                });
+            }
+            icu_lib::mirx::PathCmd::CubicTo { ctrl1, ctrl2, end } => {
+                cmds.push(icu_lib::mirx::PathCmd::CubicTo {
+                    ctrl1: shift_cmd(*ctrl1, min_x, min_y, pad),
+                    ctrl2: shift_cmd(*ctrl2, min_x, min_y, pad),
+                    end: shift_cmd(*end, min_x, min_y, pad),
+                });
+            }
+            icu_lib::mirx::PathCmd::Close => cmds.push(icu_lib::mirx::PathCmd::Close),
+        }
+    }
+    let scene = mirx::Scene {
+        ops: vec![mirx::SceneOp::FillPath {
+            path: mirx::Path { cmds },
+            transform: mirx::Transform::IDENTITY,
+            paint: mirx::Paint::Color(mirx::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            }),
+            opa: 255,
+            fill_rule: mirx::FillRule::NonZero,
+        }],
+    };
+    icu_lib::endecoder::mirui::scene_render::render_scene(&scene, width, height)
+}
+
+fn shift_cmd(p: icu_lib::mirx::Point, min_x: f32, min_y: f32, pad: f32) -> icu_lib::mirx::Point {
+    icu_lib::mirx::Point::new(
+        icu_lib::mirx::Fixed::from_raw(((p.x.to_f32() - min_x + pad) * 256.0) as i32),
+        icu_lib::mirx::Fixed::from_raw(((p.y.to_f32() - min_y + pad) * 256.0) as i32),
+    )
 }
 
 fn draw_merge_fonts_section(
@@ -1101,13 +1384,16 @@ fn draw_glyph_vector_view(
     let ch = char::from_u32(codepoint).unwrap_or('?');
 
     let size = ui.available_size_before_wrap();
-    let (response, painter) = ui.allocate_painter(size, egui::Sense::drag());
+    let (response, painter) = ui.allocate_painter(size, egui::Sense::click_and_drag());
     let canvas_rect = response.rect;
 
     let (min_x, min_y) = (bx.min(0) - 4, by.min(0) - 4);
     let (max_x, max_y) = (bx + bw + 4, by + bh + 4);
     let gw = (max_x - min_x).max(1) as f32;
     let gh = (max_y - min_y).max(1) as f32;
+
+    let fit_rect = canvas_rect.shrink(16.0);
+    let fit_scale = (fit_rect.width() / gw).min(fit_rect.height() / gh);
 
     if response.contains_pointer() {
         let (zoom_delta, scroll_delta, pointer) =
@@ -1125,8 +1411,11 @@ fn draw_glyph_vector_view(
         view.pan += scroll_delta;
     }
 
-    let fit_rect = canvas_rect.shrink(16.0);
-    let fit_scale = (fit_rect.width() / gw).min(fit_rect.height() / gh);
+    if response.double_clicked() {
+        view.zoom = 1.0;
+        view.pan = egui::Vec2::ZERO;
+    }
+
     let scale = fit_scale * view.zoom;
     let ox = canvas_rect.center().x + view.pan.x - (min_x as f32 + gw / 2.0) * scale;
     let oy = canvas_rect.center().y + view.pan.y + (min_y as f32 + gh / 2.0) * scale;

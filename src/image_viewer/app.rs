@@ -33,6 +33,8 @@ impl MyEguiApp {
             ..Default::default()
         };
         state.context.right_tab = crate::image_viewer::model::RightTab::Info;
+        state.context.diff_active = false;
+        state.context.only_show_diff = false;
 
         if let Some(SidebarItem::Image(first)) = state.items.first().cloned() {
             state.current_image = Some(first.clone());
@@ -101,15 +103,16 @@ impl MyEguiApp {
                 .into_iter()
                 .map(SidebarItem::Image)
                 .collect();
+            let start_idx = self.state.items.len();
             self.state.items.extend(new_items);
 
             if self.state.items.len() == 1 {
                 self.state.context.right_tab = crate::image_viewer::model::RightTab::Info;
             }
 
-            if let Some(SidebarItem::Image(image)) = self.state.items.first().cloned() {
+            if let Some(SidebarItem::Image(image)) = self.state.items.get(start_idx).cloned() {
                 self.state.current_image = Some(image);
-                self.state.selected_index = Some(0);
+                self.state.selected_index = Some(start_idx);
             }
             self.state.dropped_files.clear();
         }
@@ -211,6 +214,13 @@ impl eframe::App for MyEguiApp {
                         }
                     }
                 }
+                #[cfg(target_arch = "wasm32")]
+                {
+                    crate::image_viewer::utils::pick_files_web(
+                        self.state.pending_dropped.clone(),
+                        ctx.clone(),
+                    );
+                }
             }
             if ctx.input(|i| i.key_pressed(egui::Key::D)) {
                 use crate::image_viewer::model::RightTab;
@@ -234,7 +244,7 @@ impl eframe::App for MyEguiApp {
                             MiData::PATH(_) | MiData::INDEXED(_) => ExportKind::Png,
                             _ => ExportKind::None,
                         }),
-                        SidebarItem::Glyph(_) => Some(ExportKind::None),
+                        SidebarItem::Glyph(_) => Some(ExportKind::Convert),
                     });
                 match kind {
                     Some(ExportKind::Convert) => {
@@ -245,6 +255,28 @@ impl eframe::App for MyEguiApp {
                         crate::image_viewer::ui::panels::export_current_as_png(&self.state);
                     }
                     _ => {}
+                }
+            }
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            let pending: Vec<DroppedFile> =
+                std::mem::take(&mut *self.state.pending_dropped.borrow_mut());
+            if !pending.is_empty() {
+                let new_items: Vec<SidebarItem> = process_images(&pending)
+                    .into_iter()
+                    .map(SidebarItem::Image)
+                    .collect();
+                let start_idx = self.state.items.len();
+                self.state.items.extend(new_items);
+                if self.state.items.len() == 1 {
+                    self.state.context.right_tab =
+                        crate::image_viewer::model::RightTab::Info;
+                }
+                if let Some(SidebarItem::Image(img)) = self.state.items.get(start_idx).cloned() {
+                    self.state.current_image = Some(img);
+                    self.state.selected_index = Some(start_idx);
                 }
             }
         }

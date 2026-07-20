@@ -74,16 +74,22 @@ pub fn draw_left_panel(
                                             .into_iter()
                                             .map(SidebarItem::Image)
                                             .collect();
+                                    let start_idx = state.items.len();
                                     state.items.extend(new_items);
-                                    if state.selected_index.is_none() {
-                                        if let Some(SidebarItem::Image(img)) =
-                                            state.items.first().cloned()
-                                        {
-                                            state.current_image = Some(img);
-                                            state.selected_index = Some(0);
-                                        }
+                                    if let Some(SidebarItem::Image(img)) =
+                                        state.items.get(start_idx).cloned()
+                                    {
+                                        state.selected_index = Some(start_idx);
+                                        state.current_image = Some(img);
                                     }
                                 }
+                            }
+                            #[cfg(target_arch = "wasm32")]
+                            {
+                                crate::image_viewer::utils::pick_files_web(
+                                    state.pending_dropped.clone(),
+                                    ui.ctx().clone(),
+                                );
                             }
                         }
                         let clr_rect = egui::Rect::from_center_size(
@@ -184,9 +190,14 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
                 .rect_filled(bar, egui::CornerRadius::same(0), p.peach);
         }
 
+        let indent = if matches!(item, SidebarItem::Glyph(_)) {
+            16.0
+        } else {
+            0.0
+        };
         let thumb_size = 36.0;
         let thumb_rect = egui::Rect::from_min_size(
-            egui::pos2(rect.left() + 6.0, rect.center().y - thumb_size / 2.0),
+            egui::pos2(rect.left() + 6.0 + indent, rect.center().y - thumb_size / 2.0),
             egui::vec2(thumb_size, thumb_size),
         );
         match item {
@@ -267,7 +278,7 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
         let badge_h = badge_galley.size().y + 2.0;
         let badge_rect = egui::Rect::from_min_size(
             egui::pos2(
-                rect.right() - badge_w - 8.0,
+                rect.right() - badge_w - 8.0 - indent,
                 rect.center().y - badge_h / 2.0,
             ),
             egui::vec2(badge_w, badge_h),

@@ -80,9 +80,7 @@ fn draw_convert_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
         viewer::ContentType::Indexed => {
             panels::indexed_panel::draw_indexed_convert_section(ui, state)
         }
-        viewer::ContentType::Glyph => {
-            ui.label(t!("no_convert_for_glyphs"));
-        }
+        viewer::ContentType::Glyph => panels::font_panel::draw_glyph_convert_section(ui, state),
     }
 }
 

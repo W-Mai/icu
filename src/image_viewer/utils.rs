@@ -258,3 +258,77 @@ pub fn save_images(items: &[ImageItem], params: &ConvertParams) {
         }
     }
 }
+
+#[cfg(target_arch = "wasm32")]
+pub fn pick_files_web(
+    pending: std::rc::Rc<std::cell::RefCell<Vec<DroppedFile>>>,
+    ctx: eframe::egui::Context,
+) {
+    use eframe::wasm_bindgen::{closure::Closure, JsCast, JsValue};
+    use std::rc::Rc;
+
+    let window = match web_sys::window() {
+        Some(w) => w,
+        None => return,
+    };
+    let document = match window.document() {
+        Some(d) => d,
+        None => return,
+    };
+
+    let input = match document.create_element("input") {
+        Ok(el) => match el.dyn_into::<web_sys::HtmlInputElement>() {
+            Ok(i) => i,
+            Err(_) => return,
+        },
+        Err(_) => return,
+    };
+    input.set_type("file");
+    input.set_multiple(true);
+
+    let pending = Rc::new(pending);
+    let ctx = Rc::new(ctx);
+    let input_for_cb = input.clone();
+
+    let on_change = Closure::<dyn FnMut(_)>::new(move |_evt: web_sys::Event| {
+        let files = match input_for_cb.files() {
+            Some(f) => f,
+            None => return,
+        };
+        let pending = pending.clone();
+        let ctx = ctx.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let mut out = Vec::new();
+            for i in 0..files.length() {
+                if let Some(file) = files.get(i) {
+                    let name = file.name();
+                    let buf = wasm_bindgen_futures::JsFuture::from(file.array_buffer())
+                        .await
+                        .ok()
+                        .and_then(|b| js_sys::Uint8Array::new(&b).to_vec().try_into().ok())
+                        .map(|v: std::borrow::Cow<'_, [u8]>| v.into_owned())
+                        .unwrap_or_default();
+                    out.push(DroppedFile {
+                        name: name.into(),
+                        bytes: Some(std::sync::Arc::from(buf)),
+                        ..Default::default()
+                    });
+                }
+            }
+            if !out.is_empty() {
+                pending.borrow_mut().extend(out);
+                ctx.request_repaint();
+            }
+        });
+    });
+
+    let _ = input.add_event_listener_with_callback("change", on_change.as_ref().unchecked_ref());
+    on_change.forget();
+
+    if let Some(body) = document.body() {
+        let _ = body.append_child(&input);
+    }
+    input.style().set_property("display", "none").ok();
+    input.click();
+    let _ = JsValue::from(input);
+}

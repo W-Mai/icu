@@ -19,7 +19,7 @@ pub fn draw_central_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
         });
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum ContentType {
     Rgba,
     Font,
@@ -127,14 +127,22 @@ fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
                             .into_iter()
                             .map(crate::image_viewer::model::SidebarItem::Image)
                             .collect();
+                    let start_idx = state.items.len();
                     state.items.extend(new_items);
                     if let Some(crate::image_viewer::model::SidebarItem::Image(img)) =
-                        state.items.first().cloned()
+                        state.items.get(start_idx).cloned()
                     {
                         state.current_image = Some(img);
-                        state.selected_index = Some(0);
+                        state.selected_index = Some(start_idx);
                     }
                 }
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                crate::image_viewer::utils::pick_files_web(
+                    state.pending_dropped.clone(),
+                    ui.ctx().clone(),
+                );
             }
         }
     }

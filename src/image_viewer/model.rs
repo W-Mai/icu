@@ -261,11 +261,14 @@ pub struct ViewerState {
     pub font_diff_path: Option<String>,
     pub selected_glyph: Option<usize>,
     pub opened_glyphs: Vec<OpenedGlyph>,
+    pub glyph_convert_format: String,
     pub font_atlas_cached: Option<(String, String, Vec<Color32>, u32, u32)>,
     pub font_grid_cached: Option<(String, Vec<TextureHandle>, usize)>,
     pub font_grid_big_cached: Option<(String, TextureHandle)>,
     pub font_bundle_index: usize,
     pub glyph_canvas_view: GlyphCanvasView,
+    #[cfg(target_arch = "wasm32")]
+    pub pending_dropped: std::rc::Rc<std::cell::RefCell<Vec<DroppedFile>>>,
 }
 
 impl Default for ViewerState {
@@ -307,11 +310,14 @@ impl Default for ViewerState {
             font_diff_path: None,
             selected_glyph: None,
             opened_glyphs: Vec::new(),
+            glyph_convert_format: "LVGL".to_string(),
             font_atlas_cached: None,
             font_grid_cached: None,
             font_grid_big_cached: None,
             font_bundle_index: 0,
             glyph_canvas_view: GlyphCanvasView::default(),
+            #[cfg(target_arch = "wasm32")]
+            pending_dropped: std::rc::Rc::new(std::cell::RefCell::new(Vec::new())),
         }
     }
 }
