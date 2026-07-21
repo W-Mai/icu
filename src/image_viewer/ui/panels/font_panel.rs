@@ -87,7 +87,6 @@ fn reset_font_caches(state: &mut crate::image_viewer::model::ViewerState) {
     state.font_atlas_cached = None;
     state.font_grid_cached = None;
     state.font_grid_big_cached = None;
-    state.glyph_diff_result = None;
     state.selected_glyph = None;
 }
 
@@ -224,6 +223,22 @@ pub fn draw_glyph_convert_section(
                 }
             });
 
+        if state.glyph_convert_format == "MIRX" {
+            ui.add_space(8.0);
+            egui::ComboBox::from_id_salt("glyph_mirx_export_kind")
+                .selected_text(match state.context.mirx_export_kind.as_str() {
+                    "flat" => t!("mirx_kind_img_flat").to_string(),
+                    _ => t!("mirx_kind_scene").to_string(),
+                })
+                .width(ui.available_width())
+                .show_ui(ui, |ui| {
+                    let scene_label = t!("mirx_kind_scene").to_string();
+                    let flat_label = t!("mirx_kind_img_flat").to_string();
+                    ui.selectable_value(&mut state.context.mirx_export_kind, "scene".to_string(), &scene_label);
+                    ui.selectable_value(&mut state.context.mirx_export_kind, "flat".to_string(), &flat_label);
+                });
+        }
+
         ui.add_space(12.0);
 
         if !glyph.outline.is_empty() {
@@ -239,6 +254,26 @@ pub fn draw_glyph_convert_section(
                         let svg = glyph_outline_to_svg(&glyph.outline);
                         if let Some(path) = super::pick_save_file(&[("SVG", &["svg"])], &format!("U+{:04X}.svg", glyph.codepoint)) {
                             let _ = std::fs::write(&path, svg);
+                        }
+                    }
+                    "MIRX" if state.context.mirx_export_kind == "scene" => {
+                        let scene = icu_lib::mirx::Scene {
+                            ops: vec![icu_lib::mirx::SceneOp::FillPath {
+                                path: icu_lib::mirx::Path { cmds: glyph.outline.clone() },
+                                transform: icu_lib::mirx::Transform::IDENTITY,
+                                paint: icu_lib::mirx::Paint::Color(icu_lib::mirx::Color { r: 255, g: 255, b: 255, a: 255 }),
+                                opa: 255,
+                                fill_rule: icu_lib::mirx::FillRule::NonZero,
+                            }],
+                        };
+                        let payload = scene.encode().unwrap_or_default();
+                        let bytes = icu_lib::mirx::encode_chunk_generic(
+                            icu_lib::mirx::chunk_type::VECTOR,
+                            icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
+                            &payload,
+                        );
+                        if let Some(path) = super::pick_save_file(&[("mirx", &["mirx"])], &format!("U+{:04X}.mirx", glyph.codepoint)) {
+                            let _ = std::fs::write(&path, bytes);
                         }
                     }
                     _ => {
@@ -305,20 +340,14 @@ pub fn draw_font_convert_section(
 
     match font_data {
         FontData::Mirx(_font) => {
-            draw_glyph_diff_section(ui, state, font_data);
-            ui.add_space(4.0);
             draw_merge_fonts_section(ui, state);
         }
         FontData::MirxBundle(fonts) => {
             if let Some(_font) = fonts.get(state.font_bundle_index).or_else(|| fonts.first()) {
-                draw_glyph_diff_section(ui, state, font_data);
-                ui.add_space(4.0);
                 draw_merge_fonts_section(ui, state);
             }
         }
         FontData::FreeType(f) => {
-            draw_glyph_diff_section(ui, state, font_data);
-            ui.add_space(4.0);
             draw_font_bake_section(ui, state, &image, f);
         }
     }
@@ -366,75 +395,52 @@ fn draw_freetype_preview_section(
     });
 }
 
-fn draw_glyph_diff_section(
-    ui: &mut egui::Ui,
-    state: &mut crate::image_viewer::model::ViewerState,
-    font_data: &FontData,
-) {
-    crate::image_viewer::ui::widgets::section_card(ui, t!("section_glyph_diff").as_ref(), |ui| {
-        if ui.button(t!("btn_select_font_to_diff")).clicked() {
-            if let Some(path) = super::pick_file(&[("Font", &["ttf", "otf", "ttc", "mirx"])]) {
-                state.font_diff_path = Some(path.to_string_lossy().into());
-                state.glyph_diff_result = None;
+pub fn build_selected_glyph_diff_result(
+    state: &crate::image_viewer::model::ViewerState,
+) -> Option<GlyphDiffResult> {
+    use crate::image_viewer::model::SidebarItem;
+    let font_data_a = state
+        .diff_image1_index
+        .and_then(|i| state.items.get(i))
+        .and_then(|item| match item {
+            SidebarItem::Image(img) if matches!(img.midata, Some(MiData::FONT(_))) => {
+                match &img.midata {
+                    Some(MiData::FONT(fd)) => Some(fd.clone()),
+                    _ => None,
+                }
             }
-        }
-        if let Some(diff_path) = state.font_diff_path.clone() {
-            ui.label(format!("vs: {}", diff_path));
-            if ui.button(t!("btn_render_diff")).clicked() {
-                render_font_diff(state, font_data, &diff_path);
+            _ => None,
+        })?;
+    let font_data_b = state
+        .diff_image2_index
+        .and_then(|i| state.items.get(i))
+        .and_then(|item| match item {
+            SidebarItem::Image(img) if matches!(img.midata, Some(MiData::FONT(_))) => {
+                match &img.midata {
+                    Some(MiData::FONT(fd)) => Some(fd.clone()),
+                    _ => None,
+                }
             }
-        }
-    });
-}
-
-fn render_font_diff(
-    state: &mut crate::image_viewer::model::ViewerState,
-    font_data: &FontData,
-    diff_path: &str,
-) {
-    state.glyph_diff_result = None;
-    let raw_b = std::fs::read(diff_path).unwrap_or_default();
-    let Some(ed) = icu_lib::endecoder::find_endecoder(&raw_b) else {
-        return;
-    };
-    let MiData::FONT(diff_font_data) = ed.decode(raw_b) else {
-        return;
-    };
+            _ => None,
+        })?;
     let text_color = icu_lib::mirx::Color {
         r: 255,
         g: 255,
-            b: 255,
-            a: 255,
+        b: 255,
+        a: 255,
     };
-    let cell = diff_cell_size(font_data, &diff_font_data, state.font_bundle_index);
-    let mut glyphs: Vec<u32> = glyph_codepoints(font_data, state.font_bundle_index);
-    glyphs.sort_unstable();
-    glyphs.dedup();
-    let selected = selected_opened_glyph(state)
-        .map(|g| g.codepoint)
-        .or_else(|| selected_font_codepoint(font_data, state.selected_glyph, state.font_bundle_index));
-    if let Some(codepoint) = selected
-        && glyphs.contains(&codepoint)
-    {
-        glyphs.retain(|cp| *cp != codepoint);
-        glyphs.insert(0, codepoint);
-    }
-    for codepoint in glyphs {
-        let Some(ch) = char::from_u32(codepoint) else {
-            continue;
-        };
-        let Some(img_b) = render_source_glyph(&diff_font_data, 0, ch, cell, text_color) else {
-            continue;
-        };
-        let Some(img_a) = render_source_glyph(font_data, state.font_bundle_index, ch, cell, text_color) else {
-            continue;
-        };
-        if let Some(result) = build_glyph_diff_result(codepoint, ch, img_a, img_b) {
-            state.glyph_diff_result = Some(result);
-            state.font_mode = FontMode::Rendered;
-            return;
-        }
-    }
+    let ch = state.glyph_diff_char.chars().next().unwrap_or('A');
+    let cell = diff_cell_size(&font_data_a, &font_data_b, state.font_bundle_index);
+    let img_a = render_source_glyph(&font_data_a, state.font_bundle_index, ch, cell, text_color)?;
+    let img_b = render_source_glyph(&font_data_b, 0, ch, cell, text_color)?;
+    build_glyph_diff_result(
+        ch as u32,
+        ch,
+        img_a,
+        img_b,
+        state.context.diff_tolerance,
+        state.context.diff_blend,
+    )
 }
 
 fn render_source_glyph(
@@ -468,30 +474,6 @@ fn render_source_glyph(
     }
 }
 
-fn glyph_codepoints(font_data: &FontData, bundle_index: usize) -> Vec<u32> {
-    match font_data {
-        FontData::Mirx(font) => font.metrics.iter().map(|m| m.codepoint).collect(),
-        FontData::MirxBundle(_) => selected_mirx_font(font_data, bundle_index)
-            .map(|font| font.metrics.iter().map(|m| m.codepoint).collect())
-            .unwrap_or_default(),
-        FontData::FreeType(font) => font.glyphs.iter().map(|g| g.codepoint).collect(),
-    }
-}
-
-fn selected_font_codepoint(
-    font_data: &FontData,
-    selected_glyph: Option<usize>,
-    bundle_index: usize,
-) -> Option<u32> {
-    let idx = selected_glyph?;
-    match font_data {
-        FontData::Mirx(font) => font.metrics.get(idx).map(|m| m.codepoint),
-        FontData::MirxBundle(_) => selected_mirx_font(font_data, bundle_index)
-            .and_then(|font| font.metrics.get(idx).map(|m| m.codepoint)),
-        FontData::FreeType(font) => font.glyphs.get(idx).map(|g| g.codepoint),
-    }
-}
-
 fn diff_cell_size(left: &FontData, right: &FontData, bundle_index: usize) -> u32 {
     let left_cell = preferred_glyph_cell(left, bundle_index)
     .max(1);
@@ -513,9 +495,11 @@ fn preferred_glyph_cell(font_data: &FontData, bundle_index: usize) -> u32 {
 fn diff_overlay_image(
     img_a: &icu_lib::image::RgbaImage,
     dr: icu_lib::endecoder::utils::diff::ImageDiffResult,
+    tolerance: f32,
+    blend: f32,
 ) -> icu_lib::image::RgbaImage {
     let mut stack = icu_lib::postprocess::OverlayStack::new(img_a.clone());
-    stack.push(Box::new(icu_lib::postprocess::DiffOverlay::new(dr, 1.0, 0.5)));
+    stack.push(Box::new(icu_lib::postprocess::DiffOverlay::new(dr, tolerance, blend)));
     stack.composite().clone()
 }
 
@@ -524,57 +508,30 @@ fn build_glyph_diff_result(
     ch: char,
     img_a: icu_lib::image::RgbaImage,
     img_b: icu_lib::image::RgbaImage,
+    tolerance: f32,
+    blend: f32,
 ) -> Option<GlyphDiffResult> {
     let dr = icu_lib::endecoder::utils::diff::diff_image(
         &MiData::RGBA(img_a.clone()),
         &MiData::RGBA(img_b.clone()),
-    )?;
+    )
+    .unwrap_or_else(|| {
+        let (w, h) = (img_a.width(), img_a.height());
+        icu_lib::endecoder::utils::diff::ImageDiffResult::new(
+            (w, h),
+            Vec::new(),
+            0.0,
+            0.0,
+        )
+    });
     Some(GlyphDiffResult {
         codepoint,
         char_repr: ch.to_string(),
         img_a: img_a.clone(),
         img_b,
-        diff_overlay: diff_overlay_image(&img_a, dr.clone()),
+        diff_overlay: diff_overlay_image(&img_a, dr.clone(), tolerance, blend),
         diff: dr,
     })
-}
-
-fn draw_glyph_diff_result(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
-    let Some(result) = state.glyph_diff_result.as_ref() else {
-        return;
-    };
-    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-    egui::Frame::new()
-        .fill(p.mantle)
-        .stroke(egui::Stroke::new(1.0, p.surface0))
-        .inner_margin(egui::Margin::same(8))
-        .show(ui, |ui| {
-            ui.heading(format!("Glyph #{}: '{}' (U+{:04X})", result.codepoint, result.char_repr, result.codepoint));
-            ui.label(format!("diff pixels: {}", result.diff.diffs().len()));
-            ui.add_space(6.0);
-            ui.horizontal_top(|ui| {
-                show_glyph_diff_panel(ui, "A", &result.img_a);
-                show_glyph_diff_panel(ui, "B", &result.img_b);
-                show_glyph_diff_panel(ui, "diff", &result.diff_overlay);
-            });
-        });
-}
-
-fn show_glyph_diff_panel(ui: &mut egui::Ui, title: &str, img: &icu_lib::image::RgbaImage) {
-    ui.vertical(|ui| {
-        ui.label(title);
-        let image = egui::ColorImage::from_rgba_unmultiplied(
-            [img.width() as usize, img.height() as usize],
-            img.as_raw(),
-        );
-        let texture = ui
-            .ctx()
-            .load_texture(format!("glyph_diff_{title}"), image, egui::TextureOptions::LINEAR);
-        ui.image(egui::load::SizedTexture::new(
-            texture.id(),
-            [img.width() as f32, img.height() as f32],
-        ));
-    });
 }
 
 fn glyph_outline_to_svg(outline: &[icu_lib::mirx::PathCmd]) -> String {
@@ -956,10 +913,6 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
 
     match state.font_mode {
         FontMode::Rendered => {
-            if state.glyph_diff_result.is_some() {
-                draw_glyph_diff_result(ui, state);
-                return;
-            }
             if state.font_rendered_preview.is_none() {
                 if let Some(font) = selected_mirx_font(font_data, state.font_bundle_index) {
                     let img = icu_lib::endecoder::mirui::font_render::render_font_text(
@@ -985,10 +938,60 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                     color_image,
                     egui::TextureOptions::LINEAR,
                 );
-                ui.image(egui::load::SizedTexture::new(
-                    texture.id(),
-                    [w as f32, h as f32],
-                ));
+                let tex_id = texture.id();
+
+                let view = &mut state.render_canvas_view;
+                let avail = ui.available_size_before_wrap();
+                let (response, painter) = ui.allocate_painter(avail, egui::Sense::click_and_drag());
+                let canvas_rect = response.rect;
+
+                let fit_scale = (canvas_rect.width() / w as f32)
+                    .min(canvas_rect.height() / h as f32)
+                    .min(1.0);
+
+                if response.contains_pointer() {
+                    let (zoom_delta, scroll_delta, pointer) = ui.input(|i| {
+                        (i.zoom_delta(), i.smooth_scroll_delta, i.pointer.hover_pos())
+                    });
+                    if zoom_delta != 1.0 {
+                        let old_zoom = view.zoom;
+                        let new_zoom = (old_zoom * zoom_delta).clamp(0.1, 64.0);
+                        if let Some(pointer) = pointer {
+                            let anchor = pointer - canvas_rect.center();
+                            view.pan = anchor - (anchor - view.pan) * (new_zoom / old_zoom);
+                        }
+                        view.zoom = new_zoom;
+                    }
+                    view.pan += response.drag_delta();
+                    view.pan += scroll_delta;
+                }
+
+                if response.double_clicked() {
+                    view.zoom = 1.0;
+                    view.pan = egui::Vec2::ZERO;
+                }
+
+                let scale = fit_scale * view.zoom;
+                let draw_w = w as f32 * scale;
+                let draw_h = h as f32 * scale;
+                let center = canvas_rect.center() + view.pan;
+                let img_rect = egui::Rect::from_center_size(center, egui::vec2(draw_w, draw_h));
+
+                if ui.is_rect_visible(canvas_rect) {
+                    painter.rect(
+                        canvas_rect,
+                        crate::image_viewer::ui::theme::RADIUS,
+                        ui.style().visuals.panel_fill,
+                        egui::Stroke::new(1.0, ui.style().visuals.window_stroke.color),
+                        egui::StrokeKind::Inside,
+                    );
+                    painter.image(
+                        tex_id,
+                        img_rect,
+                        egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                        egui::Color32::WHITE,
+                    );
+                }
             } else {
                 ui.label(t!("rendering_not_available"));
             }
@@ -1306,10 +1309,6 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
             });
         }
         FontMode::Vector => {
-            if state.glyph_diff_result.is_some() {
-                draw_glyph_diff_result(ui, state);
-                ui.separator();
-            }
             let glyph = match font_data {
                 FontData::FreeType(f) => state
                     .selected_glyph
