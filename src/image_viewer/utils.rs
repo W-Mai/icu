@@ -180,6 +180,9 @@ fn aggregate_sequences(items: Vec<ImageItem>) -> Vec<ImageItem> {
         if item.frame_count() != 1 {
             continue;
         }
+        if !matches!(item.midata, None | Some(icu_lib::midata::MiData::RGBA(_))) {
+            continue;
+        }
         if let Some((key, number)) = sequence_key(Path::new(&item.path)) {
             groups.entry(key).or_default().push((idx, number));
         }

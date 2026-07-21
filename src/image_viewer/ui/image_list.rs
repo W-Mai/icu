@@ -323,6 +323,7 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
         );
         let badge_w = badge_galley.size().x + 10.0;
         let badge_h = badge_galley.size().y + 2.0;
+
         let badge_rect = egui::Rect::from_min_size(
             egui::pos2(
                 rect.right() - badge_w - 8.0 - indent,
