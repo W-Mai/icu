@@ -15,31 +15,83 @@ pub fn draw_path_export_section(
     let scene_data = scene_data.clone();
 
     crate::image_viewer::ui::widgets::section_card(ui, t!("section_export").as_ref(), |ui| {
-        if ui.button(t!("btn_export_png")).clicked() {
-            let (w, h) =
-                icu_lib::endecoder::mirui::scene_render::scene_dimensions(&scene_data.scene)
-                    .unwrap_or((256, 256));
-            let img =
-                icu_lib::endecoder::mirui::scene_render::render_scene(&scene_data.scene, w, h);
-            if let Some(path) = super::pick_save_file(&[("PNG", &["png"])], "scene.png") {
-                let _ = img.save(&path);
-            }
+        egui::ComboBox::from_id_salt("path_output_format")
+            .selected_text(state.path_export_format.clone())
+            .width(ui.available_width())
+            .show_ui(ui, |ui| {
+                for format in ["PNG", "JPEG", "BMP", "GIF", "TIFF", "WEBP", "ICO", "LVGL", "MIRX", "SVG"] {
+                    ui.selectable_value(&mut state.path_export_format, format.to_string(), format);
+                }
+            });
+
+        if state.path_export_format == "MIRX" {
+            ui.add_space(8.0);
+            egui::ComboBox::from_id_salt("path_mirx_export_kind")
+                .selected_text(match state.context.mirx_export_kind.as_str() {
+                    "flat" => "Img Flat",
+                    _ => "Scene",
+                })
+                .width(ui.available_width())
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut state.context.mirx_export_kind, "scene".to_string(), "Scene");
+                    ui.selectable_value(&mut state.context.mirx_export_kind, "flat".to_string(), "Img Flat");
+                });
         }
-        if ui.button(t!("btn_export_svg")).clicked() {
-            let svg = icu_lib::endecoder::svg::export::scene_to_svg(&scene_data.scene, 0, 0);
-            if let Some(path) = super::pick_save_file(&[("SVG", &["svg"])], &"scene.svg") {
-                let _ = std::fs::write(&path, svg);
-            }
-        }
-        if ui.button(t!("btn_export_mirx")).clicked() {
-            let payload = scene_data.scene.encode().unwrap_or_default();
-            let bytes = icu_lib::mirx::encode_chunk_generic(
-                icu_lib::mirx::chunk_type::VECTOR,
-                icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
-                &payload,
-            );
-            if let Some(path) = super::pick_save_file(&[("mirx", &["mirx"])], &"scene.mirx") {
-                let _ = std::fs::write(&path, bytes);
+
+        ui.add_space(12.0);
+
+        if ui
+            .add_sized(
+                [ui.available_width(), 32.0],
+                egui::Button::new(egui::RichText::new(t!("btn_export")).heading()),
+            )
+            .clicked()
+        {
+            match state.path_export_format.as_str() {
+                "SVG" => {
+                    let svg = icu_lib::endecoder::svg::export::scene_to_svg(&scene_data.scene, 0, 0);
+                    if let Some(path) = super::pick_save_file(&[("SVG", &["svg"])], "scene.svg") {
+                        let _ = std::fs::write(&path, svg);
+                    }
+                }
+                "MIRX" if state.context.mirx_export_kind == "scene" => {
+                    let payload = scene_data.scene.encode().unwrap_or_default();
+                    let bytes = icu_lib::mirx::encode_chunk_generic(
+                        icu_lib::mirx::chunk_type::VECTOR,
+                        icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
+                        &payload,
+                    );
+                    if let Some(path) = super::pick_save_file(&[("mirx", &["mirx"])], "scene.mirx") {
+                        let _ = std::fs::write(&path, bytes);
+                    }
+                }
+                _ => {
+                    let (w, h) =
+                        icu_lib::endecoder::mirui::scene_render::scene_dimensions(&scene_data.scene)
+                            .unwrap_or((256, 256));
+                    let img =
+                        icu_lib::endecoder::mirui::scene_render::render_scene(&scene_data.scene, w, h);
+                    let mut params = state.context.convert_params.clone();
+                    params.output_format = match state.path_export_format.as_str() {
+                        "PNG" => crate::image_viewer::model::ImageFormat::PNG,
+                        "JPEG" => crate::image_viewer::model::ImageFormat::JPEG,
+                        "BMP" => crate::image_viewer::model::ImageFormat::BMP,
+                        "GIF" => crate::image_viewer::model::ImageFormat::GIF,
+                        "TIFF" => crate::image_viewer::model::ImageFormat::TIFF,
+                        "WEBP" => crate::image_viewer::model::ImageFormat::WEBP,
+                        "ICO" => crate::image_viewer::model::ImageFormat::ICO,
+                        "LVGL" => crate::image_viewer::model::ImageFormat::LVGL,
+                        "MIRX" => crate::image_viewer::model::ImageFormat::MIRX,
+                        _ => crate::image_viewer::model::ImageFormat::PNG,
+                    };
+                    let image_item = crate::image_viewer::utils::single_image_item(
+                        image.path.clone(),
+                        image.info.clone(),
+                        img.clone(),
+                        Some(MiData::RGBA(img)),
+                    );
+                    crate::image_viewer::utils::save_images(&[image_item], &params);
+                }
             }
         }
     });
