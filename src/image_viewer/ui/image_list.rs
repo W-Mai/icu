@@ -1,4 +1,4 @@
-use crate::image_viewer::model::{SidebarItem, ViewerState};
+use crate::image_viewer::model::{FrameSource, SidebarItem, ViewerState};
 use eframe::egui;
 use eframe::egui::Color32;
 
@@ -165,8 +165,37 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
         }
     };
 
+    let is_animated = matches!(
+        item,
+        SidebarItem::Image(img) if matches!(img.frames, FrameSource::Animated { .. })
+    );
+    let is_expanded = matches!(
+        item,
+        SidebarItem::Image(img) if img.expanded
+    );
+    let (frame_count, current_frame) = match item {
+        SidebarItem::Image(img) => match &img.frames {
+            FrameSource::Animated { frames, current, .. } => (frames.len(), *current),
+            _ => (0, 0),
+        },
+        _ => (0, 0),
+    };
+
     let desired = egui::vec2(ui.available_width(), 48.0);
     let (rect, response) = ui.allocate_exact_size(desired, egui::Sense::click());
+
+    let arrow_rect = if is_animated {
+        Some(egui::Rect::from_center_size(
+            egui::pos2(rect.left() + 12.0, rect.center().y),
+            egui::vec2(16.0, 16.0),
+        ))
+    } else {
+        None
+    };
+    let arrow_resp = arrow_rect.and_then(|ar| {
+        let r = ui.interact(ar, ui.id().with(("sb_arrow", index)), egui::Sense::click());
+        Some((ar, r))
+    });
 
     if ui.is_rect_visible(rect) {
         let fill = if is_selected {
@@ -192,6 +221,8 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
 
         let indent = if matches!(item, SidebarItem::Glyph(_)) {
             16.0
+        } else if is_animated {
+            20.0
         } else {
             0.0
         };
@@ -202,6 +233,7 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
         );
         match item {
             SidebarItem::Image(image_item) => {
+                let (pixels, thumb_w, thumb_h) = image_item.current_pixels();
                 ui.painter()
                     .rect_filled(thumb_rect, egui::CornerRadius::same(4), p.surface0);
                 ui.painter().rect_stroke(
@@ -213,13 +245,17 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
                 let tex = ui.ctx().load_texture(
                     format!("sb_thumb_{}", index),
                     egui::ColorImage {
-                        size: [image_item.width as usize, image_item.height as usize],
-                        source_size: egui::vec2(image_item.width as f32, image_item.height as f32),
-                        pixels: image_item.image_data.clone(),
+                        size: [thumb_w as usize, thumb_h as usize],
+                        source_size: egui::vec2(thumb_w as f32, thumb_h as f32),
+                        pixels: pixels.to_vec(),
                     },
                     egui::TextureOptions::LINEAR,
                 );
-                let img_aspect = image_item.width as f32 / image_item.height as f32;
+                let img_aspect = if thumb_h > 0 {
+                    thumb_w as f32 / thumb_h as f32
+                } else {
+                    1.0
+                };
                 let inner = thumb_rect.shrink(2.0);
                 let draw_h = inner.height();
                 let draw_w = draw_h * img_aspect;
@@ -251,6 +287,17 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
                     p.peach,
                 );
             }
+        }
+
+        if let Some((ar, _)) = arrow_resp {
+            let arrow = if is_expanded { "▼" } else { "▶" };
+            ui.painter().text(
+                ar.center(),
+                egui::Align2::CENTER_CENTER,
+                arrow,
+                egui::FontId::proportional(10.0),
+                p.subtext0,
+            );
         }
 
         let text_x = thumb_rect.right() + 8.0;
@@ -290,6 +337,14 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
             badge_galley,
             p.base,
         );
+    }
+
+    if let Some((_, ar)) = arrow_resp {
+        if ar.clicked() {
+            if let Some(SidebarItem::Image(img)) = state.items.get_mut(index) {
+                img.expanded = !img.expanded;
+            }
+        }
     }
 
     if response.clicked() {
@@ -345,6 +400,73 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
                     draw_diff_selection_buttons(ui, state, index);
                 },
             );
+        }
+    }
+
+    if is_animated && is_expanded {
+        draw_frame_child_rows(ui, state, index, frame_count, current_frame, is_selected);
+    }
+}
+
+fn draw_frame_child_rows(
+    ui: &mut egui::Ui,
+    state: &mut ViewerState,
+    parent_index: usize,
+    frame_count: usize,
+    current_frame: usize,
+    parent_selected: bool,
+) {
+    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+    let row_h = 24.0;
+    let indent = 16.0;
+    for frame_idx in 0..frame_count {
+        let desired = egui::vec2(ui.available_width(), row_h);
+        let (rect, response) = ui.allocate_exact_size(desired, egui::Sense::click());
+
+        let is_current = parent_selected && frame_idx == current_frame;
+        if ui.is_rect_visible(rect) {
+            let fill = if is_current {
+                p.accent_dim()
+            } else if response.hovered() {
+                p.surface1
+            } else {
+                Color32::TRANSPARENT
+            };
+            if fill != Color32::TRANSPARENT {
+                ui.painter()
+                    .rect_filled(rect, egui::CornerRadius::same(4), fill);
+            }
+
+            let bar = egui::Rect::from_min_size(
+                egui::pos2(rect.left() + indent + 1.0, rect.top() + 3.0),
+                egui::vec2(2.0, rect.height() - 6.0),
+            );
+            ui.painter()
+                .rect_filled(bar, egui::CornerRadius::same(0), p.peach);
+
+            let label = format!("frame {}", frame_idx + 1);
+            let color = if is_current { p.text } else { p.subtext0 };
+            ui.painter().text(
+                egui::pos2(rect.left() + indent + 10.0, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                &label,
+                egui::FontId::proportional(11.0),
+                color,
+            );
+        }
+
+        if response.clicked() {
+            state.selected_index = Some(parent_index);
+            if let Some(SidebarItem::Image(img)) = state.items.get_mut(parent_index) {
+                if let FrameSource::Animated { current, last_advance, .. } = &mut img.frames {
+                    *current = frame_idx;
+                    *last_advance = None;
+                }
+            }
+            if let Some(SidebarItem::Image(img)) = state.items.get(parent_index).cloned() {
+                state.current_image = Some(img);
+                state.font_mode = crate::image_viewer::model::FontMode::Atlas;
+            }
         }
     }
 }

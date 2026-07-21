@@ -203,8 +203,9 @@ pub fn draw_indexed_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::m
         info: image.info.clone(),
         width: w,
         height: h,
-        image_data,
+        frames: crate::image_viewer::model::FrameSource::single(image_data, w, h),
         midata: None,
+        expanded: false,
     };
     let mut plotter = ImagePlotter::new("indexed_view")
         .anti_alias(state.context.anti_alias)
@@ -245,8 +246,9 @@ pub fn draw_indexed_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::m
                 info: image.info.clone(),
                 width: iw,
                 height: ih,
-                image_data: map_data,
+                frames: crate::image_viewer::model::FrameSource::single(map_data, iw, ih),
                 midata: None,
+                expanded: false,
             };
             let _ = palette_count;
             plotter.show(ui, &Some(map_item));
