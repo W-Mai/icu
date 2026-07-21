@@ -28,13 +28,15 @@ pub fn draw_path_export_section(
             ui.add_space(8.0);
             egui::ComboBox::from_id_salt("path_mirx_export_kind")
                 .selected_text(match state.context.mirx_export_kind.as_str() {
-                    "flat" => "Img Flat",
-                    _ => "Scene",
+                    "flat" => t!("mirx_kind_img_flat").to_string(),
+                    _ => t!("mirx_kind_scene").to_string(),
                 })
                 .width(ui.available_width())
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut state.context.mirx_export_kind, "scene".to_string(), "Scene");
-                    ui.selectable_value(&mut state.context.mirx_export_kind, "flat".to_string(), "Img Flat");
+                    let scene_label = t!("mirx_kind_scene").to_string();
+                    let flat_label = t!("mirx_kind_img_flat").to_string();
+                    ui.selectable_value(&mut state.context.mirx_export_kind, "scene".to_string(), &scene_label);
+                    ui.selectable_value(&mut state.context.mirx_export_kind, "flat".to_string(), &flat_label);
                 });
         }
 
