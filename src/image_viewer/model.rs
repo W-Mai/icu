@@ -417,8 +417,7 @@ pub struct ViewerState {
     pub indexed_requantized: Option<icu_lib::midata::IndexedImageData>,
     pub merge_font_paths: Vec<String>,
     pub font_mode: FontMode,
-    pub font_diff_path: Option<String>,
-    pub glyph_diff_result: Option<GlyphDiffResult>,
+    pub glyph_diff_char: String,
     pub selected_glyph: Option<usize>,
     pub opened_glyphs: Vec<OpenedGlyph>,
     pub glyph_convert_format: String,
@@ -428,6 +427,7 @@ pub struct ViewerState {
     pub font_grid_big_cached: Option<(String, TextureHandle)>,
     pub font_bundle_index: usize,
     pub glyph_canvas_view: GlyphCanvasView,
+    pub render_canvas_view: GlyphCanvasView,
     #[cfg(target_arch = "wasm32")]
     pub pending_dropped: std::rc::Rc<std::cell::RefCell<Vec<DroppedFile>>>,
 }
@@ -468,8 +468,7 @@ impl Default for ViewerState {
             indexed_requantized: None,
             merge_font_paths: Vec::new(),
             font_mode: FontMode::default(),
-            font_diff_path: None,
-            glyph_diff_result: None,
+            glyph_diff_char: "A".to_string(),
             selected_glyph: None,
             opened_glyphs: Vec::new(),
             glyph_convert_format: "LVGL".to_string(),
@@ -479,6 +478,7 @@ impl Default for ViewerState {
             font_grid_big_cached: None,
             font_bundle_index: 0,
             glyph_canvas_view: GlyphCanvasView::default(),
+            render_canvas_view: GlyphCanvasView::default(),
             #[cfg(target_arch = "wasm32")]
             pending_dropped: std::rc::Rc::new(std::cell::RefCell::new(Vec::new())),
         }

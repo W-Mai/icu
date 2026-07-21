@@ -123,21 +123,44 @@ impl eframe::App for MyEguiApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ui::theme::apply(ctx);
 
-        let image_count = self
-            .state
-            .items
-            .iter()
-            .filter(|i| matches!(i, SidebarItem::Image(_)))
-            .count();
         if self.state.context.diff_active
-            && image_count == 2
-            && (self.state.diff_image1_index.is_none() && self.state.diff_image2_index.is_none())
+            && self.state.diff_image1_index.is_none()
+            && self.state.diff_image2_index.is_none()
         {
-            self.state.diff_image1_index = Some(0);
-            self.state.diff_image2_index = Some(1);
+            let font_indices: Vec<usize> = self
+                .state
+                .items
+                .iter()
+                .enumerate()
+                .filter_map(|(i, item)| match item {
+                    SidebarItem::Image(img) if matches!(img.midata, Some(icu_lib::midata::MiData::FONT(_))) => Some(i),
+                    _ => None,
+                })
+                .collect();
+            if font_indices.len() >= 2 {
+                self.state.diff_image1_index = Some(font_indices[0]);
+                self.state.diff_image2_index = Some(font_indices[1]);
+            } else {
+                let img_indices: Vec<usize> = self
+                    .state
+                    .items
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, item)| match item {
+                        SidebarItem::Image(_) => Some(i),
+                        _ => None,
+                    })
+                    .collect();
+                if img_indices.len() >= 2 {
+                    self.state.diff_image1_index = Some(img_indices[0]);
+                    self.state.diff_image2_index = Some(img_indices[1]);
+                }
+            }
         }
 
-        if let (Some(i1), Some(i2)) = (self.state.diff_image1_index, self.state.diff_image2_index)
+        if crate::image_viewer::ui::viewer::get_diff_mode(&self.state)
+            == crate::image_viewer::ui::viewer::DiffMode::Image
+            && let (Some(i1), Some(i2)) = (self.state.diff_image1_index, self.state.diff_image2_index)
             && i1 != i2
         {
             let img1 = match self.state.items.get(i1) {
