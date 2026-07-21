@@ -1,16 +1,63 @@
 use crate::image_viewer::model::{DiffSorting, ViewerState};
+use crate::image_viewer::ui::viewer::{get_diff_mode, DiffMode};
 use crate::image_viewer::ui::widgets;
 use clap::ValueEnum;
 use eframe::egui;
 use eframe::egui::{Color32, Sense};
 use icu_lib::endecoder::utils::diff::ImageDiffPixel;
 
-/// Draws the right panel containing difference settings and pixel details.
 pub fn draw_diff_panel_contents(ui: &mut egui::Ui, state: &mut ViewerState) {
     ui.add_space(8.0);
     ui.spacing_mut().item_spacing.y = 6.0;
 
-    draw_diff_panel_controls(ui, state);
+    if state.diff_image1_index.is_none() && state.diff_image2_index.is_none() {
+        let font_indices: Vec<usize> = state
+            .items
+            .iter()
+            .enumerate()
+            .filter_map(|(i, item)| match item {
+                crate::image_viewer::model::SidebarItem::Image(img)
+                    if matches!(img.midata, Some(icu_lib::midata::MiData::FONT(_))) =>
+                {
+                    Some(i)
+                }
+                _ => None,
+            })
+            .collect();
+        if font_indices.len() >= 2 {
+            state.diff_image1_index = Some(font_indices[0]);
+            state.diff_image2_index = Some(font_indices[1]);
+        } else {
+            let img_indices: Vec<usize> = state
+                .items
+                .iter()
+                .enumerate()
+                .filter_map(|(i, item)| match item {
+                    crate::image_viewer::model::SidebarItem::Image(_) => Some(i),
+                    _ => None,
+                })
+                .collect();
+            if img_indices.len() >= 2 {
+                state.diff_image1_index = Some(img_indices[0]);
+                state.diff_image2_index = Some(img_indices[1]);
+            }
+        }
+    }
+
+    match get_diff_mode(state) {
+        DiffMode::Glyph => draw_glyph_diff_panel(ui, state),
+        DiffMode::Image => draw_image_diff_panel(ui, state),
+        DiffMode::Incompatible => {
+            ui.label(t!("hint_select_two_fonts_for_diff"));
+        }
+        DiffMode::None => {
+            ui.label(t!("hint_select_two_fonts_for_diff"));
+        }
+    }
+}
+
+fn draw_image_diff_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
+    draw_diff_panel_controls(ui, state, true);
 
     state.hovered_diff_pixel = None;
     if let Some((_, diff_result)) = &state.diff_result {
@@ -31,14 +78,31 @@ pub fn draw_diff_panel_contents(ui: &mut egui::Ui, state: &mut ViewerState) {
     }
 }
 
-/// Draws the control sliders and toggles for the difference view.
-fn draw_diff_panel_controls(ui: &mut egui::Ui, state: &mut ViewerState) {
+fn draw_glyph_diff_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
+    widgets::section_card(ui, t!("section_glyph_diff").as_ref(), |ui| {
+        ui.text_edit_singleline(&mut state.glyph_diff_char);
+        if let Some(ch) = state.glyph_diff_char.chars().next() {
+            state.glyph_diff_char = ch.to_string();
+        }
+        if let (Some(a), Some(b)) = diff_source_names(state) {
+            ui.label(format!("A: {a}"));
+            ui.label(format!("B: {b}"));
+        }
+    });
+    draw_diff_panel_controls(ui, state, false);
+}
+
+fn draw_diff_panel_controls(ui: &mut egui::Ui, state: &mut ViewerState, image_mode: bool) {
     widgets::section_card(ui, t!("section_diff_controls").as_ref(), |ui| {
-        widgets::toggle_labeled(
-            ui,
-            t!("only_show_diff_area"),
-            &mut state.context.only_show_diff,
-        );
+        if image_mode {
+            widgets::toggle_labeled(
+                ui,
+                t!("only_show_diff_area"),
+                &mut state.context.only_show_diff,
+            );
+        } else {
+            state.context.only_show_diff = false;
+        }
         ui.add(
             egui::Slider::new(
                 &mut state.context.diff_tolerance,
@@ -69,7 +133,6 @@ fn draw_diff_panel_controls(ui: &mut egui::Ui, state: &mut ViewerState) {
     });
 }
 
-/// Draws preset buttons for diff blend (Diff1, Blended, Diff2).
 fn draw_blend_preset_buttons(ui: &mut egui::Ui, state: &mut ViewerState, avail_width: f32) {
     ui.horizontal(|ui| {
         let btn_w = 50.0;
@@ -115,6 +178,25 @@ fn draw_blend_preset_buttons(ui: &mut egui::Ui, state: &mut ViewerState, avail_w
             state.context.diff_blend = 1.0;
         }
     });
+}
+
+fn diff_source_names(state: &ViewerState) -> (Option<String>, Option<String>) {
+    fn name_at(state: &ViewerState, idx: Option<usize>) -> Option<String> {
+        let crate::image_viewer::model::SidebarItem::Image(image) = state.items.get(idx?)? else {
+            return None;
+        };
+        Some(
+            std::path::Path::new(&image.path)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or(&image.path)
+                .to_string(),
+        )
+    }
+    (
+        name_at(state, state.diff_image1_index),
+        name_at(state, state.diff_image2_index),
+    )
 }
 
 /// Draws the list of pixels that differ between the two images.

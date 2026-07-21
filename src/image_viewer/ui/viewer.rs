@@ -1,4 +1,4 @@
-use crate::image_viewer::model::{FrameSource, ViewerState};
+use crate::image_viewer::model::{FrameSource, ImageItem, ViewerState};
 use crate::image_viewer::plotter::ImagePlotter;
 use crate::image_viewer::ui::panels;
 use eframe::egui;
@@ -10,13 +10,23 @@ pub fn draw_central_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
 
     egui::CentralPanel::default()
         .frame(crate::image_viewer::ui::theme::central_panel_frame(ui.ctx()))
-        .show(ui, |ui| match content_type {
-            ContentType::Rgba => draw_rgba_canvas(ui, state),
-            ContentType::Font => panels::font_panel::draw_font_canvas(ui, state),
-            ContentType::Path => panels::path_panel::draw_path_canvas(ui, state),
-            ContentType::Indexed => panels::indexed_panel::draw_indexed_canvas(ui, state),
-            ContentType::Glyph => panels::font_panel::draw_glyph_canvas(ui, state),
+        .show(ui, |ui| match (state.context.diff_active, get_diff_mode(state), content_type) {
+            (true, DiffMode::Glyph | DiffMode::Image, _) | (_, _, ContentType::Rgba) => {
+                draw_rgba_canvas(ui, state)
+            }
+            (_, _, ContentType::Font) => panels::font_panel::draw_font_canvas(ui, state),
+            (_, _, ContentType::Path) => panels::path_panel::draw_path_canvas(ui, state),
+            (_, _, ContentType::Indexed) => panels::indexed_panel::draw_indexed_canvas(ui, state),
+            (_, _, ContentType::Glyph) => panels::font_panel::draw_glyph_canvas(ui, state),
         });
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DiffMode {
+    None,
+    Image,
+    Glyph,
+    Incompatible,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -49,7 +59,44 @@ pub fn get_content_type(state: &ViewerState) -> ContentType {
     ContentType::Rgba
 }
 
+pub fn get_diff_mode(state: &ViewerState) -> DiffMode {
+    let (Some(i1), Some(i2)) = (state.diff_image1_index, state.diff_image2_index) else {
+        return DiffMode::None;
+    };
+    let (Some(item1), Some(item2)) = (state.items.get(i1), state.items.get(i2)) else {
+        return DiffMode::None;
+    };
+    let (Some(a), Some(b)) = (item_image(item1), item_image(item2)) else {
+        return DiffMode::None;
+    };
+    match (is_font(a), is_font(b), is_rgba_image(a), is_rgba_image(b)) {
+        (true, true, _, _) => DiffMode::Glyph,
+        (_, _, true, true) => DiffMode::Image,
+        _ => DiffMode::Incompatible,
+    }
+}
+
+fn item_image(item: &crate::image_viewer::model::SidebarItem) -> Option<&ImageItem> {
+    match item {
+        crate::image_viewer::model::SidebarItem::Image(image) => Some(image),
+        crate::image_viewer::model::SidebarItem::Glyph(_) => None,
+    }
+}
+
+fn is_font(image: &ImageItem) -> bool {
+    matches!(image.midata, Some(MiData::FONT(_)))
+}
+
+fn is_rgba_image(image: &ImageItem) -> bool {
+    matches!(image.midata, Some(MiData::RGBA(_)) | None)
+}
+
 fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
+    if state.context.diff_active && get_diff_mode(state) == DiffMode::Glyph {
+        draw_glyph_diff_canvas(ui, state);
+        return;
+    }
+
     let image_plotter = ImagePlotter::new("viewer")
         .anti_alias(state.context.anti_alias)
         .show_grid(state.context.show_grid)
@@ -155,6 +202,61 @@ fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
                     ui.ctx().clone(),
                 );
             }
+        }
+    }
+}
+
+fn draw_glyph_diff_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
+    let Some(result) = panels::font_panel::build_selected_glyph_diff_result(state) else {
+        ui.centered_and_justified(|ui| {
+            ui.label(t!("hint_select_two_fonts_for_diff"));
+        });
+        return;
+    };
+    let w = result.img_a.width() + result.diff_overlay.width() + result.img_b.width();
+    let h = result
+        .img_a
+        .height()
+        .max(result.diff_overlay.height())
+        .max(result.img_b.height());
+    let mut canvas = icu_lib::image::RgbaImage::new(w, h);
+    paste_rgba(&mut canvas, &result.img_a, 0, 0);
+    paste_rgba(&mut canvas, &result.diff_overlay, result.img_a.width(), 0);
+    paste_rgba(
+        &mut canvas,
+        &result.img_b,
+        result.img_a.width() + result.diff_overlay.width(),
+        0,
+    );
+
+    let image = crate::image_viewer::utils::single_image_item(
+        format!("glyph diff U+{:04X}", result.codepoint),
+        icu_lib::endecoder::ImageInfo {
+            width: w,
+            height: h,
+            data_size: canvas.len() as u32,
+            format: format!("glyph diff · {}", result.char_repr),
+            other_info: serde_json::Value::Null,
+        },
+        canvas,
+        None,
+    );
+    ImagePlotter::new("glyph_diff_viewer")
+        .anti_alias(state.context.anti_alias)
+        .show_grid(state.context.show_grid)
+        .background_color(state.context.background_color)
+        .badge(format!(
+            "A | diff | B · U+{:04X} · {} diff pixels",
+            result.codepoint,
+            result.diff.diff_filter(state.context.diff_tolerance).count()
+        ))
+        .show(ui, &Some(image));
+}
+
+fn paste_rgba(dst: &mut icu_lib::image::RgbaImage, src: &icu_lib::image::RgbaImage, x0: u32, y0: u32) {
+    for y in 0..src.height() {
+        for x in 0..src.width() {
+            dst.put_pixel(x0 + x, y0 + y, *src.get_pixel(x, y));
         }
     }
 }
