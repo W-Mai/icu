@@ -78,13 +78,14 @@ impl<'a> ImagePlotter<'a> {
 
         match image_item {
             None => {}
-            Some(image_data) => {
-                let width = image_data.width as f32;
-                let height = image_data.height as f32;
+            Some(image_item) => {
+                let (pixels, width_u32, height_u32) = image_item.current_pixels();
+                let width = width_u32 as f32;
+                let height = height_u32 as f32;
 
                 let image = ColorImage::new(
                     [width as usize, height as usize],
-                    image_data.image_data.clone(),
+                    pixels.to_vec(),
                 );
                 let texture = ui.ctx().load_texture(
                     format!("showing_image_{}", self.id),
@@ -100,7 +101,7 @@ impl<'a> ImagePlotter<'a> {
 
                 let img_w = width as f64;
                 let img_h = height as f64;
-                let copy_image_data = Rc::new(RefCell::new(image_data.image_data.clone()));
+                let copy_image_data = Rc::new(RefCell::new(pixels.to_vec()));
 
                 let copy_image_data_1 = copy_image_data.clone();
                 let color_data_1 = color_data.clone();

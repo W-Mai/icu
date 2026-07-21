@@ -8,6 +8,51 @@ use icu_lib::endecoder::ImageInfo;
 use icu_lib::endecoder::utils::diff::ImageDiffResult;
 use icu_lib::midata::MiData;
 use serde::{Deserialize, Serialize};
+use std::time::{Duration, Instant};
+
+#[derive(Clone, PartialEq)]
+pub struct Frame {
+    pub pixels: Vec<Color32>,
+    pub width: u32,
+    pub height: u32,
+    pub left: u32,
+    pub top: u32,
+    pub delay: Duration,
+}
+
+#[derive(Clone, PartialEq)]
+pub enum FrameSource {
+    Single {
+        pixels: Vec<Color32>,
+        width: u32,
+        height: u32,
+    },
+    Animated {
+        frames: Vec<Frame>,
+        current: usize,
+        autoplay: bool,
+        last_advance: Option<Instant>,
+    },
+}
+
+impl FrameSource {
+    pub fn single(pixels: Vec<Color32>, width: u32, height: u32) -> Self {
+        Self::Single {
+            pixels,
+            width,
+            height,
+        }
+    }
+
+    pub fn animated(frames: Vec<Frame>) -> Self {
+        Self::Animated {
+            frames,
+            current: 0,
+            autoplay: true,
+            last_advance: None,
+        }
+    }
+}
 
 #[derive(Clone, PartialEq)]
 pub struct ImageItem {
@@ -15,8 +60,106 @@ pub struct ImageItem {
     pub info: ImageInfo,
     pub width: u32,
     pub height: u32,
-    pub image_data: Vec<Color32>,
+    pub frames: FrameSource,
     pub midata: Option<MiData>,
+    pub expanded: bool,
+}
+
+impl ImageItem {
+    pub fn current_pixels(&self) -> (&[Color32], u32, u32) {
+        match &self.frames {
+            FrameSource::Single {
+                pixels,
+                width,
+                height,
+            } => (pixels.as_slice(), *width, *height),
+            FrameSource::Animated { frames, current, .. } => {
+                if let Some(frame) = frames.get(*current).or_else(|| frames.first()) {
+                    (frame.pixels.as_slice(), frame.width, frame.height)
+                } else {
+                    (&[], 0, 0)
+                }
+            }
+        }
+    }
+
+    pub fn advance_frame(&mut self) -> bool {
+        let FrameSource::Animated {
+            frames,
+            current,
+            autoplay,
+            last_advance,
+        } = &mut self.frames else {
+            return false;
+        };
+
+        if !*autoplay || frames.len() <= 1 {
+            return false;
+        }
+
+        let now = Instant::now();
+        let last = last_advance.get_or_insert(now);
+        let mut remaining = now.saturating_duration_since(*last);
+        let mut advanced = false;
+
+        while let Some(frame) = frames.get(*current) {
+            let delay = frame.delay.max(Duration::from_millis(1));
+            if remaining < delay {
+                break;
+            }
+            remaining -= delay;
+            *current = (*current + 1) % frames.len();
+            advanced = true;
+            if frames.len() <= 1 {
+                break;
+            }
+        }
+
+        if advanced {
+            *last_advance = Some(now.checked_sub(remaining).unwrap_or(now));
+        }
+
+        advanced
+    }
+
+    pub fn set_autoplay(&mut self, autoplay: bool) {
+        if let FrameSource::Animated {
+            autoplay: current_autoplay,
+            last_advance,
+            ..
+        } = &mut self.frames
+        {
+            if *current_autoplay != autoplay {
+                *current_autoplay = autoplay;
+                *last_advance = None;
+            }
+        }
+    }
+
+    pub fn autoplay(&self) -> bool {
+        match &self.frames {
+            FrameSource::Animated { autoplay, .. } => *autoplay,
+            FrameSource::Single { .. } => false,
+        }
+    }
+
+    pub fn frame_count(&self) -> usize {
+        match &self.frames {
+            FrameSource::Single { .. } => 1,
+            FrameSource::Animated { frames, .. } => frames.len().max(1),
+        }
+    }
+
+    pub fn total_duration(&self) -> Option<Duration> {
+        match &self.frames {
+            FrameSource::Single { .. } => None,
+            FrameSource::Animated { frames, .. } => Some(
+                frames
+                    .iter()
+                    .fold(Duration::ZERO, |acc, frame| acc.saturating_add(frame.delay)),
+            ),
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -57,6 +200,15 @@ pub struct OpenedGlyph {
     pub outline_approximate: bool,
     pub source_font: String,
     pub source_is_sdf: bool,
+}
+
+pub struct GlyphDiffResult {
+    pub codepoint: u32,
+    pub char_repr: String,
+    pub img_a: icu_lib::image::RgbaImage,
+    pub img_b: icu_lib::image::RgbaImage,
+    pub diff: ImageDiffResult,
+    pub diff_overlay: icu_lib::image::RgbaImage,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
@@ -161,6 +313,8 @@ pub struct AppContext {
     pub diff_page_size: usize,
 
     pub convert_params: ConvertParams,
+    #[serde(default = "default_mirx_export_kind")]
+    pub mirx_export_kind: String,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Copy, Clone, Debug, ValueEnum)]
@@ -219,8 +373,13 @@ impl Default for AppContext {
             diff_page_index: 0,
             diff_page_size: 100,
             convert_params: ConvertParams::default(),
+            mirx_export_kind: "scene".to_string(),
         }
     }
+}
+
+fn default_mirx_export_kind() -> String {
+    "scene".to_string()
 }
 
 #[allow(dead_code)]
@@ -259,9 +418,11 @@ pub struct ViewerState {
     pub merge_font_paths: Vec<String>,
     pub font_mode: FontMode,
     pub font_diff_path: Option<String>,
+    pub glyph_diff_result: Option<GlyphDiffResult>,
     pub selected_glyph: Option<usize>,
     pub opened_glyphs: Vec<OpenedGlyph>,
     pub glyph_convert_format: String,
+    pub path_export_format: String,
     pub font_atlas_cached: Option<(String, String, Vec<Color32>, u32, u32)>,
     pub font_grid_cached: Option<(String, Vec<TextureHandle>, usize)>,
     pub font_grid_big_cached: Option<(String, TextureHandle)>,
@@ -308,9 +469,11 @@ impl Default for ViewerState {
             merge_font_paths: Vec::new(),
             font_mode: FontMode::default(),
             font_diff_path: None,
+            glyph_diff_result: None,
             selected_glyph: None,
             opened_glyphs: Vec::new(),
             glyph_convert_format: "LVGL".to_string(),
+            path_export_format: "PNG".to_string(),
             font_atlas_cached: None,
             font_grid_cached: None,
             font_grid_big_cached: None,

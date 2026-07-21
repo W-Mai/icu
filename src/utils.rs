@@ -13,18 +13,20 @@ pub fn diff_image(
     diff_tolerance: f32,
     only_show_diff: bool,
 ) -> Option<(ImageItem, ImageDiffResult)> {
+    let (img1_pixels, img1_width, img1_height) = img1.current_pixels();
+    let (img2_pixels, img2_width, img2_height) = img2.current_pixels();
     let m1 = MiData::from_rgba(
-        img1.width,
-        img1.height,
-        img1.image_data
+        img1_width,
+        img1_height,
+        img1_pixels
             .iter()
             .flat_map(|x| x.to_array())
             .collect::<Vec<u8>>(),
     )?;
     let m2 = MiData::from_rgba(
-        img2.width,
-        img2.height,
-        img2.image_data
+        img2_width,
+        img2_height,
+        img2_pixels
             .iter()
             .flat_map(|x| x.to_array())
             .collect::<Vec<u8>>(),
@@ -80,8 +82,9 @@ pub fn diff_image(
             },
             width: w,
             height: h,
-            image_data,
+            frames: crate::image_viewer::model::FrameSource::single(image_data, w, h),
             midata: None,
+            expanded: false,
         },
         diff_result,
     ))

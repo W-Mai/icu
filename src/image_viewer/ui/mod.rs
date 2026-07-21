@@ -14,6 +14,7 @@ pub use viewer::draw_central_panel;
 
 use crate::image_viewer::model::{RightTab, ViewerState};
 use eframe::egui;
+use std::time::Duration;
 
 pub fn draw_right_panel_container(ui: &mut egui::Ui, state: &mut ViewerState) {
     let frame = theme::side_panel_frame(ui.ctx());
@@ -109,6 +110,23 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                 widgets::info_row(ui, t!("height").as_ref(), &img.height.to_string());
                 widgets::info_row(ui, t!("format").as_ref(), &img.info.format);
                 widgets::info_row(ui, t!("size").as_ref(), &format!("{} bytes", img.info.data_size));
+                if img.frame_count() > 1 {
+                    let total = img
+                        .total_duration()
+                        .map(|d| format_duration(d))
+                        .unwrap_or_else(|| "0s".to_string());
+                    widgets::info_row(
+                        ui,
+                        t!("frames").as_ref(),
+                        &format!("{} frames · {}", img.frame_count(), total),
+                    );
+                    let mut autoplay = img.autoplay();
+                    if ui.checkbox(&mut autoplay, "autoplay").changed() {
+                        if let Some(current) = state.current_image.as_mut() {
+                            current.set_autoplay(autoplay);
+                        }
+                    }
+                }
             });
 
             if let Some(icu_lib::midata::MiData::PATH(scene_data)) = &img.midata {
@@ -220,5 +238,14 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                 );
             });
         }
+    }
+}
+
+fn format_duration(duration: Duration) -> String {
+    let millis = duration.as_millis();
+    if millis >= 1000 {
+        format!("{:.1}s", duration.as_secs_f64())
+    } else {
+        format!("{}ms", millis)
     }
 }

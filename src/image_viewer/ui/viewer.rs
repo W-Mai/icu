@@ -1,4 +1,4 @@
-use crate::image_viewer::model::ViewerState;
+use crate::image_viewer::model::{FrameSource, ViewerState};
 use crate::image_viewer::plotter::ImagePlotter;
 use crate::image_viewer::ui::panels;
 use eframe::egui;
@@ -73,13 +73,24 @@ fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
         image_plotter
             .badge(format!("{}×{} · diff", diff_img.width, diff_img.height))
             .show(ui, &Some(diff_img.clone()));
-    } else if let Some(image) = &state.current_image {
+    } else if let Some(image) = state.current_image.as_mut() {
+        let advanced = image.advance_frame();
+        if advanced || image.autoplay() {
+            ui.ctx().request_repaint();
+        }
+        let image_for_plot = image.clone();
         image_plotter
             .badge(format!(
                 "{}×{} · {}",
-                image.width, image.height, image.info.format
+                image_for_plot.width, image_for_plot.height, image_for_plot.info.format
             ))
-            .show(ui, &Some(image.clone()));
+            .show(ui, &Some(image_for_plot));
+        draw_frame_controls(ui, image);
+        if let Some(idx) = state.selected_index {
+            if let Some(crate::image_viewer::model::SidebarItem::Image(src)) = state.items.get_mut(idx) {
+                src.frames = image.frames.clone();
+            }
+        }
     } else {
         let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
         let avail = ui.available_size();
@@ -147,7 +158,33 @@ fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
         }
     }
 }
-/// Renders a serializable value as a YAML tree.
+
+fn draw_frame_controls(ui: &mut egui::Ui, image: &mut crate::image_viewer::model::ImageItem) {
+    let FrameSource::Animated { frames, current, autoplay, last_advance } = &mut image.frames else {
+        return;
+    };
+    if frames.len() <= 1 {
+        return;
+    }
+
+    ui.horizontal(|ui| {
+        let label = if *autoplay { "Pause" } else { "Play" };
+        if ui.button(label).clicked() {
+            *autoplay = !*autoplay;
+            *last_advance = None;
+            ui.ctx().request_repaint();
+        }
+
+        let mut frame_index = *current;
+        let frame_label = format!("frame {} / {}", *current + 1, frames.len());
+        let slider = egui::Slider::new(&mut frame_index, 0..=frames.len() - 1)
+            .text(frame_label);
+        if ui.add(slider).changed() {
+            *current = frame_index;
+            *last_advance = None;
+        }
+    });
+}/// Renders a serializable value as a YAML tree.
 pub fn ui_tree_view(ui: &mut egui::Ui, value: &impl Serialize) {
     if let Ok(yaml_value) = serde_yaml::to_value(value) {
         ui_yaml_tree(ui, &yaml_value);
