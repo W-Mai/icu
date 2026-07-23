@@ -19,7 +19,9 @@ pub fn draw_path_export_section(
             .selected_text(state.path_export_format.clone())
             .width(ui.available_width())
             .show_ui(ui, |ui| {
-                for format in ["PNG", "JPEG", "BMP", "GIF", "TIFF", "WEBP", "ICO", "LVGL", "MIRX", "SVG"] {
+                for format in [
+                    "PNG", "JPEG", "BMP", "GIF", "TIFF", "WEBP", "ICO", "LVGL", "MIRX", "SVG",
+                ] {
                     ui.selectable_value(&mut state.path_export_format, format.to_string(), format);
                 }
             });
@@ -35,8 +37,16 @@ pub fn draw_path_export_section(
                 .show_ui(ui, |ui| {
                     let scene_label = t!("mirx_kind_scene").to_string();
                     let flat_label = t!("mirx_kind_img_flat").to_string();
-                    ui.selectable_value(&mut state.context.mirx_export_kind, "scene".to_string(), &scene_label);
-                    ui.selectable_value(&mut state.context.mirx_export_kind, "flat".to_string(), &flat_label);
+                    ui.selectable_value(
+                        &mut state.context.mirx_export_kind,
+                        "scene".to_string(),
+                        &scene_label,
+                    );
+                    ui.selectable_value(
+                        &mut state.context.mirx_export_kind,
+                        "flat".to_string(),
+                        &flat_label,
+                    );
                 });
         }
 
@@ -51,7 +61,8 @@ pub fn draw_path_export_section(
         {
             match state.path_export_format.as_str() {
                 "SVG" => {
-                    let svg = icu_lib::endecoder::svg::export::scene_to_svg(&scene_data.scene, 0, 0);
+                    let svg =
+                        icu_lib::endecoder::svg::export::scene_to_svg(&scene_data.scene, 0, 0);
                     if let Some(path) = super::pick_save_file(&[("SVG", &["svg"])], "scene.svg") {
                         let _ = std::fs::write(&path, svg);
                     }
@@ -63,16 +74,21 @@ pub fn draw_path_export_section(
                         icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
                         &payload,
                     );
-                    if let Some(path) = super::pick_save_file(&[("mirx", &["mirx"])], "scene.mirx") {
+                    if let Some(path) = super::pick_save_file(&[("mirx", &["mirx"])], "scene.mirx")
+                    {
                         let _ = std::fs::write(&path, bytes);
                     }
                 }
                 _ => {
-                    let (w, h) =
-                        icu_lib::endecoder::mirui::scene_render::scene_dimensions(&scene_data.scene)
-                            .unwrap_or((256, 256));
-                    let img =
-                        icu_lib::endecoder::mirui::scene_render::render_scene(&scene_data.scene, w, h);
+                    let (w, h) = icu_lib::endecoder::mirui::scene_render::scene_dimensions(
+                        &scene_data.scene,
+                    )
+                    .unwrap_or((256, 256));
+                    let img = icu_lib::endecoder::mirui::scene_render::render_scene(
+                        &scene_data.scene,
+                        w,
+                        h,
+                    );
                     let mut params = state.context.convert_params.clone();
                     params.output_format = match state.path_export_format.as_str() {
                         "PNG" => crate::image_viewer::model::ImageFormat::PNG,
@@ -123,7 +139,10 @@ pub fn draw_path_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                 crate::image_viewer::ui::widgets::mode_tabs(
                     ui,
                     &mut state.path_mode,
-                    &[(crate::image_viewer::model::PathMode::Preview, t!("section_preview").as_ref())],
+                    &[(
+                        crate::image_viewer::model::PathMode::Preview,
+                        t!("section_preview").as_ref(),
+                    )],
                 );
             });
         });
