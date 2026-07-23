@@ -73,7 +73,9 @@ impl ImageItem {
                 width,
                 height,
             } => (pixels.as_slice(), *width, *height),
-            FrameSource::Animated { frames, current, .. } => {
+            FrameSource::Animated {
+                frames, current, ..
+            } => {
                 if let Some(frame) = frames.get(*current).or_else(|| frames.first()) {
                     (frame.pixels.as_slice(), frame.width, frame.height)
                 } else {
@@ -89,7 +91,8 @@ impl ImageItem {
             current,
             autoplay,
             last_advance,
-        } = &mut self.frames else {
+        } = &mut self.frames
+        else {
             return false;
         };
 
@@ -208,7 +211,6 @@ pub struct GlyphDiffResult {
     pub img_a: icu_lib::image::RgbaImage,
     pub img_b: icu_lib::image::RgbaImage,
     pub diff: ImageDiffResult,
-    pub diff_overlay: icu_lib::image::RgbaImage,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]

@@ -133,7 +133,11 @@ impl eframe::App for MyEguiApp {
                 .iter()
                 .enumerate()
                 .filter_map(|(i, item)| match item {
-                    SidebarItem::Image(img) if matches!(img.midata, Some(icu_lib::midata::MiData::FONT(_))) => Some(i),
+                    SidebarItem::Image(img)
+                        if matches!(img.midata, Some(icu_lib::midata::MiData::FONT(_))) =>
+                    {
+                        Some(i)
+                    }
                     _ => None,
                 })
                 .collect();
@@ -160,7 +164,8 @@ impl eframe::App for MyEguiApp {
 
         if crate::image_viewer::ui::viewer::get_diff_mode(&self.state)
             == crate::image_viewer::ui::viewer::DiffMode::Image
-            && let (Some(i1), Some(i2)) = (self.state.diff_image1_index, self.state.diff_image2_index)
+            && let (Some(i1), Some(i2)) =
+                (self.state.diff_image1_index, self.state.diff_image2_index)
             && i1 != i2
         {
             let img1 = match self.state.items.get(i1) {
@@ -294,8 +299,7 @@ impl eframe::App for MyEguiApp {
                 let start_idx = self.state.items.len();
                 self.state.items.extend(new_items);
                 if self.state.items.len() == 1 {
-                    self.state.context.right_tab =
-                        crate::image_viewer::model::RightTab::Info;
+                    self.state.context.right_tab = crate::image_viewer::model::RightTab::Info;
                 }
                 if let Some(SidebarItem::Image(img)) = self.state.items.get(start_idx).cloned() {
                     self.state.current_image = Some(img);
