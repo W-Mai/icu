@@ -32,7 +32,10 @@ pub fn diff_image(
             .collect::<Vec<u8>>(),
     )?;
 
-    let diff_result = compute_diff(&m1, &m2)?;
+    let diff_result = compute_diff(&m1, &m2).unwrap_or_else(|| {
+        let (w, h) = (img1_width, img2_height);
+        ImageDiffResult::new((w, h), Vec::new(), 0.0, 0.0)
+    });
     let (w, h) = diff_result.size();
 
     let base = if only_show_diff {
