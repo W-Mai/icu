@@ -1,5 +1,5 @@
 use crate::image_viewer::model::{DiffSorting, ViewerState};
-use crate::image_viewer::ui::viewer::{get_diff_mode, DiffMode};
+use crate::image_viewer::ui::viewer::{DiffMode, get_diff_mode};
 use crate::image_viewer::ui::widgets;
 use clap::ValueEnum;
 use eframe::egui;
@@ -48,10 +48,10 @@ pub fn draw_diff_panel_contents(ui: &mut egui::Ui, state: &mut ViewerState) {
         DiffMode::Glyph => draw_glyph_diff_panel(ui, state),
         DiffMode::Image => draw_image_diff_panel(ui, state),
         DiffMode::Incompatible => {
-            ui.label(t!("hint_select_two_fonts_for_diff"));
+            ui.label(t!("hint_select_same_type_for_diff"));
         }
         DiffMode::None => {
-            ui.label(t!("hint_select_two_fonts_for_diff"));
+            ui.label(t!("hint_select_two_items_for_diff"));
         }
     }
 }
@@ -79,6 +79,8 @@ fn draw_image_diff_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
 }
 
 fn draw_glyph_diff_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
+    let glyph_result =
+        crate::image_viewer::ui::panels::font_panel::build_selected_glyph_diff_result(state);
     widgets::section_card(ui, t!("section_glyph_diff").as_ref(), |ui| {
         ui.text_edit_singleline(&mut state.glyph_diff_char);
         if let Some(ch) = state.glyph_diff_char.chars().next() {
@@ -89,7 +91,60 @@ fn draw_glyph_diff_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
             ui.label(format!("B: {b}"));
         }
     });
-    draw_diff_panel_controls(ui, state, false);
+    draw_diff_panel_controls(ui, state, true);
+
+    state.hovered_diff_pixel = None;
+    if let Some(result) = glyph_result {
+        let img_a = glyph_diff_image_item("glyph diff A", &result.char_repr, result.img_a);
+        let img_b = glyph_diff_image_item("glyph diff B", &result.char_repr, result.img_b);
+        let diff_image = crate::utils::diff_image(
+            &img_a,
+            &img_b,
+            state.context.diff_blend,
+            state.context.diff_tolerance,
+            state.context.only_show_diff,
+        )
+        .map(|(mut image, diff)| {
+            image.path = format!("glyph diff U+{:04X}", result.codepoint);
+            image.info.format = format!("glyph diff · {}", result.char_repr);
+            (image, diff)
+        });
+        state.context.min_diff = result.diff.min_diff() + 1.0;
+        state.context.max_diff = result.diff.max_diff() + 1.0;
+        state.diff_result = diff_image;
+    }
+
+    if let Some((_, diff_result)) = &state.diff_result {
+        widgets::section_card(ui, t!("section_pixels").as_ref(), |ui| {
+            draw_diff_pixel_list(
+                ui,
+                &mut state.context,
+                &mut state.selected_diff_pixel,
+                &mut state.hovered_diff_pixel,
+                state.hovered_diff_pixel_from_plot,
+                diff_result,
+            );
+        });
+    }
+}
+
+fn glyph_diff_image_item(
+    path: &str,
+    format: &str,
+    image: icu_lib::image::RgbaImage,
+) -> crate::image_viewer::model::ImageItem {
+    crate::image_viewer::utils::single_image_item(
+        path.to_string(),
+        icu_lib::endecoder::ImageInfo {
+            width: image.width(),
+            height: image.height(),
+            data_size: image.len() as u32,
+            format: format.to_string(),
+            other_info: serde_json::Value::Null,
+        },
+        image,
+        None,
+    )
 }
 
 fn draw_diff_panel_controls(ui: &mut egui::Ui, state: &mut ViewerState, image_mode: bool) {
@@ -113,8 +168,7 @@ fn draw_diff_panel_controls(ui: &mut egui::Ui, state: &mut ViewerState, image_mo
         if !state.context.only_show_diff {
             ui.add_space(4.0);
             let diff_blend_slider = ui.add(
-                egui::Slider::new(&mut state.context.diff_blend, 0.0..=1.0)
-                    .text(t!("diff_blend")),
+                egui::Slider::new(&mut state.context.diff_blend, 0.0..=1.0).text(t!("diff_blend")),
             );
             if diff_blend_slider.double_clicked() {
                 state.context.diff_blend = 0.5;
@@ -180,7 +234,7 @@ fn draw_blend_preset_buttons(ui: &mut egui::Ui, state: &mut ViewerState, avail_w
     });
 }
 
-fn diff_source_names(state: &ViewerState) -> (Option<String>, Option<String>) {
+pub fn diff_source_names(state: &ViewerState) -> (Option<String>, Option<String>) {
     fn name_at(state: &ViewerState, idx: Option<usize>) -> Option<String> {
         let crate::image_viewer::model::SidebarItem::Image(image) = state.items.get(idx?)? else {
             return None;
