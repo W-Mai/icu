@@ -207,7 +207,7 @@ impl DiffOverlay {
 }
 
 impl ImageOverlay for DiffOverlay {
-    fn pixel_at(&self, x: u32, y: u32, base: &RgbaImage) -> Option<Rgba<u8>> {
+    fn pixel_at(&self, x: u32, y: u32, _base: &RgbaImage) -> Option<Rgba<u8>> {
         let (w, h) = self.diff_result.size();
         if x >= w || y >= h {
             return None;
@@ -228,14 +228,16 @@ impl ImageOverlay for DiffOverlay {
             return None;
         }
         let t = (self.blend - 0.5).abs() / 0.5;
-        let base_px = base.get_pixel(x, y);
-        let blended = [
-            (self.color.0[0] as f32 * (1.0 - t) + base_px.0[0] as f32 * t) as u8,
-            (self.color.0[1] as f32 * (1.0 - t) + base_px.0[1] as f32 * t) as u8,
-            (self.color.0[2] as f32 * (1.0 - t) + base_px.0[2] as f32 * t) as u8,
-            255,
-        ];
-        Some(Rgba(blended))
+        let alpha = ((1.0 - t) * 255.0) as u8;
+        if alpha == 0 {
+            return None;
+        }
+        Some(Rgba([
+            self.color.0[0],
+            self.color.0[1],
+            self.color.0[2],
+            alpha,
+        ]))
     }
 }
 
