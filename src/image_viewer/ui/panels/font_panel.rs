@@ -218,8 +218,14 @@ pub fn draw_glyph_convert_section(
             .selected_text(state.glyph_convert_format.clone())
             .width(ui.available_width())
             .show_ui(ui, |ui| {
-                for format in ["PNG", "JPEG", "BMP", "GIF", "TIFF", "WEBP", "ICO", "LVGL", "MIRX", "SVG"] {
-                    ui.selectable_value(&mut state.glyph_convert_format, format.to_string(), format);
+                for format in [
+                    "PNG", "JPEG", "BMP", "GIF", "TIFF", "WEBP", "ICO", "LVGL", "MIRX", "SVG",
+                ] {
+                    ui.selectable_value(
+                        &mut state.glyph_convert_format,
+                        format.to_string(),
+                        format,
+                    );
                 }
             });
 
@@ -234,8 +240,16 @@ pub fn draw_glyph_convert_section(
                 .show_ui(ui, |ui| {
                     let scene_label = t!("mirx_kind_scene").to_string();
                     let flat_label = t!("mirx_kind_img_flat").to_string();
-                    ui.selectable_value(&mut state.context.mirx_export_kind, "scene".to_string(), &scene_label);
-                    ui.selectable_value(&mut state.context.mirx_export_kind, "flat".to_string(), &flat_label);
+                    ui.selectable_value(
+                        &mut state.context.mirx_export_kind,
+                        "scene".to_string(),
+                        &scene_label,
+                    );
+                    ui.selectable_value(
+                        &mut state.context.mirx_export_kind,
+                        "flat".to_string(),
+                        &flat_label,
+                    );
                 });
         }
 
@@ -252,16 +266,26 @@ pub fn draw_glyph_convert_section(
                 match state.glyph_convert_format.as_str() {
                     "SVG" => {
                         let svg = glyph_outline_to_svg(&glyph.outline);
-                        if let Some(path) = super::pick_save_file(&[("SVG", &["svg"])], &format!("U+{:04X}.svg", glyph.codepoint)) {
+                        if let Some(path) = super::pick_save_file(
+                            &[("SVG", &["svg"])],
+                            &format!("U+{:04X}.svg", glyph.codepoint),
+                        ) {
                             let _ = std::fs::write(&path, svg);
                         }
                     }
                     "MIRX" if state.context.mirx_export_kind == "scene" => {
                         let scene = icu_lib::mirx::Scene {
                             ops: vec![icu_lib::mirx::SceneOp::FillPath {
-                                path: icu_lib::mirx::Path { cmds: glyph.outline.clone() },
+                                path: icu_lib::mirx::Path {
+                                    cmds: glyph.outline.clone(),
+                                },
                                 transform: icu_lib::mirx::Transform::IDENTITY,
-                                paint: icu_lib::mirx::Paint::Color(icu_lib::mirx::Color { r: 255, g: 255, b: 255, a: 255 }),
+                                paint: icu_lib::mirx::Paint::Color(icu_lib::mirx::Color {
+                                    r: 255,
+                                    g: 255,
+                                    b: 255,
+                                    a: 255,
+                                }),
                                 opa: 255,
                                 fill_rule: icu_lib::mirx::FillRule::NonZero,
                             }],
@@ -272,7 +296,10 @@ pub fn draw_glyph_convert_section(
                             icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
                             &payload,
                         );
-                        if let Some(path) = super::pick_save_file(&[("mirx", &["mirx"])], &format!("U+{:04X}.mirx", glyph.codepoint)) {
+                        if let Some(path) = super::pick_save_file(
+                            &[("mirx", &["mirx"])],
+                            &format!("U+{:04X}.mirx", glyph.codepoint),
+                        ) {
                             let _ = std::fs::write(&path, bytes);
                         }
                     }
@@ -433,14 +460,7 @@ pub fn build_selected_glyph_diff_result(
     let cell = diff_cell_size(&font_data_a, &font_data_b, state.font_bundle_index);
     let img_a = render_source_glyph(&font_data_a, state.font_bundle_index, ch, cell, text_color)?;
     let img_b = render_source_glyph(&font_data_b, 0, ch, cell, text_color)?;
-    build_glyph_diff_result(
-        ch as u32,
-        ch,
-        img_a,
-        img_b,
-        state.context.diff_tolerance,
-        state.context.diff_blend,
-    )
+    build_glyph_diff_result(ch as u32, ch, img_a, img_b)
 }
 
 fn render_source_glyph(
@@ -467,18 +487,18 @@ fn render_source_glyph(
                 text_color,
             )
         }),
-        FontData::FreeType(font) => icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
-            font, ch, cell, cell, text_color,
-        )
-        .or_else(|| Some(icu_lib::image::RgbaImage::new(cell, cell))),
+        FontData::FreeType(font) => {
+            icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
+                font, ch, cell, cell, text_color,
+            )
+            .or_else(|| Some(icu_lib::image::RgbaImage::new(cell, cell)))
+        }
     }
 }
 
 fn diff_cell_size(left: &FontData, right: &FontData, bundle_index: usize) -> u32 {
-    let left_cell = preferred_glyph_cell(left, bundle_index)
-    .max(1);
-    let right_cell = preferred_glyph_cell(right, 0)
-    .max(1);
+    let left_cell = preferred_glyph_cell(left, bundle_index).max(1);
+    let right_cell = preferred_glyph_cell(right, 0).max(1);
     left_cell.max(right_cell).saturating_mul(2).max(1)
 }
 
@@ -492,24 +512,11 @@ fn preferred_glyph_cell(font_data: &FontData, bundle_index: usize) -> u32 {
     }
 }
 
-fn diff_overlay_image(
-    img_a: &icu_lib::image::RgbaImage,
-    dr: icu_lib::endecoder::utils::diff::ImageDiffResult,
-    tolerance: f32,
-    blend: f32,
-) -> icu_lib::image::RgbaImage {
-    let mut stack = icu_lib::postprocess::OverlayStack::new(img_a.clone());
-    stack.push(Box::new(icu_lib::postprocess::DiffOverlay::new(dr, tolerance, blend)));
-    stack.composite().clone()
-}
-
 fn build_glyph_diff_result(
     codepoint: u32,
     ch: char,
     img_a: icu_lib::image::RgbaImage,
     img_b: icu_lib::image::RgbaImage,
-    tolerance: f32,
-    blend: f32,
 ) -> Option<GlyphDiffResult> {
     let dr = icu_lib::endecoder::utils::diff::diff_image(
         &MiData::RGBA(img_a.clone()),
@@ -517,19 +524,13 @@ fn build_glyph_diff_result(
     )
     .unwrap_or_else(|| {
         let (w, h) = (img_a.width(), img_a.height());
-        icu_lib::endecoder::utils::diff::ImageDiffResult::new(
-            (w, h),
-            Vec::new(),
-            0.0,
-            0.0,
-        )
+        icu_lib::endecoder::utils::diff::ImageDiffResult::new((w, h), Vec::new(), 0.0, 0.0)
     });
     Some(GlyphDiffResult {
         codepoint,
         char_repr: ch.to_string(),
         img_a: img_a.clone(),
-        img_b,
-        diff_overlay: diff_overlay_image(&img_a, dr.clone(), tolerance, blend),
+        img_b: img_b.clone(),
         diff: dr,
     })
 }
@@ -610,11 +611,7 @@ fn format_number(v: f32) -> String {
     if s.ends_with('.') {
         s.pop();
     }
-    if s.is_empty() {
-        "0".to_string()
-    } else {
-        s
-    }
+    if s.is_empty() { "0".to_string() } else { s }
 }
 
 fn glyph_outline_bounds(outline: &[icu_lib::mirx::PathCmd]) -> Option<(f32, f32, f32, f32)> {
@@ -672,8 +669,12 @@ fn render_glyph_outline_image(outline: &[icu_lib::mirx::PathCmd]) -> icu_lib::im
     let mut cmds = Vec::with_capacity(outline.len());
     for cmd in outline {
         match cmd {
-            icu_lib::mirx::PathCmd::MoveTo(p) => cmds.push(icu_lib::mirx::PathCmd::MoveTo(shift_cmd(*p, min_x, min_y, pad))),
-            icu_lib::mirx::PathCmd::LineTo(p) => cmds.push(icu_lib::mirx::PathCmd::LineTo(shift_cmd(*p, min_x, min_y, pad))),
+            icu_lib::mirx::PathCmd::MoveTo(p) => cmds.push(icu_lib::mirx::PathCmd::MoveTo(
+                shift_cmd(*p, min_x, min_y, pad),
+            )),
+            icu_lib::mirx::PathCmd::LineTo(p) => cmds.push(icu_lib::mirx::PathCmd::LineTo(
+                shift_cmd(*p, min_x, min_y, pad),
+            )),
             icu_lib::mirx::PathCmd::QuadTo { ctrl, end } => {
                 cmds.push(icu_lib::mirx::PathCmd::QuadTo {
                     ctrl: shift_cmd(*ctrl, min_x, min_y, pad),
@@ -801,14 +802,15 @@ fn draw_font_bake_section(
                 ui.text_edit_multiline(&mut state.font_bake_charset_ranges);
                 ui.label(
                     egui::RichText::new(t!("charset_range_hint"))
-                    .size(9.0)
-                    .color(ui.style().visuals.weak_text_color()),
+                        .size(9.0)
+                        .color(ui.style().visuals.weak_text_color()),
                 );
             }
             BakeCharsetTab::File => {
                 ui.horizontal(|ui| {
                     if ui.button(t!("btn_choose_charset_file")).clicked() {
-                        if let Some(path) = super::pick_file(&[(t!("tab_text").as_ref(), &["txt"])]) {
+                        if let Some(path) = super::pick_file(&[(t!("tab_text").as_ref(), &["txt"])])
+                        {
                             state.font_bake_charset_file = Some(path.to_string_lossy().into());
                         }
                     }
@@ -950,9 +952,8 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                     .min(1.0);
 
                 if response.contains_pointer() {
-                    let (zoom_delta, scroll_delta, pointer) = ui.input(|i| {
-                        (i.zoom_delta(), i.smooth_scroll_delta, i.pointer.hover_pos())
-                    });
+                    let (zoom_delta, scroll_delta, pointer) = ui
+                        .input(|i| (i.zoom_delta(), i.smooth_scroll_delta, i.pointer.hover_pos()));
                     if zoom_delta != 1.0 {
                         let old_zoom = view.zoom;
                         let new_zoom = (old_zoom * zoom_delta).clamp(0.1, 64.0);
@@ -1371,7 +1372,7 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                 ui.centered_and_justified(|ui| {
                     ui.label(
                         egui::RichText::new(t!("select_glyph_in_grid"))
-                        .color(ui.style().visuals.weak_text_color()),
+                            .color(ui.style().visuals.weak_text_color()),
                     );
                 });
             }
@@ -1741,40 +1742,56 @@ fn glyph_metrics_card(
     approximate: bool,
 ) {
     let (bx, by, bw, bh) = bbox;
-    crate::image_viewer::ui::widgets::section_card(ui, t!("section_glyph_metrics").as_ref(), |ui| {
-        let source_atlas = t!("source_atlas_approximate").to_string();
-        let source_freetype = t!("source_freetype_true_vector").to_string();
-        egui::Grid::new("glyph_metrics_grid")
-            .num_columns(2)
-            .spacing([16.0, 4.0])
-            .show(ui, |ui| {
-                let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-                let row = |ui: &mut egui::Ui, label: &str, value: &str| {
-                    ui.label(egui::RichText::new(label).size(11.0).color(p.overlay0));
-                    ui.label(
-                        egui::RichText::new(value)
-                            .size(11.0)
-                            .color(p.text)
-                            .family(egui::FontFamily::Monospace),
+    crate::image_viewer::ui::widgets::section_card(
+        ui,
+        t!("section_glyph_metrics").as_ref(),
+        |ui| {
+            let source_atlas = t!("source_atlas_approximate").to_string();
+            let source_freetype = t!("source_freetype_true_vector").to_string();
+            egui::Grid::new("glyph_metrics_grid")
+                .num_columns(2)
+                .spacing([16.0, 4.0])
+                .show(ui, |ui| {
+                    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+                    let row = |ui: &mut egui::Ui, label: &str, value: &str| {
+                        ui.label(egui::RichText::new(label).size(11.0).color(p.overlay0));
+                        ui.label(
+                            egui::RichText::new(value)
+                                .size(11.0)
+                                .color(p.text)
+                                .family(egui::FontFamily::Monospace),
+                        );
+                        ui.end_row();
+                    };
+                    row(
+                        ui,
+                        t!("codepoint").as_ref(),
+                        &format!("U+{:04X}", codepoint),
                     );
-                    ui.end_row();
-                };
-                row(ui, t!("codepoint").as_ref(), &format!("U+{:04X}", codepoint));
-                row(ui, t!("advance").as_ref(), &format!("{}px", advance));
-                row(ui, t!("bearing").as_ref(), &format!("({}, {})", bearing_x, bearing_y));
-                row(ui, t!("bbox").as_ref(), &format!("({}, {}, {}, {})", bx, by, bw, bh));
-                row(ui, t!("outline_cmds").as_ref(), &format!("{}", outline_len));
-                row(
-                    ui,
-                    t!("source").as_ref(),
-                    if approximate {
-                        source_atlas.as_str()
-                    } else {
-                        source_freetype.as_str()
-                    },
-                );
-            });
-    });
+                    row(ui, t!("advance").as_ref(), &format!("{}px", advance));
+                    row(
+                        ui,
+                        t!("bearing").as_ref(),
+                        &format!("({}, {})", bearing_x, bearing_y),
+                    );
+                    row(
+                        ui,
+                        t!("bbox").as_ref(),
+                        &format!("({}, {}, {}, {})", bx, by, bw, bh),
+                    );
+                    row(ui, t!("outline_cmds").as_ref(), &format!("{}", outline_len));
+                    row(
+                        ui,
+                        t!("source").as_ref(),
+                        if approximate {
+                            source_atlas.as_str()
+                        } else {
+                            source_freetype.as_str()
+                        },
+                    );
+                });
+        },
+    );
 }
 
 fn paint_dashed_line(
