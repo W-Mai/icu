@@ -108,7 +108,8 @@ pub fn mode_tabs<T: Copy + PartialEq>(
                     Pos2::new(tab_rect.left(), tab_rect.bottom() - underline_h),
                     Vec2::new(tab_w, underline_h),
                 );
-                ui.painter().rect_filled(underline_rect, CornerRadius::same(0), p.accent());
+                ui.painter()
+                    .rect_filled(underline_rect, CornerRadius::same(0), p.accent());
             }
         }
     }

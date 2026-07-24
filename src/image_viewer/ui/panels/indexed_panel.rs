@@ -164,7 +164,10 @@ pub fn draw_indexed_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::m
                     ui,
                     &mut state.indexed_view_mode,
                     &[
-                        (crate::image_viewer::model::IndexedViewMode::RGBA, t!("tab_rgba").as_ref()),
+                        (
+                            crate::image_viewer::model::IndexedViewMode::RGBA,
+                            t!("tab_rgba").as_ref(),
+                        ),
                         (
                             crate::image_viewer::model::IndexedViewMode::IndexMap,
                             t!("tab_index_map").as_ref(),

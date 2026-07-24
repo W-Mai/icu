@@ -245,7 +245,9 @@ pub fn side_panel_frame(ctx: &egui::Context) -> egui::Frame {
 
 pub fn central_panel_frame(ctx: &egui::Context) -> egui::Frame {
     let p = tokens::palette(ctx);
-    egui::Frame::new().fill(p.base).inner_margin(Margin::same(0))
+    egui::Frame::new()
+        .fill(p.base)
+        .inner_margin(Margin::same(0))
 }
 
 pub fn top_panel_frame(ctx: &egui::Context) -> egui::Frame {

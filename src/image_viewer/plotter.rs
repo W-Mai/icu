@@ -83,10 +83,7 @@ impl<'a> ImagePlotter<'a> {
                 let width = width_u32 as f32;
                 let height = height_u32 as f32;
 
-                let image = ColorImage::new(
-                    [width as usize, height as usize],
-                    pixels.to_vec(),
-                );
+                let image = ColorImage::new([width as usize, height as usize], pixels.to_vec());
                 let texture = ui.ctx().load_texture(
                     format!("showing_image_{}", self.id),
                     image,
