@@ -48,14 +48,13 @@ pub fn draw_right_panel_container(ui: &mut egui::Ui, state: &mut ViewerState) {
                         _ => {}
                     }
                 });
-            ui.painter()
-                .line_segment(
-                    [
-                        egui::pos2(ui.min_rect().left(), ui.min_rect().bottom()),
-                        egui::pos2(ui.max_rect().right(), ui.min_rect().bottom()),
-                    ],
-                    egui::Stroke::new(1.0, p.surface1),
-                );
+            ui.painter().line_segment(
+                [
+                    egui::pos2(ui.min_rect().left(), ui.min_rect().bottom()),
+                    egui::pos2(ui.max_rect().right(), ui.min_rect().bottom()),
+                ],
+                egui::Stroke::new(1.0, p.surface1),
+            );
 
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
@@ -109,7 +108,11 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                 widgets::info_row(ui, t!("width").as_ref(), &img.width.to_string());
                 widgets::info_row(ui, t!("height").as_ref(), &img.height.to_string());
                 widgets::info_row(ui, t!("format").as_ref(), &img.info.format);
-                widgets::info_row(ui, t!("size").as_ref(), &format!("{} bytes", img.info.data_size));
+                widgets::info_row(
+                    ui,
+                    t!("size").as_ref(),
+                    &format!("{} bytes", img.info.data_size),
+                );
                 if img.frame_count() > 1 {
                     let total = img
                         .total_duration()
@@ -153,16 +156,36 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                 match font_data {
                     icu_lib::midata::FontData::Mirx(font) => {
                         widgets::section_card(ui, t!("section_font_metadata").as_ref(), |ui| {
-                            widgets::info_row(ui, t!("kind").as_ref(), &format!("{:?}", font.chunk_header.kind));
+                            widgets::info_row(
+                                ui,
+                                t!("kind").as_ref(),
+                                &format!("{:?}", font.chunk_header.kind),
+                            );
                             widgets::info_row(
                                 ui,
                                 t!("source_size").as_ref(),
                                 &font.atlas.source_size.to_string(),
                             );
-                            widgets::info_row(ui, t!("bit_depth").as_ref(), &font.atlas.bit_depth.to_string());
-                            widgets::info_row(ui, t!("glyphs").as_ref(), &font.atlas.glyph_count.to_string());
-                            widgets::info_row(ui, t!("ascender").as_ref(), &font.atlas.ascender.to_string());
-                            widgets::info_row(ui, t!("descender").as_ref(), &font.atlas.descender.to_string());
+                            widgets::info_row(
+                                ui,
+                                t!("bit_depth").as_ref(),
+                                &font.atlas.bit_depth.to_string(),
+                            );
+                            widgets::info_row(
+                                ui,
+                                t!("glyphs").as_ref(),
+                                &font.atlas.glyph_count.to_string(),
+                            );
+                            widgets::info_row(
+                                ui,
+                                t!("ascender").as_ref(),
+                                &font.atlas.ascender.to_string(),
+                            );
+                            widgets::info_row(
+                                ui,
+                                t!("descender").as_ref(),
+                                &font.atlas.descender.to_string(),
+                            );
                             widgets::info_row(
                                 ui,
                                 t!("line_height").as_ref(),
@@ -179,10 +202,22 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                         widgets::section_card(ui, t!("section_freetype_metadata").as_ref(), |ui| {
                             widgets::info_row(ui, t!("family").as_ref(), &f.family);
                             widgets::info_row(ui, t!("style").as_ref(), &f.style);
-                            widgets::info_row(ui, t!("units_per_em").as_ref(), &f.units_per_em.to_string());
+                            widgets::info_row(
+                                ui,
+                                t!("units_per_em").as_ref(),
+                                &f.units_per_em.to_string(),
+                            );
                             widgets::info_row(ui, t!("ascender").as_ref(), &f.ascender.to_string());
-                            widgets::info_row(ui, t!("descender").as_ref(), &f.descender.to_string());
-                            widgets::info_row(ui, t!("line_height").as_ref(), &f.line_height.to_string());
+                            widgets::info_row(
+                                ui,
+                                t!("descender").as_ref(),
+                                &f.descender.to_string(),
+                            );
+                            widgets::info_row(
+                                ui,
+                                t!("line_height").as_ref(),
+                                &f.line_height.to_string(),
+                            );
                             widgets::info_row(
                                 ui,
                                 t!("glyphs").as_ref(),
@@ -199,8 +234,16 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                 ui.add_space(8.0);
                 widgets::section_card(ui, t!("section_indexed_info").as_ref(), |ui| {
                     widgets::info_row(ui, t!("bpp").as_ref(), &indexed.bpp.to_string());
-                    widgets::info_row(ui, t!("palette").as_ref(), &indexed.palette.len().to_string());
-                    widgets::info_row(ui, t!("size").as_ref(), &format!("{}×{}", indexed.width, indexed.height));
+                    widgets::info_row(
+                        ui,
+                        t!("palette").as_ref(),
+                        &indexed.palette.len().to_string(),
+                    );
+                    widgets::info_row(
+                        ui,
+                        t!("size").as_ref(),
+                        &format!("{}×{}", indexed.width, indexed.height),
+                    );
                 });
                 ui.add_space(8.0);
                 panels::indexed_panel::draw_indexed_info_section(ui, state);
@@ -221,12 +264,20 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
             widgets::section_card(ui, t!("section_glyph_properties").as_ref(), |ui| {
                 let source_atlas = t!("source_atlas_approximate").to_string();
                 let source_freetype = t!("source_freetype_true_vector").to_string();
-                widgets::info_row(ui, t!("codepoint").as_ref(), &format!("U+{:04X}", g.codepoint));
+                widgets::info_row(
+                    ui,
+                    t!("codepoint").as_ref(),
+                    &format!("U+{:04X}", g.codepoint),
+                );
                 widgets::info_row(ui, t!("character").as_ref(), &g.char_repr);
                 widgets::info_row(ui, t!("advance").as_ref(), &format!("{}px", g.advance));
                 widgets::info_row(ui, t!("bearing").as_ref(), &format!("{:?}", g.bearing));
                 widgets::info_row(ui, t!("bbox").as_ref(), &format!("{:?}", g.bbox));
-                widgets::info_row(ui, t!("outline_cmds").as_ref(), &g.outline.len().to_string());
+                widgets::info_row(
+                    ui,
+                    t!("outline_cmds").as_ref(),
+                    &g.outline.len().to_string(),
+                );
                 widgets::info_row(
                     ui,
                     t!("source").as_ref(),

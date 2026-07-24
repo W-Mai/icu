@@ -175,7 +175,9 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
     );
     let (frame_count, current_frame) = match item {
         SidebarItem::Image(img) => match &img.frames {
-            FrameSource::Animated { frames, current, .. } => (frames.len(), *current),
+            FrameSource::Animated {
+                frames, current, ..
+            } => (frames.len(), *current),
             _ => (0, 0),
         },
         _ => (0, 0),
@@ -228,7 +230,10 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
         };
         let thumb_size = 36.0;
         let thumb_rect = egui::Rect::from_min_size(
-            egui::pos2(rect.left() + 6.0 + indent, rect.center().y - thumb_size / 2.0),
+            egui::pos2(
+                rect.left() + 6.0 + indent,
+                rect.center().y - thumb_size / 2.0,
+            ),
             egui::vec2(thumb_size, thumb_size),
         );
         match item {
@@ -459,7 +464,12 @@ fn draw_frame_child_rows(
         if response.clicked() {
             state.selected_index = Some(parent_index);
             if let Some(SidebarItem::Image(img)) = state.items.get_mut(parent_index) {
-                if let FrameSource::Animated { current, last_advance, .. } = &mut img.frames {
+                if let FrameSource::Animated {
+                    current,
+                    last_advance,
+                    ..
+                } = &mut img.frames
+                {
                     *current = frame_idx;
                     *last_advance = None;
                 }

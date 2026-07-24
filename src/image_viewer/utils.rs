@@ -1,7 +1,7 @@
 use crate::image_viewer::model::{ConvertParams, Frame, FrameSource, ImageItem};
 use eframe::egui::{Color32, DroppedFile};
-use icu_lib::endecoder::ImageInfo;
 use icu_lib::EncoderParams;
+use icu_lib::endecoder::ImageInfo;
 use icu_lib::image::AnimationDecoder;
 use icu_lib::midata::MiData;
 use std::io::Cursor;
@@ -14,7 +14,10 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 pub fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
-    let items = files.iter().filter_map(decode_dropped_file).collect::<Vec<_>>();
+    let items = files
+        .iter()
+        .filter_map(decode_dropped_file)
+        .collect::<Vec<_>>();
     aggregate_sequences(items)
 }
 
@@ -43,10 +46,12 @@ fn decode_dropped_file(file: &DroppedFile) -> Option<ImageItem> {
 
 fn decode_animation(path: &str, data: &[u8]) -> Option<ImageItem> {
     let frames = if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
-        let decoder = icu_lib::image::codecs::gif::GifDecoder::new(Cursor::new(data.to_vec())).ok()?;
+        let decoder =
+            icu_lib::image::codecs::gif::GifDecoder::new(Cursor::new(data.to_vec())).ok()?;
         decoder.into_frames().collect_frames().ok()?
     } else if data.starts_with(&[137, 80, 78, 71, 13, 10, 26, 10]) {
-        let decoder = icu_lib::image::codecs::png::PngDecoder::new(Cursor::new(data.to_vec())).ok()?;
+        let decoder =
+            icu_lib::image::codecs::png::PngDecoder::new(Cursor::new(data.to_vec())).ok()?;
         if !decoder.is_apng().ok()? {
             return None;
         }
@@ -59,7 +64,10 @@ fn decode_animation(path: &str, data: &[u8]) -> Option<ImageItem> {
         return None;
     }
 
-    let frames = frames.into_iter().map(frame_from_image_frame).collect::<Vec<_>>();
+    let frames = frames
+        .into_iter()
+        .map(frame_from_image_frame)
+        .collect::<Vec<_>>();
     let width = frames.first().map(|f| f.width).unwrap_or(0);
     let height = frames.first().map(|f| f.height).unwrap_or(0);
     let format = icu_lib::image::guess_format(data)
@@ -86,25 +94,40 @@ fn decode_animation(path: &str, data: &[u8]) -> Option<ImageItem> {
 fn image_item_from_midata(path: String, info: ImageInfo, mi_data: MiData) -> Option<ImageItem> {
     let midata_clone = mi_data.clone();
     match mi_data {
-        MiData::RGBA(img_buffer) => Some(single_image_item(path, info, img_buffer, Some(midata_clone))),
+        MiData::RGBA(img_buffer) => Some(single_image_item(
+            path,
+            info,
+            img_buffer,
+            Some(midata_clone),
+        )),
         MiData::GRAY(_) => None,
         MiData::PATH(scene_data) => {
             let (w, h) =
                 icu_lib::endecoder::mirui::scene_render::scene_dimensions(&scene_data.scene)
                     .unwrap_or((256, 256));
-            let img = icu_lib::endecoder::mirui::scene_render::render_scene(&scene_data.scene, w, h);
+            let img =
+                icu_lib::endecoder::mirui::scene_render::render_scene(&scene_data.scene, w, h);
             Some(single_image_item(path, info, img, Some(midata_clone)))
         }
         MiData::FONT(font_data) => {
             let img = match font_data {
-                icu_lib::midata::FontData::Mirx(f) => icu_lib::endecoder::mirui::font_render::render_font_atlas(&f),
+                icu_lib::midata::FontData::Mirx(f) => {
+                    icu_lib::endecoder::mirui::font_render::render_font_atlas(&f)
+                }
                 icu_lib::midata::FontData::MirxBundle(fonts) => {
                     icu_lib::endecoder::mirui::font_render::render_font_atlas(fonts.first()?)
                 }
-                icu_lib::midata::FontData::FreeType(f) => icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(
-                    &f,
-                    icu_lib::mirx::Color { r: 200, g: 200, b: 200, a: 255 },
-                ),
+                icu_lib::midata::FontData::FreeType(f) => {
+                    icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(
+                        &f,
+                        icu_lib::mirx::Color {
+                            r: 200,
+                            g: 200,
+                            b: 200,
+                            a: 255,
+                        },
+                    )
+                }
             };
             Some(single_image_item(path, info, img, Some(midata_clone)))
         }
@@ -125,7 +148,12 @@ fn image_item_from_midata(path: String, info: ImageInfo, mi_data: MiData) -> Opt
     }
 }
 
-pub fn single_image_item(path: String, info: ImageInfo, img: icu_lib::image::RgbaImage, midata: Option<MiData>) -> ImageItem {
+pub fn single_image_item(
+    path: String,
+    info: ImageInfo,
+    img: icu_lib::image::RgbaImage,
+    midata: Option<MiData>,
+) -> ImageItem {
     let width = img.width();
     let height = img.height();
     let pixels = color32_from_rgba(img.chunks(4));
@@ -213,7 +241,11 @@ fn aggregate_sequences(items: Vec<ImageItem>) -> Vec<ImageItem> {
         let first_idx = members[0].0;
         let first = &items[first_idx];
         let width = frames.iter().map(|f| f.width).max().unwrap_or(first.width);
-        let height = frames.iter().map(|f| f.height).max().unwrap_or(first.height);
+        let height = frames
+            .iter()
+            .map(|f| f.height)
+            .max()
+            .unwrap_or(first.height);
         let mut item = first.clone();
         item.width = width;
         item.height = height;
@@ -287,7 +319,14 @@ fn is_contiguous(members: &[(usize, u32)]) -> bool {
 fn sequence_label(members: &[(usize, u32)], items: &[ImageItem]) -> String {
     let first = &items[members[0].0].path;
     let last = &items[members[members.len() - 1].0].path;
-    format!("{} … {}", first, Path::new(last).file_name().unwrap_or_default().to_string_lossy())
+    format!(
+        "{} … {}",
+        first,
+        Path::new(last)
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+    )
 }
 
 pub fn get_system_locale() -> String {
@@ -401,7 +440,7 @@ pub fn pick_files_web(
     pending: std::rc::Rc<std::cell::RefCell<Vec<DroppedFile>>>,
     ctx: eframe::egui::Context,
 ) {
-    use eframe::wasm_bindgen::{closure::Closure, JsCast, JsValue};
+    use eframe::wasm_bindgen::{JsCast, JsValue, closure::Closure};
     use std::rc::Rc;
 
     let window = match web_sys::window() {
