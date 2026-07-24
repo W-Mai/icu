@@ -1,5 +1,5 @@
-use image::RgbaImage;
 use image::imageops::overlay;
+use image::RgbaImage;
 use mirui::render::backends::sw::SwRenderer;
 use mirui::render::canvas::Canvas;
 use mirui::render::font::Font;
