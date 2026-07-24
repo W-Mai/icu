@@ -917,11 +917,12 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
         FontMode::Rendered => {
             if state.font_rendered_preview.is_none() {
                 if let Some(font) = selected_mirx_font(font_data, state.font_bundle_index) {
+                    let preview_h = font.atlas.line_height.max(1) as u32 * 2;
                     let img = icu_lib::endecoder::mirui::font_render::render_font_text(
                         font,
                         &state.font_preview_text,
                         400,
-                        64,
+                        preview_h,
                         text_color,
                     );
                     state.font_rendered_preview = Some(img);

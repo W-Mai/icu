@@ -73,16 +73,46 @@ pub fn render_freetype_glyph_at(
     font: &crate::midata::FreeTypeFontData,
     ch: char,
     width: u32,
-    height: u32,
+    _height: u32,
     color: mirx::Color,
 ) -> Option<RgbaImage> {
     let glyph = font.glyphs.iter().find(|g| g.codepoint == ch as u32)?;
     if glyph.outline.is_empty() {
         return None;
     }
-    let mut buffer = vec![0u8; (width * height * 4) as usize];
-    let w = width.min(u16::MAX as u32) as u16;
-    let h = height.min(u16::MAX as u32) as u16;
+    let units = font.units_per_em.max(1) as f32;
+    let scale = width as f32 * 0.7 / units;
+
+    let mut min_x = f32::MAX;
+    let mut min_y = f32::MAX;
+    let mut max_x = f32::MIN;
+    let mut max_y = f32::MIN;
+    for cmd in &glyph.outline {
+        let mirui_cmd: PathCmd = cmd.clone().into();
+        let pts: Vec<(f32, f32)> = match &mirui_cmd {
+            PathCmd::MoveTo(p) | PathCmd::LineTo(p) => vec![(p.x.to_f32(), p.y.to_f32())],
+            PathCmd::QuadTo { ctrl, end } => vec![(ctrl.x.to_f32(), ctrl.y.to_f32()), (end.x.to_f32(), end.y.to_f32())],
+            PathCmd::CubicTo { ctrl1, ctrl2, end } => vec![(ctrl1.x.to_f32(), ctrl1.y.to_f32()), (ctrl2.x.to_f32(), ctrl2.y.to_f32()), (end.x.to_f32(), end.y.to_f32())],
+            PathCmd::Close => vec![],
+        };
+        for (x, y) in pts {
+            min_x = min_x.min(x);
+            max_x = max_x.max(x);
+            min_y = min_y.min(y);
+            max_y = max_y.max(y);
+        }
+    }
+    let gw = (max_x - min_x).max(1.0) * scale;
+    let gh = (max_y - min_y).max(1.0) * scale;
+    let pad = 4.0;
+    let offset_x = pad - min_x * scale;
+    let offset_y = pad + max_y * scale;
+    let actual_w = (gw + pad * 2.0).ceil() as u32;
+    let actual_h = (gh + pad * 2.0).ceil() as u32;
+
+    let mut buffer = vec![0u8; (actual_w * actual_h * 4) as usize];
+    let w = actual_w.min(u16::MAX as u32) as u16;
+    let h = actual_h.min(u16::MAX as u32) as u16;
     let texture = Texture::new(&mut buffer, w, h, ColorFormat::RGBA8888);
     let mut renderer = SwRenderer::new(texture).with_alpha_mode(AlphaMode::Blend);
     let clip = Rect::new(
@@ -91,13 +121,10 @@ pub fn render_freetype_glyph_at(
         Fixed::from_int(w as i32),
         Fixed::from_int(h as i32),
     );
-    let units = font.units_per_em.max(1) as f32;
-    let scale = width as f32 * 0.7 / units;
-    let baseline = height as f32 * 0.8;
     let mut path = Path::new();
     for cmd in &glyph.outline {
         let mirui_cmd: PathCmd = cmd.clone().into();
-        let mapped = map_freetype_cmd(&mirui_cmd, 0, 0, scale, baseline);
+        let mapped = map_freetype_cmd(&mirui_cmd, offset_x as u32, offset_y as u32, scale, 0.0);
         match mapped {
             PathCmd::MoveTo(p) => {
                 path.move_to(p);
@@ -133,7 +160,7 @@ pub fn render_freetype_glyph_at(
         mirui::render::raster::FillRule::NonZero,
     );
     renderer.flush();
-    let mut img = RgbaImage::from_raw(width, height, buffer)?;
+    let mut img = RgbaImage::from_raw(actual_w, actual_h, buffer)?;
     for px in img.pixels_mut() {
         px.0[0] = color.r;
         px.0[1] = color.g;
@@ -303,22 +330,37 @@ pub fn render_font_text(
     if width == 0 || height == 0 || text.is_empty() {
         return RgbaImage::new(0, 0);
     }
+    let source_size = font.atlas.source_size.max(1) as u32;
+    let scale = height as f32 / source_size as f32;
+    let total_advance: u32 = text
+        .chars()
+        .filter_map(|ch| {
+            font.metrics
+                .iter()
+                .find(|m| m.codepoint == ch as u32)
+                .map(|m| m.advance as u32)
+        })
+        .sum::<u32>()
+        .max(1);
+    let actual_width = (total_advance as f32 * scale).ceil() as u32 + source_size;
+    let ascender = font.atlas.ascender as u32;
+    let actual_height = height.max(ascender + source_size + font.atlas.descender as u32);
     let payload: &'static [u8] = leak_font_payload(font);
     let mirui_font = match font.chunk_header.kind {
         FontChunkKind::Sdf => {
             match mirui::render::font::sdf::font_from_mirx_chunk("icu-preview", payload) {
                 Ok(f) => f,
-                Err(_) => return RgbaImage::new(width, height),
+                Err(_) => return RgbaImage::new(actual_width, actual_height),
             }
         }
         FontChunkKind::Grayscale => {
             match mirui::render::font::gray::font_from_mirx_chunk("icu-preview", payload) {
                 Ok(f) => f,
-                Err(_) => return RgbaImage::new(width, height),
+                Err(_) => return RgbaImage::new(actual_width, actual_height),
             }
         }
     };
-    render_text_with_font(&mirui_font, text, width, height, color)
+    render_text_with_font(&mirui_font, text, actual_width, actual_height, color)
 }
 
 fn leak_font_payload(font: &mirx::Font) -> &'static [u8] {
@@ -344,7 +386,8 @@ fn render_text_with_font(
         Fixed::from_int(w as i32),
         Fixed::from_int(h as i32),
     );
-    let pos = Point::new(Fixed::ZERO, Fixed::ZERO);
+    let metrics = font.metrics();
+    let pos = Point::new(Fixed::ZERO, Fixed::from_int(metrics.ascender as i32));
     let render_color = mirui::types::Color {
         r: color.r,
         g: color.g,
