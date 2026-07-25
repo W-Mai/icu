@@ -137,6 +137,7 @@ approximate_contour_warning: "⚠ 来自图集的近似轮廓 — 无贝塞尔�
 no_outline_data: "无轮廓数据"
 section_glyph_metrics: "字形度量"
 section_export: "导出"
+btn_export: "导出"
 mirx_kind_scene: "场景"
 mirx_kind_img_flat: "图像扁平"
 btn_export_png: "导出 PNG"
