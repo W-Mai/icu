@@ -458,9 +458,26 @@ pub fn build_selected_glyph_diff_result(
     };
     let ch = state.glyph_diff_char.chars().next().unwrap_or('A');
     let cell = diff_cell_size(&font_data_a, &font_data_b, state.font_bundle_index);
-    let img_a = render_source_glyph(&font_data_a, state.font_bundle_index, ch, cell, text_color)?;
-    let img_b = render_source_glyph(&font_data_b, 0, ch, cell, text_color)?;
+    let raw_a = render_source_glyph(&font_data_a, state.font_bundle_index, ch, cell, text_color)?;
+    let raw_b = render_source_glyph(&font_data_b, 0, ch, cell, text_color)?;
+    let w = raw_a.width().max(raw_b.width());
+    let h = raw_a.height().max(raw_b.height());
+    let img_a = paste_to_canvas(&raw_a, w, h);
+    let img_b = paste_to_canvas(&raw_b, w, h);
     build_glyph_diff_result(ch as u32, ch, img_a, img_b)
+}
+
+fn paste_to_canvas(src: &icu_lib::image::RgbaImage, w: u32, h: u32) -> icu_lib::image::RgbaImage {
+    let mut canvas = icu_lib::image::RgbaImage::new(w, h);
+    let dx = (w - src.width()) / 2;
+    let dy = (h - src.height()) / 2;
+    for y in 0..src.height() {
+        for x in 0..src.width() {
+            let px = *src.get_pixel(x, y);
+            canvas.put_pixel(dx + x, dy + y, px);
+        }
+    }
+    canvas
 }
 
 fn render_source_glyph(
@@ -1065,8 +1082,10 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                                     f, ch, cell, cell, text_color,
                                 )
                             {
+                                let iw = img.width() as usize;
+                                let ih = img.height() as usize;
                                 let ci = egui::ColorImage::from_rgba_unmultiplied(
-                                    [cell as usize, cell as usize],
+                                    [iw, ih],
                                     img.as_raw(),
                                 );
                                 handles.push(ctx.load_texture(
@@ -1225,13 +1244,16 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                                         if let Some(img) = icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
                                             f, ch, 128, 128, text_color,
                                         ) {
-                                            let ci = egui::ColorImage::from_rgba_unmultiplied([128, 128], img.as_raw());
+                                            let iw = img.width() as usize;
+                                            let ih = img.height() as usize;
+                                            let ci = egui::ColorImage::from_rgba_unmultiplied([iw, ih], img.as_raw());
                                             let tex = ctx.load_texture("ft_glyph_big", ci, egui::TextureOptions::LINEAR);
                                             state.font_grid_big_cached = Some((big_key, tex));
                                         }
                                     }
                                     if let Some((_, tex)) = &state.font_grid_big_cached {
-                                        ui.image(egui::load::SizedTexture::new(tex.id(), [128.0, 128.0]));
+                                        let tex_size = tex.size_vec2();
+                                        ui.image(egui::load::SizedTexture::new(tex.id(), tex_size));
                                     }
                                 }
                             } else {
