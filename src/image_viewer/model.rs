@@ -246,6 +246,11 @@ pub struct GlyphCanvasView {
     pub pan: Vec2,
 }
 
+pub struct GlyphTextureCache {
+    pub map: std::collections::HashMap<usize, TextureHandle>,
+    pub key: String,
+}
+
 impl Default for GlyphCanvasView {
     fn default() -> Self {
         Self {
@@ -425,7 +430,7 @@ pub struct ViewerState {
     pub glyph_convert_format: String,
     pub path_export_format: String,
     pub font_atlas_cached: Option<(String, String, Vec<Color32>, u32, u32)>,
-    pub font_grid_cached: Option<(String, Vec<TextureHandle>, usize)>,
+    pub font_grid_cached: Option<GlyphTextureCache>,
     pub font_grid_big_cached: Option<(String, TextureHandle)>,
     pub font_bundle_index: usize,
     pub glyph_canvas_view: GlyphCanvasView,

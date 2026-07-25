@@ -1,4 +1,6 @@
-use crate::image_viewer::model::{BakeCharsetTab, FontMode, GlyphCanvasView, GlyphDiffResult};
+use crate::image_viewer::model::{
+    BakeCharsetTab, FontMode, GlyphCanvasView, GlyphDiffResult, GlyphTextureCache,
+};
 use crate::image_viewer::plotter::ImagePlotter;
 use eframe::egui;
 use eframe::egui::Color32;
@@ -654,6 +656,56 @@ fn render_source_glyph(
     }
 }
 
+fn glyph_count(font_data: &FontData, bundle_index: usize) -> usize {
+    match font_data {
+        FontData::Mirx(font) => font.metrics.len(),
+        FontData::MirxBundle(fonts) => fonts
+            .get(bundle_index)
+            .or_else(|| fonts.first())
+            .map(|font| font.metrics.len())
+            .unwrap_or(0),
+        FontData::FreeType(font) => font.glyphs.len(),
+    }
+}
+
+fn glyph_codepoint(font_data: &FontData, bundle_index: usize, index: usize) -> Option<u32> {
+    match font_data {
+        FontData::FreeType(font) => font.glyphs.get(index).map(|g| g.codepoint),
+        FontData::Mirx(font) => font.metrics.get(index).map(|m| m.codepoint),
+        FontData::MirxBundle(fonts) => fonts
+            .get(bundle_index)
+            .or_else(|| fonts.first())
+            .and_then(|font| font.metrics.get(index))
+            .map(|m| m.codepoint),
+    }
+}
+
+fn render_glyph_grid_texture(
+    ctx: &egui::Context,
+    font_data: &FontData,
+    bundle_index: usize,
+    glyph_index: usize,
+    cell: u32,
+    text_color: icu_lib::mirx::Color,
+) -> Option<egui::TextureHandle> {
+    let ch = char::from_u32(glyph_codepoint(font_data, bundle_index, glyph_index)?).unwrap_or('?');
+    let img = render_source_glyph(font_data, bundle_index, ch, cell, text_color)?;
+    let padded = if img.width() == cell && img.height() == cell {
+        img
+    } else {
+        pad_image_to_cell(&img, cell)
+    };
+    let ci = egui::ColorImage::from_rgba_unmultiplied(
+        [cell as usize, cell as usize],
+        padded.as_raw(),
+    );
+    Some(ctx.load_texture(
+        format!("glyph_grid_{bundle_index}_{glyph_index}"),
+        ci,
+        egui::TextureOptions::LINEAR,
+    ))
+}
+
 fn diff_cell_size(left: &FontData, right: &FontData, bundle_index: usize) -> u32 {
     let left_cell = preferred_glyph_cell(left, bundle_index).max(1);
     let right_cell = preferred_glyph_cell(right, 0).max(1);
@@ -1158,104 +1210,27 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
         }
         FontMode::Grid => {
             let grid_key = format!("{}_{:?}_{}", image.path, fg, state.font_bundle_index);
-            let need_rebuild = match &state.font_grid_cached {
-                Some((k, _, _)) => k != &grid_key,
-                None => true,
-            };
-            if need_rebuild {
-                let mut handles: Vec<egui::TextureHandle> = Vec::new();
-                match font_data {
-                    FontData::Mirx(font) => {
-                        let cell = font.atlas.source_size as usize + 4;
-                        for m in font.metrics.iter() {
-                            let ch = char::from_u32(m.codepoint).unwrap_or('?');
-                            let img = icu_lib::endecoder::mirui::font_render::render_font_text(
-                                font,
-                                &ch.to_string(),
-                                cell as u32,
-                                cell as u32,
-                                text_color,
-                            );
-                            let ci = egui::ColorImage::from_rgba_unmultiplied(
-                                [cell, cell],
-                                img.as_raw(),
-                            );
-                            handles.push(ctx.load_texture(
-                                format!("glyph_grid_{}", handles.len()),
-                                ci,
-                                egui::TextureOptions::LINEAR,
-                            ));
-                        }
-                    }
-                    FontData::MirxBundle(fonts) => {
-                        if let Some(font) =
-                            fonts.get(state.font_bundle_index).or_else(|| fonts.first())
-                        {
-                            let cell = font.atlas.source_size as usize + 4;
-                            for m in font.metrics.iter() {
-                                let ch = char::from_u32(m.codepoint).unwrap_or('?');
-                                let img = icu_lib::endecoder::mirui::font_render::render_font_text(
-                                    font,
-                                    &ch.to_string(),
-                                    cell as u32,
-                                    cell as u32,
-                                    text_color,
-                                );
-                                let ci = egui::ColorImage::from_rgba_unmultiplied(
-                                    [cell, cell],
-                                    img.as_raw(),
-                                );
-                                handles.push(ctx.load_texture(
-                                    format!("glyph_grid_{}", handles.len()),
-                                    ci,
-                                    egui::TextureOptions::LINEAR,
-                                ));
-                            }
-                        }
-                    }
-                    FontData::FreeType(f) => {
-                        let cell = 48u32;
-                        for g in f.glyphs.iter() {
-                            let ch = char::from_u32(g.codepoint).unwrap_or('?');
-                            if let Some(img) =
-                                icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
-                                    f, ch, cell, cell, text_color,
-                                )
-                            {
-                                let padded = pad_image_to_cell(&img, cell as u32);
-                                let ci = egui::ColorImage::from_rgba_unmultiplied(
-                                    [cell as usize, cell as usize],
-                                    padded.as_raw(),
-                                );
-                                handles.push(ctx.load_texture(
-                                    format!("ft_grid_{}", handles.len()),
-                                    ci,
-                                    egui::TextureOptions::LINEAR,
-                                ));
-                            } else {
-                                let empty_img = icu_lib::image::RgbaImage::new(cell, cell);
-                                handles.push(ctx.load_texture(
-                                    "ft_grid_empty",
-                                    egui::ColorImage::from_rgba_unmultiplied(
-                                        [cell as usize, cell as usize],
-                                        empty_img.as_raw(),
-                                    ),
-                                    egui::TextureOptions::LINEAR,
-                                ));
-                            }
-                        }
-                    }
+            match &mut state.font_grid_cached {
+                Some(cache) if cache.key == grid_key => {}
+                Some(cache) => {
+                    cache.map.clear();
+                    cache.key = grid_key.clone();
+                    state.font_grid_big_cached = None;
                 }
-                let count = handles.len();
-                state.font_grid_cached = Some((grid_key, handles, count));
-                state.font_grid_big_cached = None;
+                None => {
+                    state.font_grid_cached = Some(GlyphTextureCache {
+                        map: std::collections::HashMap::new(),
+                        key: grid_key.clone(),
+                    });
+                    state.font_grid_big_cached = None;
+                }
             }
 
-            let handles = state
-                .font_grid_cached
-                .as_ref()
-                .map(|(_, h, _)| h.clone())
-                .unwrap_or_default();
+            let count = glyph_count(font_data, state.font_bundle_index);
+            if count == 0 {
+                ui.label(t!("rendering_not_available"));
+                return;
+            }
 
             let cell = match font_data {
                 FontData::Mirx(font) => font.atlas.source_size as f32 + 4.0,
@@ -1273,29 +1248,50 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                 let btn_pad = ui.style().spacing.button_padding.x * 2.0;
                 let col_w = cell + btn_pad + 4.0;
                 let cols = (((avail - spacing) / (col_w + spacing)).floor() as usize).max(1);
+                let total_rows = count.div_ceil(cols);
+                let row_height = cell + spacing;
+                let clip_rect = ui.clip_rect();
+                let cursor_y = ui.cursor().top();
+                let first_visible_row = (((clip_rect.top() - cursor_y) / row_height).floor()
+                    as isize)
+                    .max(0) as usize;
+                let visible_rows = ((clip_rect.height() / row_height).ceil() as usize)
+                    .saturating_add(2);
+                let last_visible_row = first_visible_row
+                    .saturating_add(visible_rows)
+                    .min(total_rows);
                 let total_width = cols as f32 * col_w + (cols.saturating_sub(1)) as f32 * spacing;
                 let left_pad = ((avail - total_width) * 0.5).max(0.0);
                 let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-                for (row, chunk) in handles.chunks(cols).enumerate() {
+
+                ui.add_space(first_visible_row as f32 * row_height);
+                for row in first_visible_row..last_visible_row {
+                    let start = row * cols;
+                    let end = (start + cols).min(count);
                     ui.horizontal(|ui| {
                         ui.add_space(left_pad);
-                        for (col, tex) in chunk.iter().enumerate() {
-                            let i = row * cols + col;
+                        for i in start..end {
                             let is_sel = state.selected_glyph == Some(i);
                             let is_opened = state.opened_glyphs.iter().any(|og| {
-                                let cp = match font_data {
-                                    FontData::FreeType(f) => f.glyphs.get(i).map(|g| g.codepoint),
-                                    FontData::Mirx(font) => {
-                                        font.metrics.get(i).map(|m| m.codepoint)
-                                    }
-                                    FontData::MirxBundle(fonts) => fonts
-                                        .get(state.font_bundle_index)
-                                        .or_else(|| fonts.first())
-                                        .and_then(|font| font.metrics.get(i))
-                                        .map(|m| m.codepoint),
-                                };
-                                cp == Some(og.codepoint)
+                                glyph_codepoint(font_data, state.font_bundle_index, i)
+                                    == Some(og.codepoint)
                             });
+                            let cache = state.font_grid_cached.as_mut().expect("glyph cache");
+                            if !cache.map.contains_key(&i) {
+                                if let Some(tex) = render_glyph_grid_texture(
+                                    &ctx,
+                                    font_data,
+                                    state.font_bundle_index,
+                                    i,
+                                    cell as u32,
+                                    text_color,
+                                ) {
+                                    cache.map.insert(i, tex);
+                                }
+                            }
+                            let Some(tex) = cache.map.get(&i) else {
+                                continue;
+                            };
                             let btn = egui::Button::image(egui::load::SizedTexture::new(
                                 tex.id(),
                                 [cell; 2],
@@ -1336,13 +1332,14 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                                     p.accent_dim(),
                                 );
                             }
-                            if col < chunk.len() - 1 {
+                            if i + 1 < end {
                                 ui.add_space(spacing);
                             }
                         }
                     });
                     ui.add_space(spacing);
                 }
+                ui.add_space(total_rows.saturating_sub(last_visible_row) as f32 * row_height);
             });
         }
         FontMode::Vector => {
