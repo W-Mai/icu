@@ -236,7 +236,7 @@ pub enum FontMode {
 
 impl Default for FontMode {
     fn default() -> Self {
-        FontMode::Atlas
+        FontMode::Grid
     }
 }
 

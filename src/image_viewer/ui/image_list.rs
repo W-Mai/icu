@@ -357,7 +357,7 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
         state.selected_index = Some(index);
         if let SidebarItem::Image(image_item) = item {
             state.current_image = Some(image_item.clone());
-            state.font_mode = crate::image_viewer::model::FontMode::Atlas;
+            state.font_mode = crate::image_viewer::model::FontMode::Grid;
         }
     }
     if response.hovered() {
@@ -476,7 +476,7 @@ fn draw_frame_child_rows(
             }
             if let Some(SidebarItem::Image(img)) = state.items.get(parent_index).cloned() {
                 state.current_image = Some(img);
-                state.font_mode = crate::image_viewer::model::FontMode::Atlas;
+                state.font_mode = crate::image_viewer::model::FontMode::Grid;
             }
         }
     }
