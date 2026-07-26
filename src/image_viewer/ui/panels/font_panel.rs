@@ -609,14 +609,16 @@ fn paste_to_canvas(src: &icu_lib::image::RgbaImage, w: u32, h: u32) -> icu_lib::
 fn pad_image_to_cell(src: &icu_lib::image::RgbaImage, cell: u32) -> icu_lib::image::RgbaImage {
     let sw = src.width();
     let sh = src.height();
-    if sw >= cell && sh >= cell {
+    if sw == cell && sh == cell {
         return src.clone();
     }
     let mut canvas = icu_lib::image::RgbaImage::new(cell, cell);
-    let dx = if sw < cell { (cell - sw) / 2 } else { 0 };
-    let dy = if sh < cell { (cell - sh) / 2 } else { 0 };
-    for y in 0..sh.min(cell) {
-        for x in 0..sw.min(cell) {
+    let dw = sw.min(cell);
+    let dh = sh.min(cell);
+    let dx = (cell - dw) / 2;
+    let dy = (cell - dh) / 2;
+    for y in 0..dh {
+        for x in 0..dw {
             canvas.put_pixel(dx + x, dy + y, *src.get_pixel(x, y));
         }
     }
@@ -690,11 +692,7 @@ fn render_glyph_grid_texture(
 ) -> Option<egui::TextureHandle> {
     let ch = char::from_u32(glyph_codepoint(font_data, bundle_index, glyph_index)?).unwrap_or('?');
     let img = render_source_glyph(font_data, bundle_index, ch, cell, text_color)?;
-    let padded = if img.width() == cell && img.height() == cell {
-        img
-    } else {
-        pad_image_to_cell(&img, cell)
-    };
+    let padded = pad_image_to_cell(&img, cell);
     let ci = egui::ColorImage::from_rgba_unmultiplied(
         [cell as usize, cell as usize],
         padded.as_raw(),
@@ -1114,9 +1112,9 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                     ui,
                     &mut state.font_mode,
                     &[
-                        (FontMode::Atlas, t!("tab_atlas").as_ref()),
-                        (FontMode::Rendered, t!("tab_rendered").as_ref()),
                         (FontMode::Grid, t!("tab_grid").as_ref()),
+                        (FontMode::Rendered, t!("tab_rendered").as_ref()),
+                        (FontMode::Atlas, t!("tab_atlas").as_ref()),
                     ],
                 );
             });
@@ -1210,6 +1208,10 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
         }
         FontMode::Grid => {
             let grid_key = format!("{}_{:?}_{}", image.path, fg, state.font_bundle_index);
+            let cache_changed = match &state.font_grid_cached {
+                Some(cache) => cache.key != grid_key,
+                None => true,
+            };
             match &mut state.font_grid_cached {
                 Some(cache) if cache.key == grid_key => {}
                 Some(cache) => {
@@ -1243,7 +1245,12 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
             };
             let spacing = 2.0;
 
-            egui::ScrollArea::vertical().show(ui, |ui| {
+            let scroll_id = egui::Id::new("glyph_grid_scroll");
+            let mut scroll_area = egui::ScrollArea::vertical().id_salt(scroll_id);
+            if cache_changed {
+                scroll_area = scroll_area.scroll_offset(egui::Vec2::ZERO);
+            }
+            scroll_area.show(ui, |ui| {
                 let avail = ui.available_width();
                 let btn_pad = ui.style().spacing.button_padding.x * 2.0;
                 let col_w = cell + btn_pad + 4.0;
@@ -1260,9 +1267,42 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                 let last_visible_row = first_visible_row
                     .saturating_add(visible_rows)
                     .min(total_rows);
+                let prefetch_rows = 500usize.div_ceil(cols.max(1));
+                let first_render_row = first_visible_row.saturating_sub(prefetch_rows);
+                let last_render_row = last_visible_row.saturating_add(prefetch_rows).min(total_rows);
                 let total_width = cols as f32 * col_w + (cols.saturating_sub(1)) as f32 * spacing;
                 let left_pad = ((avail - total_width) * 0.5).max(0.0);
                 let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+
+                if let Some(cache) = state.font_grid_cached.as_mut() {
+                    for i in (first_render_row * cols)..(last_render_row * cols).min(count) {
+                        if !cache.map.contains_key(&i) {
+                            if let Some(tex) = render_glyph_grid_texture(
+                                &ctx,
+                                font_data,
+                                state.font_bundle_index,
+                                i,
+                                cell as u32,
+                                text_color,
+                            ) {
+                                cache.map.insert(i, tex);
+                            } else {
+                                let empty = egui::ColorImage::new(
+                                    [cell as usize, cell as usize],
+                                    vec![egui::Color32::TRANSPARENT; (cell as usize) * (cell as usize)],
+                                );
+                                cache.map.insert(
+                                    i,
+                                    ctx.load_texture(
+                                        format!("glyph_grid_empty_{i}"),
+                                        empty,
+                                        egui::TextureOptions::LINEAR,
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                }
 
                 ui.add_space(first_visible_row as f32 * row_height);
                 for row in first_visible_row..last_visible_row {
@@ -1276,19 +1316,7 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                                 glyph_codepoint(font_data, state.font_bundle_index, i)
                                     == Some(og.codepoint)
                             });
-                            let cache = state.font_grid_cached.as_mut().expect("glyph cache");
-                            if !cache.map.contains_key(&i) {
-                                if let Some(tex) = render_glyph_grid_texture(
-                                    &ctx,
-                                    font_data,
-                                    state.font_bundle_index,
-                                    i,
-                                    cell as u32,
-                                    text_color,
-                                ) {
-                                    cache.map.insert(i, tex);
-                                }
-                            }
+                            let cache = state.font_grid_cached.as_ref().expect("glyph cache");
                             let Some(tex) = cache.map.get(&i) else {
                                 continue;
                             };
@@ -1415,98 +1443,76 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                 "{:?}_{:?}_{}_{}",
                 fg, bg, image.path, state.font_bundle_index,
             );
-            let (image_data, w, h) = if let Some((ref cached_key, _, ref cached_data, cw, ch)) =
-                state.font_atlas_cached
-            {
-                if *cached_key == theme_key {
-                    (cached_data.clone(), cw, ch)
-                } else {
-                    let rendered = match font_data {
-                        FontData::Mirx(font) => {
-                            let atlas_img =
-                                icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
-                            tint_image(&atlas_img)
-                        }
-                        FontData::MirxBundle(fonts) => {
-                            if let Some(font) =
-                                fonts.get(state.font_bundle_index).or_else(|| fonts.first())
-                            {
+            let need_render = match &state.font_atlas_cached {
+                Some((k, _, _, _, _)) => k != &theme_key,
+                None => true,
+            };
+            if need_render {
+                let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+                ui.centered_and_justified(|ui| {
+                    let btn = egui::Button::new(
+                        egui::RichText::new(t!("btn_render_atlas"))
+                            .heading()
+                            .color(p.accent()),
+                    );
+                    if ui.add(btn).clicked() {
+                        let rendered = match font_data {
+                            FontData::Mirx(font) => {
                                 let atlas_img =
                                     icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
                                 tint_image(&atlas_img)
-                            } else {
-                                icu_lib::image::RgbaImage::new(1, 1)
                             }
-                        }
-                        FontData::FreeType(_) => {
-                            let grid_img =
-                                icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(
-                                    match font_data {
-                                        FontData::FreeType(f) => f,
-                                        _ => unreachable!(),
-                                    },
-                                    text_color,
-                                );
-                            grid_img
-                        }
-                    };
-                    let w = rendered.width();
-                    let h = rendered.height();
-                    let data: Vec<Color32> = rendered
-                        .chunks(4)
-                        .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
-                        .collect();
-                    state.font_atlas_cached =
-                        Some((theme_key.clone(), image.path.clone(), data.clone(), w, h));
-                    (data, w, h)
-                }
-            } else {
-                let rendered = match font_data {
-                    FontData::Mirx(font) => {
-                        let atlas_img =
-                            icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
-                        tint_image(&atlas_img)
+                            FontData::MirxBundle(fonts) => {
+                                if let Some(font) = fonts.get(state.font_bundle_index).or_else(|| fonts.first()) {
+                                    let atlas_img = icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
+                                    tint_image(&atlas_img)
+                                } else {
+                                    icu_lib::image::RgbaImage::new(1, 1)
+                                }
+                            }
+                            FontData::FreeType(f) => {
+                                icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(f, text_color)
+                            }
+                        };
+                        let w = rendered.width();
+                        let h = rendered.height();
+                        let data: Vec<Color32> = rendered
+                            .chunks(4)
+                            .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
+                            .collect();
+                        state.font_atlas_cached = Some((theme_key.clone(), image.path.clone(), data.clone(), w, h));
                     }
-                    FontData::MirxBundle(fonts) => {
-                        if let Some(font) =
-                            fonts.get(state.font_bundle_index).or_else(|| fonts.first())
-                        {
-                            let atlas_img =
-                                icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
-                            tint_image(&atlas_img)
-                        } else {
-                            icu_lib::image::RgbaImage::new(1, 1)
-                        }
-                    }
-                    FontData::FreeType(f) => {
-                        icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(
-                            f, text_color,
-                        )
-                    }
+                });
+            } else if let Some((_, _, cached_data, cw, ch)) = &state.font_atlas_cached {
+                let color_image = egui::ColorImage {
+                    size: [*cw as usize, *ch as usize],
+                    source_size: egui::vec2(*cw as f32, *ch as f32),
+                    pixels: cached_data.clone(),
                 };
-                let w = rendered.width();
-                let h = rendered.height();
-                let data: Vec<Color32> = rendered
-                    .chunks(4)
-                    .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
-                    .collect();
-                state.font_atlas_cached =
-                    Some((theme_key.clone(), image.path.clone(), data.clone(), w, h));
-                (data, w, h)
-            };
-            let tint_item = crate::image_viewer::model::ImageItem {
-                path: image.path.clone(),
-                info: image.info.clone(),
-                width: w,
-                height: h,
-                frames: crate::image_viewer::model::FrameSource::single(image_data, w, h),
-                midata: None,
-                expanded: false,
-            };
-            let mut plotter = ImagePlotter::new("font_atlas")
-                .anti_alias(state.context.anti_alias)
-                .show_grid(state.context.show_grid);
-            plotter.show(ui, &Some(tint_item));
+                let _ = ui.ctx().load_texture(
+                    "font_atlas",
+                    color_image,
+                    egui::TextureOptions::LINEAR,
+                );
+                ImagePlotter::new("font_atlas_viewer")
+                    .anti_alias(state.context.anti_alias)
+                    .show_grid(false)
+                    .show_only(true)
+                    .background_color(state.context.background_color)
+                    .badge(format!("{}×{}", cw, ch))
+                    .show(ui, &Some(crate::image_viewer::utils::single_image_item(
+                        "atlas".to_string(),
+                        icu_lib::endecoder::ImageInfo {
+                            width: *cw,
+                            height: *ch,
+                            data_size: 0,
+                            format: "atlas".to_string(),
+                            other_info: serde_json::Value::Null,
+                        },
+                        icu_lib::image::RgbaImage::from_raw(*cw, *ch, cached_data.iter().flat_map(|c| c.to_array()).collect()).unwrap_or_default(),
+                        None,
+                    )));
+            }
         }
     }
 }
