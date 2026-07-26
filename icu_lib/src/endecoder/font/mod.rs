@@ -105,7 +105,18 @@ fn parse_face(face: &Face) -> FreeTypeFontData {
     let glyph_count = face.number_of_glyphs() as u32;
 
     let mut glyphs = Vec::new();
-    for codepoint in 0u32..=0x10FFFF {
+    let mut seen = std::collections::HashSet::new();
+    let mut codepoints: Vec<u32> = Vec::new();
+    if let Some(cmap) = face.tables().cmap {
+        for subtable in cmap.subtables {
+            subtable.codepoints(|cp| {
+                if seen.insert(cp) {
+                    codepoints.push(cp);
+                }
+            });
+        }
+    }
+    for codepoint in codepoints {
         let ch = match char::from_u32(codepoint) {
             Some(c) => c,
             None => continue,
@@ -129,9 +140,6 @@ fn parse_face(face: &Face) -> FreeTypeFontData {
             bbox: (bbox.x_min, bbox.y_min, bbox.x_max, bbox.y_max),
             outline: collector.cmds,
         });
-        if glyphs.len() >= 512 {
-            break;
-        }
     }
 
     FreeTypeFontData {
