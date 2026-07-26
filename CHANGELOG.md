@@ -1,5 +1,31 @@
 # Changelog
 
+## [v0.7.0] - 2026-07-26
+
+### 🔖 Version Tag
+
+- 🚀 **New Features**:
+    - ✨ **Full glyph parsing** — FreeType fonts now parse all glyphs from the cmap subtable instead of capping at 512. Fonts with thousands of glyphs are fully supported.
+    - ✨ **Grid lazy loading** — Glyph grid renders only visible rows plus a 500-glyph prefetch buffer, with scroll-to-top on font switch. Large fonts load instantly without lag.
+    - ✨ **Atlas on demand** — Atlas view no longer auto-renders on load. A "Render Atlas" button triggers rendering, avoiding startup cost for large fonts.
+    - ✨ **Grid as default mode** — Selecting a font now opens in Grid mode instead of Atlas, matching the most common use case.
+    - ✨ **Glyph diff unified diff mode** — Two fonts selected as diff1/diff2 auto-enter glyph diff with character input and three-panel canvas (A | diff | B) with synced zoom.
+    - ✨ **MIRX scene export for glyph** — Glyphs can export to MIRX scene (VECTOR chunk) or image flat format.
+    - ✨ **Rendered mode zoom/pan** — Font rendered preview supports zoom, pan, and double-click reset.
+    - ✨ **Web file open** — `＋` button, empty canvas click, and `⌘O` work on web via synchronous `<input type="file">`.
+
+- 🎨 **Improvements**:
+    - Diff overlay alpha blending fixed to prevent black shadows on transparent backgrounds.
+    - Identical glyph renders treated as zero diff instead of failing.
+    - Diff hint messages differentiated by mode (items vs fonts vs same-type).
+    - Grid columns dynamically computed from available width with vertical-only scroll.
+
+- 🐛 **Fixes**:
+    - FreeType glyph rendering uses outline bbox to prevent clipping of italic/descender characters.
+    - Sequence aggregation skips font/path/indexed items to prevent false grouping.
+    - Diff state (`diff_active`/`only_show_diff`) reset on startup to prevent stale FeedMe blank screen.
+    - Glyph grid texture dimensions match actual rendered image to prevent panic.
+
 ## [v0.6.0] - 2026-07-20
 
 ### 🔖 Version Tag
