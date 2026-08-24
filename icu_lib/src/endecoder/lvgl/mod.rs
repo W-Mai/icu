@@ -77,6 +77,8 @@ pub enum HeaderFlag {
 
 type Flags = u16;
 
+const MAX_IMAGE_DATA_SIZE: usize = 256 * 1024 * 1024;
+
 #[derive(Specifier)]
 #[bits = 4]
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
@@ -92,12 +94,85 @@ pub enum Compress {
 #[derive(Debug, Copy, Clone)]
 #[repr(C, packed)]
 struct ImageCompressedHeader {
+    #[allow(unused)]
     method: Compress, /*Compression method, see `lv_image_compress_t`*/
 
     #[allow(unused)]
     reserved: B28, /*Reserved to be used later*/
     compressed_size: u32,   /*Compressed data size in byte*/
     decompressed_size: u32, /*Decompressed data size in byte*/
+}
+
+#[derive(Debug)]
+struct CompressedImage<'a> {
+    method: Compress,
+    decompressed_size: usize,
+    payload: &'a [u8],
+}
+
+impl<'a> CompressedImage<'a> {
+    fn parse(data: &'a [u8], expected_size: usize) -> Option<Self> {
+        let header_size = size_of::<ImageCompressedHeader>();
+        let header = ImageCompressedHeader::from_bytes(data.get(..header_size)?.try_into().ok()?);
+        let payload = data.get(header_size..)?;
+        let compressed_size = usize::try_from(header.compressed_size()).ok()?;
+        let decompressed_size = usize::try_from(header.decompressed_size()).ok()?;
+
+        if header.reserved() != 0
+            || compressed_size != payload.len()
+            || decompressed_size != expected_size
+        {
+            return None;
+        }
+
+        Some(Self {
+            method: header.method_or_err().ok()?,
+            decompressed_size,
+            payload,
+        })
+    }
+
+    fn encode(method: Compress, raw: &[u8], block_size: usize) -> Option<Vec<u8>> {
+        let compressed = match method {
+            Compress::NONE => return Some(raw.to_vec()),
+            Compress::Rle => super::utils::rle::RleCoder::new()
+                .with_block_size(block_size)
+                .ok()?
+                .encode(raw)
+                .ok()?,
+            Compress::LZ4 => lz4_flex::block::compress(raw),
+        };
+        let compressed_size = u32::try_from(compressed.len()).ok()?;
+        let decompressed_size = u32::try_from(raw.len()).ok()?;
+        let header = ImageCompressedHeader::new()
+            .with_method(method)
+            .with_compressed_size(compressed_size)
+            .with_decompressed_size(decompressed_size);
+        let mut data = header.into_bytes().to_vec();
+        data.extend_from_slice(&compressed);
+        Some(data)
+    }
+
+    fn info(&self) -> (Compress, usize, usize) {
+        (self.method, self.payload.len(), self.decompressed_size)
+    }
+
+    fn decode(&self, block_size: usize) -> Option<Vec<u8>> {
+        let decoded = match self.method {
+            Compress::NONE => return None,
+            Compress::Rle => super::utils::rle::RleCoder::new()
+                .with_block_size(block_size)
+                .ok()?
+                .decode(self.payload)
+                .ok()?,
+            Compress::LZ4 => {
+                let mut decoded = vec![0; self.decompressed_size];
+                let len = lz4_flex::block::decompress_into(self.payload, &mut decoded).ok()?;
+                (len == self.decompressed_size).then_some(decoded)?
+            }
+        };
+        (decoded.len() == self.decompressed_size).then_some(decoded)
+    }
 }
 
 #[bitfield]
@@ -148,41 +223,37 @@ pub fn with_flag(flags: Flags, flag: HeaderFlag) -> Flags {
 }
 
 impl ImageHeader {
-    pub fn from_bytes(data: &[u8]) -> Self {
-        assert!(data.len() > 4, "Invalid data size");
-        let magic = data[0];
+    pub fn parse(data: &[u8]) -> Option<Self> {
+        let version = match *data.first()? {
+            0x19 => LVGLVersion::V9,
+            magic if magic <= 0x18 => LVGLVersion::V8,
+            _ => return None,
+        };
 
-        let mut version = LVGLVersion::Unknown;
-
-        if magic == 0x19 {
-            version = LVGLVersion::V9;
-        } else if magic <= 0x18 {
-            version = LVGLVersion::V8;
-        }
-
-        match version {
+        let header = match version {
             LVGLVersion::V8 => {
-                let header = ImageHeaderV8::from_bytes([data[0], data[1], data[2], data[3]]);
-                log::trace!("Decoded image header: {header:#?}");
-                if header.cf_or_err().is_err() || header.reserved() != 0 {
-                    ImageHeader::Unknown
-                } else {
-                    ImageHeader::V8(header)
-                }
+                let bytes = data.get(..size_of::<ImageHeaderV8>())?.try_into().ok()?;
+                let header = ImageHeaderV8::from_bytes(bytes);
+                (header.cf_or_err().is_ok() && header.reserved() == 0)
+                    .then_some(ImageHeader::V8(header))
             }
             LVGLVersion::V9 => {
-                let header = ImageHeaderV9::from_bytes([
-                    data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
-                    data[8], data[9], data[10], data[11],
-                ]);
-                if header.cf_or_err().is_err() || header.reserved_2() != 0 {
-                    ImageHeader::Unknown
-                } else {
-                    ImageHeader::V9(header)
-                }
+                let bytes = data.get(..size_of::<ImageHeaderV9>())?.try_into().ok()?;
+                let header = ImageHeaderV9::from_bytes(bytes);
+                (header.cf_or_err().is_ok() && header.reserved_2() == 0)
+                    .then_some(ImageHeader::V9(header))
             }
-            _ => ImageHeader::Unknown,
-        }
+            LVGLVersion::Unknown => None,
+        }?;
+
+        log::trace!("Decoded image header: {header:#?}");
+        Some(header)
+    }
+
+    pub fn split(data: &[u8]) -> Option<(Self, &[u8])> {
+        let header = Self::parse(data)?;
+        let payload = data.get(header.header_size()..)?;
+        Some((header, payload))
     }
 
     pub fn into_bytes(&self) -> Vec<u8> {
@@ -248,6 +319,24 @@ impl ImageHeader {
             ImageHeader::V9(header) => header.stride(),
         }
     }
+
+    pub fn expected_data_size(&self) -> Option<usize> {
+        let stride = if self.stride() == 0 {
+            self.cf().get_stride_size(self.w() as u32, 1) as usize
+        } else {
+            self.stride() as usize
+        };
+        let pixels = stride.checked_mul(self.h() as usize)?;
+        let extra = match self.cf() {
+            ColorFormat::I1 | ColorFormat::I2 | ColorFormat::I4 | ColorFormat::I8 => (1usize
+                << self.cf().get_bpp())
+            .checked_mul(ColorFormat::ARGB8888.get_size() as usize)?,
+            ColorFormat::RGB565A8 => (self.w() as usize).checked_mul(self.h() as usize)?,
+            _ => 0,
+        };
+        let size = pixels.checked_add(extra)?;
+        (size <= MAX_IMAGE_DATA_SIZE).then_some(size)
+    }
 }
 
 impl ImageHeader {
@@ -282,11 +371,7 @@ impl ImageHeader {
 
     pub fn decode(data: Vec<u8>) -> Self {
         log::trace!("Decoding image header with data size: {}", data.len());
-
-        let header = ImageHeader::from_bytes(data.as_slice());
-
-        log::trace!("Decoded image header: {header:#?}");
-        header
+        Self::parse(&data).unwrap_or(ImageHeader::Unknown)
     }
 }
 
@@ -317,97 +402,42 @@ impl ImageDescriptor {
     pub fn decode(data: Vec<u8>) -> Self {
         log::trace!("Decoding image descriptor with data size: {}", data.len());
 
-        let header = ImageHeader::decode(data.clone());
-        let header_size = header.header_size();
-        let data = data[header_size..].to_vec();
-        let data_size = data.len() as u32;
+        let Some((header, payload)) = ImageHeader::split(&data) else {
+            log::error!("Invalid LVGL image header");
+            return Self::invalid(ImageHeader::Unknown);
+        };
+        let Some(expected_size) = header.expected_data_size() else {
+            log::error!("LVGL image exceeds the supported data size");
+            return Self::invalid(header);
+        };
+        let image_data = if has_flag(header.flags(), HeaderFlag::COMPRESSED) {
+            let block_size = ((header.cf().get_bpp() + 7) >> 3) as usize;
+            CompressedImage::parse(payload, expected_size)
+                .and_then(|compressed| compressed.decode(block_size))
+        } else {
+            Some(payload.to_vec())
+        };
 
-        match header {
-            ImageHeader::V9(header) => {
-                let stride = if header.stride() == 0 {
-                    let assuming_stride = header.cf().get_stride_size(header.w() as u32, 1);
-                    log::error!("Invalid image header, stride is 0, assuming stride to be width * color_format.byte() = {assuming_stride}");
-                    assuming_stride
-                } else {
-                    header.stride() as u32
-                };
-
-                let mut idea_data_size = stride * header.h() as u32;
-                idea_data_size += match header.cf() {
-                    ColorFormat::I1 | ColorFormat::I2 | ColorFormat::I4 | ColorFormat::I8 => {
-                        (1u32 << header.cf().get_bpp()) * ColorFormat::ARGB8888.get_size() as u32
-                    }
-                    ColorFormat::RGB565A8 => header.w() as u32 * header.h() as u32,
-                    _ => 0,
-                };
-
-                if has_flag(header.flags(), HeaderFlag::COMPRESSED) {
-                    log::trace!("Dealing Compressed image");
-                    let compressed_header = ImageCompressedHeader::from_bytes([
-                        data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
-                        data[8], data[9], data[10], data[11],
-                    ]);
-                    let method = compressed_header.method();
-                    match method {
-                        Compress::Rle => {
-                            let blk_size = ((header.cf().get_bpp() + 7) >> 3) as usize;
-                            use super::utils::rle::RleCoder;
-                            let rle_coder = RleCoder::new().with_block_size(blk_size).unwrap();
-                            if compressed_header.compressed_size()
-                                != data_size - size_of::<ImageCompressedHeader>() as u32
-                            {
-                                log::error!(
-                                    "Compressed data size mismatch, but still try to decode. current: {} expected {}",
-                                    compressed_header.compressed_size(),
-                                    data_size - size_of::<ImageCompressedHeader>() as u32
-                                );
-                            }
-                            let decoded =
-                                rle_coder.decode(&data[size_of::<ImageCompressedHeader>()..]);
-                            match decoded {
-                                Ok(decoded) => {
-                                    return Self {
-                                        header: ImageHeader::V9(header),
-                                        data_size: decoded.len() as u32,
-                                        data: decoded,
-                                    };
-                                }
-                                Err(err) => {
-                                    log::error!("Failed to decode RLE data: {err:?}");
-                                }
-                            };
-                        }
-                        _ => {
-                            log::error!("Unsupported compression method {method:?}")
-                        }
-                    }
-                    return Self {
-                        header: ImageHeader::V9(header),
-                        data_size: 0,
-                        data: vec![],
-                    };
-                } else if idea_data_size != data_size {
-                    log::error!("Data size mismatch ideal_data_size: {idea_data_size}, data_size: {data_size}, {header:#?}");
-                }
-            }
-            ImageHeader::V8(_) => {}
-            ImageHeader::Unknown => {
-                log::error!("Unknown image header format");
-
-                return Self {
-                    header,
-                    data_size: 0,
-                    data: vec![],
-                };
-            }
+        let Some(image_data) = image_data else {
+            log::error!("Invalid LVGL compressed image data");
+            return Self::invalid(header);
+        };
+        if image_data.len() != expected_size {
+            log::error!(
+                "Image data size mismatch: actual={}, expected={expected_size}",
+                image_data.len()
+            );
+            return Self::invalid(header);
         }
 
-        log::trace!("Decoded image descriptor and returned data size: {data_size}");
+        Self::new(header, image_data)
+    }
 
+    fn invalid(header: ImageHeader) -> Self {
         Self {
             header,
-            data_size,
-            data,
+            data_size: 0,
+            data: Vec::new(),
         }
     }
 }
@@ -443,5 +473,50 @@ impl ColorFormat {
     pub fn get_stride_size(&self, width: u32, align: u32) -> u32 {
         let stride = (width * self.get_bpp() as u32 + 7) >> 3;
         (stride + align - 1) & !(align - 1)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn image_header_parsing_is_safe_for_truncated_input() {
+        for len in 0..12 {
+            let mut data = vec![0; len];
+            if let Some(magic) = data.first_mut() {
+                *magic = 0x19;
+            }
+            assert!(ImageHeader::parse(&data).is_none());
+        }
+    }
+
+    #[test]
+    fn image_header_parses_exact_v8_and_v9_headers() {
+        let v8 = ImageHeader::new(LVGLVersion::V8, ColorFormat::TrueColor, 0, 8, 4, 0);
+        let v9 = ImageHeader::new(LVGLVersion::V9, ColorFormat::I8, 0, 8, 4, 8);
+
+        assert_eq!(
+            ImageHeader::parse(&v8.encode()).unwrap().version(),
+            LVGLVersion::V8
+        );
+        assert_eq!(
+            ImageHeader::parse(&v9.encode()).unwrap().version(),
+            LVGLVersion::V9
+        );
+    }
+
+    #[test]
+    fn image_header_split_returns_payload_after_actual_header() {
+        for header in [
+            ImageHeader::new(LVGLVersion::V8, ColorFormat::TrueColor, 0, 8, 4, 0),
+            ImageHeader::new(LVGLVersion::V9, ColorFormat::I8, 0, 8, 4, 8),
+        ] {
+            let mut data = header.encode();
+            data.extend_from_slice(&[1, 2, 3]);
+            let (parsed, payload) = ImageHeader::split(&data).unwrap();
+            assert_eq!(parsed.version(), header.version());
+            assert_eq!(payload, &[1, 2, 3]);
+        }
     }
 }

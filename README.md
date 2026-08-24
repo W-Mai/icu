@@ -101,7 +101,7 @@ Important conversion options include:
 - `-C, --output-color-format`: select an LVGL or MIRX pixel format.
 - `-S, --output-stride-align`: align output rows; the default is `1`.
 - `--dither`: set indexed-color quantization from `1` to `30`.
-- `--output-compressed-method`: select `none`, `rle`, or `lz4` where supported.
+- `--output-compressed-method`: select `none`, `rle`, or LVGL v9 raw-block `lz4` compression.
 - `--lvgl-version`: select LVGL `v8` or `v9`; the default is `v9`.
 - `--stdout`: write one converted result to standard output.
 
@@ -110,6 +110,15 @@ LVGL output requires an explicit color format:
 ```shell
 icu convert res/img_0.png -O output -F lvgl -C i8 --lvgl-version v9
 ```
+
+Compress an LVGL v9 image with the raw-block LZ4 format used by LVGL:
+
+```shell
+icu convert res/img_0.png -O output -F lvgl -C i8 \
+  --lvgl-version v9 --output-compressed-method lz4
+```
+
+LZ4 compression is available for LVGL v9. The payload uses an LVGL 12-byte compression header followed by a raw LZ4 block; LZ4 frame files are not used. ICU also decodes LVGL v9 LZ4 images produced by LVGL's image tooling.
 
 MIRX flat-image output accepts `rgb565`, `rgb565-swapped`, `rgb888`, `rgba8888`, `bgra8888`, and `xrgb8888` pixel formats:
 

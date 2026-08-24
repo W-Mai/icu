@@ -1,10 +1,10 @@
-use crate::arguments::{SubCommands, parse_args};
+use crate::arguments::{parse_args, SubCommands};
 use crate::converter::{ImageFormatCategory, ImageFormats, OutputFileFormatCategory};
 use crate::image_viewer::show_image;
 use eframe::egui::DroppedFile;
-use icu_lib::endecoder::{EnDecoder, common, find_endecoder, lvgl};
+use icu_lib::endecoder::{common, find_endecoder, lvgl, EnDecoder};
 use icu_lib::midata::MiData;
-use icu_lib::{EncoderParams, endecoder};
+use icu_lib::{endecoder, EncoderParams};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -135,6 +135,14 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
                         let data = fs::read(file_path)?;
                         let ed = output_format.get_endecoder();
                         let mid = decode_with(data, *input_format)?;
+                        let mid = if output_format != &ImageFormats::LVGL {
+                            match mid {
+                                MiData::INDEXED(indexed) => MiData::RGBA(indexed.rgba),
+                                mid => mid,
+                            }
+                        } else {
+                            mid
+                        };
                         let data = mid.encode_into(ed, params);
 
                         match output_category {
@@ -361,7 +369,7 @@ fn bake_font_command(
     output_folder: Option<&str>,
     override_output: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use icu_lib::endecoder::mirui::font_bake::{FontBakeParams, bake_font};
+    use icu_lib::endecoder::mirui::font_bake::{bake_font, FontBakeParams};
     use icu_lib::mirx::FontChunkKind;
 
     let ttf_bytes = fs::read(ttf)?;

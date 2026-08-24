@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+- ✨ Add LVGL v9 raw-block LZ4 compression and decompression using `lz4_flex`.
+- 🛡️ Validate compressed sizes and truncated LVGL headers without panicking.
+- 🔄 Convert indexed LVGL inputs through their RGBA view when writing common output formats.
+
 ## [v0.7.0] - 2026-07-26
 
 ### 🔖 Version Tag

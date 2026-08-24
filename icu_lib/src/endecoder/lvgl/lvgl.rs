@@ -1,6 +1,6 @@
 use crate::endecoder::lvgl::color_converter::{extract_indexed, rgba8888_from, rgba8888_to};
 use crate::endecoder::lvgl::{
-    has_flag, with_flag, Compress, Flags, HeaderFlag, ImageCompressedHeader, ImageDescriptor,
+    has_flag, with_flag, Compress, CompressedImage, Flags, HeaderFlag, ImageDescriptor,
     ImageHeader, LVGLVersion, LVGL,
 };
 use crate::endecoder::{EnDecoder, ImageInfo};
@@ -13,15 +13,7 @@ use std::io::{Cursor, Write};
 
 impl EnDecoder for LVGL {
     fn can_decode(&self, data: &[u8]) -> bool {
-        let header_size = size_of::<ImageHeader>();
-        if data.len() < header_size {
-            return false;
-        }
-
-        let header_data = &data[..header_size];
-
-        let header = ImageHeader::decode(Vec::from(header_data));
-        header.version() != LVGLVersion::Unknown
+        ImageHeader::parse(data).is_some()
     }
 
     fn encode(&self, data: &MiData, encoder_params: EncoderParams) -> Vec<u8> {
@@ -51,31 +43,22 @@ impl EnDecoder for LVGL {
 
                 let mut flags = Flags::from(0u16);
 
-                match encoder_params.compress {
-                    Compress::NONE => {}
-                    Compress::Rle => {
-                        use super::super::utils::rle::RleCoder;
-                        let blk_size = ((color_format.get_bpp() + 7) >> 3) as usize;
-                        let rle_coder = RleCoder::new().with_block_size(blk_size).unwrap();
-                        let mut compressed_data = match rle_coder.encode(&img_data) {
-                            Ok(data) => data,
-                            Err(err) => {
-                                log::error!("RLE encoding failed: {err:?}");
-                                return vec![];
-                            }
-                        };
-
-                        let image_compressed_header = ImageCompressedHeader::new()
-                            .with_method(encoder_params.compress)
-                            .with_compressed_size(compressed_data.len() as u32)
-                            .with_decompressed_size(img_data.len() as u32);
-                        let mut ich_vec = image_compressed_header.into_bytes().to_vec();
-                        ich_vec.append(&mut compressed_data);
-
-                        img_data = ich_vec;
-                        flags = with_flag(flags, HeaderFlag::COMPRESSED);
+                if encoder_params.compress != Compress::NONE {
+                    if encoder_params.compress == Compress::LZ4
+                        && encoder_params.lvgl_version != LVGLVersion::V9
+                    {
+                        log::error!("LVGL LZ4 compression is only supported for v9 images");
+                        return vec![];
                     }
-                    _ => {}
+                    let block_size = ((color_format.get_bpp() + 7) >> 3) as usize;
+                    let Some(compressed) =
+                        CompressedImage::encode(encoder_params.compress, &img_data, block_size)
+                    else {
+                        log::error!("Failed to compress LVGL image data");
+                        return vec![];
+                    };
+                    img_data = compressed;
+                    flags = with_flag(flags, HeaderFlag::COMPRESSED);
                 }
 
                 let mut buf = Cursor::new(Vec::new());
@@ -148,11 +131,15 @@ impl EnDecoder for LVGL {
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        let header_size = size_of::<ImageHeader>();
-
-        let header_data = &data[..header_size];
-
-        let header = ImageHeader::decode(Vec::from(header_data));
+        let Some((header, payload)) = ImageHeader::split(data) else {
+            return ImageInfo {
+                width: 0,
+                height: 0,
+                data_size: data.len() as u32,
+                format: "LVGL.Unknown(UNKNOWN)".to_string(),
+                other_info: Value::Null,
+            };
+        };
 
         let mut other_info = serde_json::Map::new();
 
@@ -172,22 +159,21 @@ impl EnDecoder for LVGL {
             other_info.insert("Stride".to_string(), Value::from(header.stride()));
         }
 
-        // Deal Flag has Compressed
         if has_flag(header.flags(), HeaderFlag::COMPRESSED) {
-            let data = &data[header.header_size()..];
-            let compressed_header = ImageCompressedHeader::from_bytes([
-                data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8],
-                data[9], data[10], data[11],
-            ]);
-
-            other_info.insert(
-                "Compressed Info".to_owned(),
-                json!({
-                    "Method": format!("{:#?}", compressed_header.method()),
-                    "Size": compressed_header.compressed_size(),
-                    "Decompressed Size": compressed_header.decompressed_size()
-                }),
-            );
+            if let Some(compressed) = header
+                .expected_data_size()
+                .and_then(|expected| CompressedImage::parse(payload, expected))
+            {
+                let (method, compressed_size, decompressed_size) = compressed.info();
+                other_info.insert(
+                    "Compressed Info".to_owned(),
+                    json!({
+                        "Method": format!("{method:#?}"),
+                        "Size": compressed_size,
+                        "Decompressed Size": decompressed_size
+                    }),
+                );
+            }
         }
 
         ImageInfo {
