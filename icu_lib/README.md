@@ -1,51 +1,56 @@
 # ICU-LIB
 
-Image Converter Ultra Library (ICU-LIB)
+Image Converter Ultra Library (ICU-LIB) is the reusable format and image-processing library behind the [`icu`](../README.md) command-line tool and viewer.
 
-# Introduction
+## Features
 
-The Image Converter Ultra (ICU) is a software that converts images from one format to another. It is designed to be a
-versatile tool that can handle a wide range of image formats and convert them to other formats. The ICU is designed to
-be a standalone application that can be used on any platform that supports the necessary dependencies. The ICU is
-written in RUST.
+- Decode and encode common raster image formats.
+- Decode and encode LVGL v8/v9 image data.
+- Decode and encode MIRX flat images, scenes, indexed images, and font chunks.
+- Parse TTF, OTF, and TTC font outlines and metadata.
+- Import and export SVG scene data.
+- Provide reusable image post-processing, quantization, dithering, and diff helpers.
 
-# Features
-
-- Supports a wide range of image formats
-- Supports LVGL binary format
-
-# How to use
+## Usage
 
 ```shell
 cargo add icu_lib
 ```
 
+The library uses `MiData` as the shared representation between format implementations:
+
+```text
+input bytes -> EnDecoder::decode -> MiData -> EnDecoder::encode -> output bytes
+```
+
+A minimal conversion example:
+
 ```rust
-use icu_lib::endecoder::{common, lvgl_v9};
+use icu_lib::endecoder::{common, lvgl, ColorFormat};
 use icu_lib::midata::MiData;
 use icu_lib::EncoderParams;
 use std::fs;
 
 fn main() {
-    const DATA: &[u8] = include_bytes!("../res/img_0.png");
+    let data = fs::read("input.png").expect("failed to read input");
+    let input = common::AutoDetect {};
+    let mid = MiData::decode_from(&input, data);
 
-    // Decode the image data and automatically detect the format
-    let mid = MiData::decode_from(&common::AutoDectect {}, Vec::from(DATA));
+    let output = mid.encode_into(
+        &lvgl::LVGL {},
+        EncoderParams::new()
+            .with_color_format(ColorFormat::ARGB8888)
+            .with_stride_align(1)
+            .with_lvgl_version(lvgl::LVGLVersion::V9),
+    );
 
-    // Encode the image data to the LVGL binary format with ARGB8888 color format
-    let data = mid.encode_into(
-        &lvgl_v9::LVGL {},
-        EncoderParams {
-            color_format: lvgl_v9::ColorFormat::ARGB8888,
-            stride_align: 256,
-            dither: false,
-        });
-
-    fs::write("img_0.bin", data).expect("Unable to write file");
+    fs::write("output.bin", output).expect("failed to write output");
 }
 ```
 
-# Architecture
+`EncoderParams` also supports dithering, LVGL compression, and raw image header options. See the public API and the main repository README for the current CLI-level examples.
+
+## Architecture
 
 ```text
        ╔═══════════════╗                       
@@ -75,3 +80,15 @@ fn main() {
        ║               ║                       
        ╚═══════════════╝                       
 ```
+
+The main modules are:
+
+- `endecoder/`: format-specific implementations and automatic detection.
+- `midata/`: shared RGBA, grayscale, path, font, and indexed-image models.
+- `postprocess/`: reusable image transformations.
+
+When adding a format, keep format-specific knowledge in `endecoder`, use an existing `MiData` variant when it can represent the data correctly, register automatic detection when appropriate, and add focused tests. See [`CONTRIBUTING.md`](../CONTRIBUTING.md) for the complete integration checklist.
+
+## License
+
+ICU-LIB is licensed under the MIT license.
