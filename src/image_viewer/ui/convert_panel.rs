@@ -177,16 +177,29 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
     {
         crate::image_viewer::ui::widgets::section_card(ui, &t!("section_export"), |ui| {
             param_row(ui, t!("collection_interval").as_ref(), |ui| {
-                ui.add(
+                let response = ui.add(
                     egui::DragValue::new(&mut state.context.convert_params.gif_interval_ms)
                         .range(1..=60_000),
                 );
+                if response.changed() {
+                    if let Some(id) = state.selected_id {
+                        state.set_group_interval(
+                            id,
+                            std::time::Duration::from_millis(
+                                state.context.convert_params.gif_interval_ms.max(1) as u64,
+                            ),
+                        );
+                    }
+                }
             });
             param_row(ui, t!("collection_repeat").as_ref(), |ui| {
                 let mut infinite = state.context.convert_params.gif_repeat.is_none();
-                if ui
-                    .checkbox(&mut infinite, t!("collection_repeat_infinite"))
-                    .changed()
+                if crate::image_viewer::ui::widgets::toggle_labeled(
+                    ui,
+                    t!("collection_repeat_infinite"),
+                    &mut infinite,
+                )
+                .changed()
                 {
                     state.context.convert_params.gif_repeat = if infinite { None } else { Some(1) };
                 }

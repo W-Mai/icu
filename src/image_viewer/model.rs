@@ -777,6 +777,28 @@ impl ViewerState {
         true
     }
 
+    pub fn set_group_interval(&mut self, id: WorkspaceId, interval: Duration) -> bool {
+        if !self.sequence_groups.contains_key(&id) {
+            return false;
+        }
+        let Some(SidebarItem::Image(image)) = self.item_mut(id) else {
+            return false;
+        };
+        let FrameSource::Animated {
+            frames,
+            last_advance,
+            ..
+        } = &mut image.frames
+        else {
+            return false;
+        };
+        for frame in frames {
+            frame.delay = interval;
+        }
+        *last_advance = None;
+        true
+    }
+
     pub fn group_label(&self, id: WorkspaceId) -> Option<&str> {
         self.sequence_groups
             .get(&id)
@@ -1701,6 +1723,23 @@ mod tests {
         assert!(state.ungroup(group_id));
         assert_eq!(state.items()[0].id(), ids[0]);
         assert_eq!(state.items()[1].id(), ids[1]);
+    }
+
+    #[test]
+    fn changing_group_interval_updates_playback_frames() {
+        let mut state = ViewerState::default();
+        state.insert_and_select_first([image("/tmp/walk_0001.png"), image("/tmp/walk_0002.png")]);
+        let group_id = state.items()[0].id();
+        assert!(state.set_group_interval(group_id, Duration::from_millis(240)));
+        let image = state.current_image().unwrap();
+        let FrameSource::Animated { frames, .. } = &image.frames else {
+            panic!("expected grouped animation");
+        };
+        assert!(
+            frames
+                .iter()
+                .all(|frame| frame.delay == Duration::from_millis(240))
+        );
     }
 
     #[test]

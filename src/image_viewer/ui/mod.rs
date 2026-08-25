@@ -118,11 +118,11 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                         .unwrap_or_else(|| "0s".to_string());
                     widgets::info_row(
                         ui,
-                        t!("frames").as_ref(),
-                        &format!("{} frames · {}", img.frame_count(), total),
+                        t!("info_frames").as_ref(),
+                        &format!("{} · {}", img.frame_count(), total),
                     );
                     let mut autoplay = img.autoplay();
-                    if ui.checkbox(&mut autoplay, "autoplay").changed() {
+                    if widgets::toggle_labeled(ui, t!("info_autoplay"), &mut autoplay).changed() {
                         if let Some(current) = state.current_image_mut() {
                             current.set_autoplay(autoplay);
                         }
