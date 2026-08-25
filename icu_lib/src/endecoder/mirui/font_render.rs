@@ -91,8 +91,15 @@ pub fn render_freetype_glyph_at(
         let mirui_cmd: PathCmd = cmd.clone().into();
         let pts: Vec<(f32, f32)> = match &mirui_cmd {
             PathCmd::MoveTo(p) | PathCmd::LineTo(p) => vec![(p.x.to_f32(), p.y.to_f32())],
-            PathCmd::QuadTo { ctrl, end } => vec![(ctrl.x.to_f32(), ctrl.y.to_f32()), (end.x.to_f32(), end.y.to_f32())],
-            PathCmd::CubicTo { ctrl1, ctrl2, end } => vec![(ctrl1.x.to_f32(), ctrl1.y.to_f32()), (ctrl2.x.to_f32(), ctrl2.y.to_f32()), (end.x.to_f32(), end.y.to_f32())],
+            PathCmd::QuadTo { ctrl, end } => vec![
+                (ctrl.x.to_f32(), ctrl.y.to_f32()),
+                (end.x.to_f32(), end.y.to_f32()),
+            ],
+            PathCmd::CubicTo { ctrl1, ctrl2, end } => vec![
+                (ctrl1.x.to_f32(), ctrl1.y.to_f32()),
+                (ctrl2.x.to_f32(), ctrl2.y.to_f32()),
+                (end.x.to_f32(), end.y.to_f32()),
+            ],
             PathCmd::Close => vec![],
         };
         for (x, y) in pts {
@@ -430,10 +437,12 @@ pub fn render_font_glyph_on_canvas(
 ) -> RgbaImage {
     let payload: &'static [u8] = leak_font_payload(font);
     let mirui_font = match font.chunk_header.kind {
-        FontChunkKind::Sdf => match mirui::render::font::sdf::font_from_mirx_chunk("icu-preview", payload) {
-            Ok(f) => f,
-            Err(_) => return RgbaImage::new(width, height),
-        },
+        FontChunkKind::Sdf => {
+            match mirui::render::font::sdf::font_from_mirx_chunk("icu-preview", payload) {
+                Ok(f) => f,
+                Err(_) => return RgbaImage::new(width, height),
+            }
+        }
         FontChunkKind::Grayscale => {
             match mirui::render::font::gray::font_from_mirx_chunk("icu-preview", payload) {
                 Ok(f) => f,
@@ -441,7 +450,15 @@ pub fn render_font_glyph_on_canvas(
             }
         }
     };
-    render_text_with_font_at(&mirui_font, &ch.to_string(), width, height, x, baseline_y, color)
+    render_text_with_font_at(
+        &mirui_font,
+        &ch.to_string(),
+        width,
+        height,
+        x,
+        baseline_y,
+        color,
+    )
 }
 
 fn render_text_with_font_at(
