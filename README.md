@@ -1,6 +1,37 @@
-# ICU
+<p align="center">
+  <img src="assets/icon-1024.png" alt="ICU icon" width="160">
+</p>
 
-Image Converter Ultra (ICU) is a Rust image and font toolkit. It provides a native command-line interface, an `egui` desktop viewer, a WebAssembly viewer, and the reusable [`icu_lib`](icu_lib/) crate.
+<h2 align="center">ICU</h2>
+
+<p align="center">
+  <strong>Image Converter Ultra</strong>
+</p>
+
+<p align="center">
+  A Rust toolkit for inspecting, previewing, and converting images and fonts.
+</p>
+
+<p align="center">
+  <a href="https://github.com/W-Mai/icu/actions"><img src="https://github.com/W-Mai/icu/actions/workflows/release.yml/badge.svg" alt="CI"></a>
+  <a href="https://crates.io/crates/icu_tool"><img src="https://img.shields.io/crates/v/icu_tool?style=flat-square" alt="Crates.io version"></a>
+  <a href="https://crates.io/crates/icu_lib"><img src="https://img.shields.io/crates/v/icu_lib?style=flat-square" alt="icu_lib version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/rust-1.85%2B-orange.svg?style=flat-square" alt="Rust 1.85+">
+</p>
+
+<p align="center">
+  <a href="#installation">Installation</a> ·
+  <a href="#command-line-interface">CLI</a> ·
+  <a href="#viewer">Viewer</a> ·
+  <a href="#library">Library</a>
+</p>
+
+<p align="center">
+  <img src="static/snapshots/snapshot_1.png" alt="ICU image viewer" width="820">
+</p>
+
+Image Converter Ultra (ICU) provides a native command-line interface, an `egui` desktop viewer, a WebAssembly viewer, and the reusable [`icu_lib`](icu_lib/) crate.
 
 ## Features
 
