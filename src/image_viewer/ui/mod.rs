@@ -22,6 +22,11 @@ pub fn draw_right_panel_container(ui: &mut egui::Ui, state: &mut ViewerState) {
         .resizable(true)
         .frame(frame)
         .show(ui, |ui| {
+            if ui.rect_contains_pointer(ui.max_rect())
+                && ui.input(|input| input.pointer.any_pressed())
+            {
+                state.blur_list();
+            }
             let p = theme::tokens::palette(ui.ctx());
             egui::Frame::new()
                 .fill(p.surface0)
@@ -86,15 +91,8 @@ fn draw_convert_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
 
 fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
     use crate::image_viewer::model::SidebarItem;
-    let idx = match state.selected_index {
-        Some(i) => i,
-        None => {
-            ui.label(t!("no_file_selected"));
-            return;
-        }
-    };
-    let item = match state.items.get(idx).cloned() {
-        Some(it) => it,
+    let item = match state.selected_item().cloned() {
+        Some(item) => item,
         None => {
             ui.label(t!("no_file_selected"));
             return;
@@ -125,7 +123,7 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                     );
                     let mut autoplay = img.autoplay();
                     if ui.checkbox(&mut autoplay, "autoplay").changed() {
-                        if let Some(current) = state.current_image.as_mut() {
+                        if let Some(current) = state.current_image_mut() {
                             current.set_autoplay(autoplay);
                         }
                     }

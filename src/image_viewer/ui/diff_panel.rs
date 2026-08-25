@@ -10,36 +10,35 @@ pub fn draw_diff_panel_contents(ui: &mut egui::Ui, state: &mut ViewerState) {
     ui.add_space(8.0);
     ui.spacing_mut().item_spacing.y = 6.0;
 
-    if state.diff_image1_index.is_none() && state.diff_image2_index.is_none() {
-        let font_indices: Vec<usize> = state
-            .items
+    if state.diff_image1_id.is_none() && state.diff_image2_id.is_none() {
+        let font_ids: Vec<_> = state
+            .items()
             .iter()
             .enumerate()
-            .filter_map(|(i, item)| match item {
+            .filter_map(|(_, item)| match item.content() {
                 crate::image_viewer::model::SidebarItem::Image(img)
                     if matches!(img.midata, Some(icu_lib::midata::MiData::FONT(_))) =>
                 {
-                    Some(i)
+                    Some(item.id())
                 }
                 _ => None,
             })
             .collect();
-        if font_indices.len() >= 2 {
-            state.diff_image1_index = Some(font_indices[0]);
-            state.diff_image2_index = Some(font_indices[1]);
+        if font_ids.len() >= 2 {
+            state.diff_image1_id = Some(font_ids[0]);
+            state.diff_image2_id = Some(font_ids[1]);
         } else {
-            let img_indices: Vec<usize> = state
-                .items
+            let image_ids: Vec<_> = state
+                .items()
                 .iter()
-                .enumerate()
-                .filter_map(|(i, item)| match item {
-                    crate::image_viewer::model::SidebarItem::Image(_) => Some(i),
+                .filter_map(|item| match item.content() {
+                    crate::image_viewer::model::SidebarItem::Image(_) => Some(item.id()),
                     _ => None,
                 })
                 .collect();
-            if img_indices.len() >= 2 {
-                state.diff_image1_index = Some(img_indices[0]);
-                state.diff_image2_index = Some(img_indices[1]);
+            if image_ids.len() >= 2 {
+                state.diff_image1_id = Some(image_ids[0]);
+                state.diff_image2_id = Some(image_ids[1]);
             }
         }
     }
@@ -61,7 +60,7 @@ fn draw_image_diff_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
 
     state.hovered_diff_pixel = None;
     if let Some((_, diff_result)) = &state.diff_result {
-        if let (Some(i1), Some(i2)) = (state.diff_image1_index, state.diff_image2_index) {
+        if let (Some(i1), Some(i2)) = (state.diff_image1_id, state.diff_image2_id) {
             if i1 != i2 {
                 widgets::section_card(ui, t!("section_pixels").as_ref(), |ui| {
                     draw_diff_pixel_list(
@@ -235,8 +234,11 @@ fn draw_blend_preset_buttons(ui: &mut egui::Ui, state: &mut ViewerState, avail_w
 }
 
 pub fn diff_source_names(state: &ViewerState) -> (Option<String>, Option<String>) {
-    fn name_at(state: &ViewerState, idx: Option<usize>) -> Option<String> {
-        let crate::image_viewer::model::SidebarItem::Image(image) = state.items.get(idx?)? else {
+    fn name_at(
+        state: &ViewerState,
+        id: Option<crate::image_viewer::model::WorkspaceId>,
+    ) -> Option<String> {
+        let crate::image_viewer::model::SidebarItem::Image(image) = state.item(id?)? else {
             return None;
         };
         Some(
@@ -248,8 +250,8 @@ pub fn diff_source_names(state: &ViewerState) -> (Option<String>, Option<String>
         )
     }
     (
-        name_at(state, state.diff_image1_index),
-        name_at(state, state.diff_image2_index),
+        name_at(state, state.diff_image1_id),
+        name_at(state, state.diff_image2_id),
     )
 }
 

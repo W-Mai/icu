@@ -1,6 +1,6 @@
 use crate::image_viewer::model::{SidebarItem, ViewerState};
 use crate::image_viewer::ui;
-use crate::image_viewer::utils::process_images;
+use crate::image_viewer::utils::process_images_with_format;
 use crate::utils;
 use eframe::egui;
 use eframe::egui::{Color32, DroppedFile};
@@ -16,30 +16,30 @@ pub struct MyEguiApp {
 }
 
 impl MyEguiApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<DroppedFile>) -> Self {
+    pub fn new(
+        cc: &eframe::CreationContext<'_>,
+        files: Vec<DroppedFile>,
+        input_format: crate::converter::ImageFormatCategory,
+    ) -> Self {
         log::info!(
             "Starting Egui App with system language: {}",
             crate::image_viewer::utils::get_system_locale()
         );
-        let mut state = ViewerState {
-            items: process_images(&files)
+        let mut state = ViewerState::default();
+        state.context = cc
+            .storage
+            .and_then(|storage| eframe::get_value(storage, eframe::APP_KEY))
+            .unwrap_or_default();
+        state.input_format = input_format;
+        state.insert_and_select_first(
+            process_images_with_format(&files, state.input_format)
                 .into_iter()
-                .map(SidebarItem::Image)
-                .collect(),
-            context: cc
-                .storage
-                .and_then(|storage| eframe::get_value(storage, eframe::APP_KEY))
-                .unwrap_or_default(),
-            ..Default::default()
-        };
+                .map(SidebarItem::Image),
+        );
         state.context.right_tab = crate::image_viewer::model::RightTab::Info;
         state.context.diff_active = false;
         state.context.only_show_diff = false;
 
-        if let Some(SidebarItem::Image(first)) = state.items.first().cloned() {
-            state.current_image = Some(first.clone());
-            state.selected_index = Some(0);
-        }
         rust_i18n::set_locale(&state.context.language);
 
         ui::theme::apply(&cc.egui_ctx);
@@ -48,14 +48,7 @@ impl MyEguiApp {
     }
 
     fn reset_state(state: &mut ViewerState) {
-        state.current_image = None;
-        state.selected_index = None;
-        state.hovered_index = None;
-        state.diff_image1_index = None;
-        state.diff_image2_index = None;
-        state.diff_result = None;
-        state.selected_diff_pixel = None;
-        state.hovered_diff_pixel = None;
+        state.clear_items();
     }
 
     fn ui_file_drag_and_drop(&mut self, ctx: &egui::Context) {
@@ -99,20 +92,16 @@ impl MyEguiApp {
         });
 
         if !self.state.dropped_files.is_empty() {
-            let new_items: Vec<SidebarItem> = process_images(&self.state.dropped_files)
-                .into_iter()
-                .map(SidebarItem::Image)
-                .collect();
-            let start_idx = self.state.items.len();
-            self.state.items.extend(new_items);
+            let new_items: Vec<SidebarItem> =
+                process_images_with_format(&self.state.dropped_files, self.state.input_format)
+                    .into_iter()
+                    .map(SidebarItem::Image)
+                    .collect();
+            let was_empty = self.state.is_empty();
+            self.state.insert_and_select_first(new_items);
 
-            if self.state.items.len() == 1 {
+            if was_empty && !self.state.is_empty() {
                 self.state.context.right_tab = crate::image_viewer::model::RightTab::Info;
-            }
-
-            if let Some(SidebarItem::Image(image)) = self.state.items.get(start_idx).cloned() {
-                self.state.current_image = Some(image);
-                self.state.selected_index = Some(start_idx);
             }
             self.state.dropped_files.clear();
         }
@@ -124,58 +113,55 @@ impl eframe::App for MyEguiApp {
         ui::theme::apply(ctx);
 
         if self.state.context.diff_active
-            && self.state.diff_image1_index.is_none()
-            && self.state.diff_image2_index.is_none()
+            && self.state.diff_image1_id.is_none()
+            && self.state.diff_image2_id.is_none()
         {
-            let font_indices: Vec<usize> = self
+            let font_ids: Vec<_> = self
                 .state
-                .items
+                .items()
                 .iter()
-                .enumerate()
-                .filter_map(|(i, item)| match item {
+                .filter_map(|item| match item.content() {
                     SidebarItem::Image(img)
                         if matches!(img.midata, Some(icu_lib::midata::MiData::FONT(_))) =>
                     {
-                        Some(i)
+                        Some(item.id())
                     }
                     _ => None,
                 })
                 .collect();
-            if font_indices.len() >= 2 {
-                self.state.diff_image1_index = Some(font_indices[0]);
-                self.state.diff_image2_index = Some(font_indices[1]);
+            if font_ids.len() >= 2 {
+                self.state.diff_image1_id = Some(font_ids[0]);
+                self.state.diff_image2_id = Some(font_ids[1]);
             } else {
-                let img_indices: Vec<usize> = self
+                let image_ids: Vec<_> = self
                     .state
-                    .items
+                    .items()
                     .iter()
-                    .enumerate()
-                    .filter_map(|(i, item)| match item {
-                        SidebarItem::Image(_) => Some(i),
+                    .filter_map(|item| match item.content() {
+                        SidebarItem::Image(_) => Some(item.id()),
                         _ => None,
                     })
                     .collect();
-                if img_indices.len() >= 2 {
-                    self.state.diff_image1_index = Some(img_indices[0]);
-                    self.state.diff_image2_index = Some(img_indices[1]);
+                if image_ids.len() >= 2 {
+                    self.state.diff_image1_id = Some(image_ids[0]);
+                    self.state.diff_image2_id = Some(image_ids[1]);
                 }
             }
         }
 
         if crate::image_viewer::ui::viewer::get_diff_mode(&self.state)
             == crate::image_viewer::ui::viewer::DiffMode::Image
-            && let (Some(i1), Some(i2)) =
-                (self.state.diff_image1_index, self.state.diff_image2_index)
+            && let (Some(i1), Some(i2)) = (self.state.diff_image1_id, self.state.diff_image2_id)
             && i1 != i2
         {
-            let img1 = match self.state.items.get(i1) {
+            let img1 = match self.state.item(i1) {
                 Some(SidebarItem::Image(i)) => i.clone(),
                 _ => {
                     self.state.diff_result = None;
                     return;
                 }
             };
-            let img2 = match self.state.items.get(i2) {
+            let img2 = match self.state.item(i2) {
                 Some(SidebarItem::Image(i)) => i.clone(),
                 _ => {
                     self.state.diff_result = None;
@@ -231,15 +217,12 @@ impl eframe::App for MyEguiApp {
                         })
                         .collect();
                     if !files.is_empty() {
-                        let new_items: Vec<SidebarItem> = process_images(&files)
-                            .into_iter()
-                            .map(SidebarItem::Image)
-                            .collect();
-                        self.state.items.extend(new_items);
-                        if let Some(SidebarItem::Image(img)) = self.state.items.first().cloned() {
-                            self.state.current_image = Some(img);
-                            self.state.selected_index = Some(0);
-                        }
+                        let new_items: Vec<SidebarItem> =
+                            process_images_with_format(&files, self.state.input_format)
+                                .into_iter()
+                                .map(SidebarItem::Image)
+                                .collect();
+                        self.state.insert_and_select_first(new_items);
                     }
                 }
                 #[cfg(target_arch = "wasm32")]
@@ -264,8 +247,8 @@ impl eframe::App for MyEguiApp {
                 use icu_lib::midata::MiData;
                 let kind = self
                     .state
-                    .selected_index
-                    .and_then(|i| self.state.items.get(i))
+                    .selected_id
+                    .and_then(|id| self.state.item(id))
                     .and_then(|it| match it {
                         SidebarItem::Image(img) => img.midata.as_ref().map(|m| match m {
                             MiData::RGBA(_) => ExportKind::Convert,
@@ -292,18 +275,15 @@ impl eframe::App for MyEguiApp {
             let pending: Vec<DroppedFile> =
                 std::mem::take(&mut *self.state.pending_dropped.borrow_mut());
             if !pending.is_empty() {
-                let new_items: Vec<SidebarItem> = process_images(&pending)
-                    .into_iter()
-                    .map(SidebarItem::Image)
-                    .collect();
-                let start_idx = self.state.items.len();
-                self.state.items.extend(new_items);
-                if self.state.items.len() == 1 {
+                let new_items: Vec<SidebarItem> =
+                    process_images_with_format(&pending, self.state.input_format)
+                        .into_iter()
+                        .map(SidebarItem::Image)
+                        .collect();
+                let was_empty = self.state.is_empty();
+                self.state.insert_and_select_first(new_items);
+                if was_empty && !self.state.is_empty() {
                     self.state.context.right_tab = crate::image_viewer::model::RightTab::Info;
-                }
-                if let Some(SidebarItem::Image(img)) = self.state.items.get(start_idx).cloned() {
-                    self.state.current_image = Some(img);
-                    self.state.selected_index = Some(start_idx);
                 }
             }
         }

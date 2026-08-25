@@ -67,6 +67,31 @@ pub struct IndexedImageData {
     pub height: u32,
 }
 
+impl IndexedImageData {
+    pub fn set_palette_color(&mut self, index: usize, color: [u8; 4]) -> bool {
+        if index >= self.palette.len()
+            || self.indexes.len() != self.width as usize * self.height as usize
+            || self
+                .indexes
+                .iter()
+                .any(|value| *value as usize >= self.palette.len())
+        {
+            return false;
+        }
+        self.palette[index] = color;
+        let rgba = self
+            .indexes
+            .iter()
+            .flat_map(|value| self.palette[*value as usize])
+            .collect::<Vec<_>>();
+        let Some(image) = RgbaImage::from_vec(self.width, self.height, rgba) else {
+            return false;
+        };
+        self.rgba = image;
+        true
+    }
+}
+
 pub fn requantize_indexed(
     indexed: &IndexedImageData,
     dither_level: u32,
@@ -92,6 +117,49 @@ pub fn requantize_indexed(
         width: indexed.width,
         height: indexed.height,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{IndexedImageData, RgbaImage};
+
+    fn sample() -> IndexedImageData {
+        IndexedImageData {
+            rgba: RgbaImage::from_vec(
+                2,
+                2,
+                vec![
+                    10, 20, 30, 255, 40, 50, 60, 255, 10, 20, 30, 255, 40, 50, 60, 255,
+                ],
+            )
+            .unwrap(),
+            palette: vec![[10, 20, 30, 255], [40, 50, 60, 255]],
+            indexes: vec![0, 1, 0, 1],
+            bpp: 1,
+            width: 2,
+            height: 2,
+        }
+    }
+
+    #[test]
+    fn palette_edit_preserves_indexes_and_rebuilds_rgba() {
+        let mut indexed = sample();
+        let indexes = indexed.indexes.clone();
+        assert!(indexed.set_palette_color(1, [200, 201, 202, 255]));
+        assert_eq!(indexed.indexes, indexes);
+        assert_eq!(
+            indexed.rgba.as_raw(),
+            &[10, 20, 30, 255, 200, 201, 202, 255, 10, 20, 30, 255, 200, 201, 202, 255,]
+        );
+    }
+
+    #[test]
+    fn palette_edit_rejects_invalid_index_or_malformed_indexes() {
+        let mut indexed = sample();
+        assert!(!indexed.set_palette_color(2, [0, 0, 0, 255]));
+        indexed.indexes[0] = 9;
+        assert!(!indexed.set_palette_color(0, [0, 0, 0, 255]));
+    }
 }
 
 impl MiData {

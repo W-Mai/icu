@@ -96,11 +96,7 @@ fn selected_opened_glyph(
     state: &crate::image_viewer::model::ViewerState,
 ) -> Option<crate::image_viewer::model::OpenedGlyph> {
     use crate::image_viewer::model::SidebarItem;
-    let idx = match state.selected_index {
-        Some(i) => i,
-        None => return None,
-    };
-    match state.items.get(idx) {
+    match state.selected_item() {
         Some(SidebarItem::Glyph(g)) => Some(g.clone()),
         _ => None,
     }
@@ -153,7 +149,7 @@ pub fn draw_font_info_section(
     state: &mut crate::image_viewer::model::ViewerState,
 ) {
     let ctx = ui.ctx().clone();
-    let Some(image) = state.current_image.clone() else {
+    let Some(image) = state.current_image().cloned() else {
         return;
     };
     let Some(MiData::FONT(font_data)) = &image.midata else {
@@ -371,7 +367,7 @@ pub fn draw_font_convert_section(
     ui: &mut egui::Ui,
     state: &mut crate::image_viewer::model::ViewerState,
 ) {
-    let Some(image) = state.current_image.clone() else {
+    let Some(image) = state.current_image().cloned() else {
         return;
     };
     let Some(MiData::FONT(font_data)) = &image.midata else {
@@ -454,7 +450,10 @@ fn draw_selected_glyph_section(
             let ch = char::from_u32(m.codepoint).unwrap_or('?');
             crate::image_viewer::ui::widgets::section_card(ui, "Selected Glyph", |ui| {
                 ui.heading(format!("Glyph #{}: '{}' (U+{:04X})", idx, ch, m.codepoint));
-                ui.label(format!("advance: {}  bearing: ({}, {})", m.advance, m.bearing_x, m.bearing_y));
+                ui.label(format!(
+                    "advance: {}  bearing: ({}, {})",
+                    m.advance, m.bearing_x, m.bearing_y
+                ));
                 ui.label("bbox: n/a  outline cmds: 0");
                 let big_key = format!("{}_{}", grid_key, idx);
                 let need_big = match &state.font_grid_big_cached {
@@ -470,7 +469,9 @@ fn draw_selected_glyph_section(
                         text_color,
                     );
                     let ci = egui::ColorImage::from_rgba_unmultiplied([128, 128], big.as_raw());
-                    let tex = ui.ctx().load_texture("glyph_big", ci, egui::TextureOptions::LINEAR);
+                    let tex = ui
+                        .ctx()
+                        .load_texture("glyph_big", ci, egui::TextureOptions::LINEAR);
                     state.font_grid_big_cached = Some((big_key, tex));
                 }
                 if let Some((_, tex)) = &state.font_grid_big_cached {
@@ -488,7 +489,10 @@ fn draw_selected_glyph_section(
             let ch = char::from_u32(m.codepoint).unwrap_or('?');
             crate::image_viewer::ui::widgets::section_card(ui, "Selected Glyph", |ui| {
                 ui.heading(format!("Glyph #{}: '{}' (U+{:04X})", idx, ch, m.codepoint));
-                ui.label(format!("advance: {}  bearing: ({}, {})", m.advance, m.bearing_x, m.bearing_y));
+                ui.label(format!(
+                    "advance: {}  bearing: ({}, {})",
+                    m.advance, m.bearing_x, m.bearing_y
+                ));
                 ui.label("bbox: n/a  outline cmds: 0");
                 let big_key = format!("{}_{}", grid_key, idx);
                 let need_big = match &state.font_grid_big_cached {
@@ -504,7 +508,9 @@ fn draw_selected_glyph_section(
                         text_color,
                     );
                     let ci = egui::ColorImage::from_rgba_unmultiplied([128, 128], big.as_raw());
-                    let tex = ui.ctx().load_texture("glyph_big_bundle", ci, egui::TextureOptions::LINEAR);
+                    let tex =
+                        ui.ctx()
+                            .load_texture("glyph_big_bundle", ci, egui::TextureOptions::LINEAR);
                     state.font_grid_big_cached = Some((big_key, tex));
                 }
                 if let Some((_, tex)) = &state.font_grid_big_cached {
@@ -519,24 +525,32 @@ fn draw_selected_glyph_section(
             let ch = char::from_u32(g.codepoint).unwrap_or('?');
             crate::image_viewer::ui::widgets::section_card(ui, "Selected Glyph", |ui| {
                 ui.heading(format!("Glyph #{}: '{}' (U+{:04X})", idx, ch, g.codepoint));
-                ui.label(format!("advance: {}  bearing: ({}, {})", g.advance, g.bearing_x, g.bearing_y));
-                ui.label(format!("bbox: {:?}  outline cmds: {}", g.bbox, g.outline.len()));
+                ui.label(format!(
+                    "advance: {}  bearing: ({}, {})",
+                    g.advance, g.bearing_x, g.bearing_y
+                ));
+                ui.label(format!(
+                    "bbox: {:?}  outline cmds: {}",
+                    g.bbox,
+                    g.outline.len()
+                ));
                 let big_key = format!("{}_{}", grid_key, idx);
                 let need_big = match &state.font_grid_big_cached {
                     Some((k, _)) => k != &big_key,
                     None => true,
                 };
                 if need_big {
-                    if let Some(img) = icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
-                        f,
-                        ch,
-                        128,
-                        128,
-                        text_color,
-                    ) {
+                    if let Some(img) =
+                        icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
+                            f, ch, 128, 128, text_color,
+                        )
+                    {
                         let padded = pad_image_to_cell(&img, 128);
-                        let ci = egui::ColorImage::from_rgba_unmultiplied([128, 128], padded.as_raw());
-                        let tex = ui.ctx().load_texture("ft_glyph_big", ci, egui::TextureOptions::LINEAR);
+                        let ci =
+                            egui::ColorImage::from_rgba_unmultiplied([128, 128], padded.as_raw());
+                        let tex =
+                            ui.ctx()
+                                .load_texture("ft_glyph_big", ci, egui::TextureOptions::LINEAR);
                         state.font_grid_big_cached = Some((big_key, tex));
                     }
                 }
@@ -553,8 +567,8 @@ pub fn build_selected_glyph_diff_result(
 ) -> Option<GlyphDiffResult> {
     use crate::image_viewer::model::SidebarItem;
     let font_data_a = state
-        .diff_image1_index
-        .and_then(|i| state.items.get(i))
+        .diff_image1_id
+        .and_then(|id| state.item(id))
         .and_then(|item| match item {
             SidebarItem::Image(img) if matches!(img.midata, Some(MiData::FONT(_))) => {
                 match &img.midata {
@@ -565,8 +579,8 @@ pub fn build_selected_glyph_diff_result(
             _ => None,
         })?;
     let font_data_b = state
-        .diff_image2_index
-        .and_then(|i| state.items.get(i))
+        .diff_image2_id
+        .and_then(|id| state.item(id))
         .and_then(|item| match item {
             SidebarItem::Image(img) if matches!(img.midata, Some(MiData::FONT(_))) => {
                 match &img.midata {
@@ -693,10 +707,8 @@ fn render_glyph_grid_texture(
     let ch = char::from_u32(glyph_codepoint(font_data, bundle_index, glyph_index)?).unwrap_or('?');
     let img = render_source_glyph(font_data, bundle_index, ch, cell, text_color)?;
     let padded = pad_image_to_cell(&img, cell);
-    let ci = egui::ColorImage::from_rgba_unmultiplied(
-        [cell as usize, cell as usize],
-        padded.as_raw(),
-    );
+    let ci =
+        egui::ColorImage::from_rgba_unmultiplied([cell as usize, cell as usize], padded.as_raw());
     Some(ctx.load_texture(
         format!("glyph_grid_{bundle_index}_{glyph_index}"),
         ci,
@@ -1068,7 +1080,7 @@ fn draw_font_bake_section(
 
 pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
     let ctx = ui.ctx().clone();
-    let Some(image) = state.current_image.clone() else {
+    let Some(image) = state.current_image().cloned() else {
         return;
     };
     let Some(MiData::FONT(font_data)) = &image.midata else {
@@ -1259,17 +1271,18 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                 let row_height = cell + spacing;
                 let clip_rect = ui.clip_rect();
                 let cursor_y = ui.cursor().top();
-                let first_visible_row = (((clip_rect.top() - cursor_y) / row_height).floor()
-                    as isize)
-                    .max(0) as usize;
-                let visible_rows = ((clip_rect.height() / row_height).ceil() as usize)
-                    .saturating_add(2);
+                let first_visible_row =
+                    (((clip_rect.top() - cursor_y) / row_height).floor() as isize).max(0) as usize;
+                let visible_rows =
+                    ((clip_rect.height() / row_height).ceil() as usize).saturating_add(2);
                 let last_visible_row = first_visible_row
                     .saturating_add(visible_rows)
                     .min(total_rows);
                 let prefetch_rows = 500usize.div_ceil(cols.max(1));
                 let first_render_row = first_visible_row.saturating_sub(prefetch_rows);
-                let last_render_row = last_visible_row.saturating_add(prefetch_rows).min(total_rows);
+                let last_render_row = last_visible_row
+                    .saturating_add(prefetch_rows)
+                    .min(total_rows);
                 let total_width = cols as f32 * col_w + (cols.saturating_sub(1)) as f32 * spacing;
                 let left_pad = ((avail - total_width) * 0.5).max(0.0);
                 let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
@@ -1289,7 +1302,10 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                             } else {
                                 let empty = egui::ColorImage::new(
                                     [cell as usize, cell as usize],
-                                    vec![egui::Color32::TRANSPARENT; (cell as usize) * (cell as usize)],
+                                    vec![
+                                        egui::Color32::TRANSPARENT;
+                                        (cell as usize) * (cell as usize)
+                                    ],
                                 );
                                 cache.map.insert(
                                     i,
@@ -1341,15 +1357,7 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                                     build_opened_glyph(font_data, i, state.font_bundle_index)
                                 {
                                     state.opened_glyphs.push(og.clone());
-                                    let insert_at = state
-                                        .selected_index
-                                        .map(|i| i + 1)
-                                        .unwrap_or(state.items.len());
-                                    state.items.insert(
-                                        insert_at,
-                                        crate::image_viewer::model::SidebarItem::Glyph(og),
-                                    );
-                                    state.selected_index = Some(insert_at);
+                                    state.insert_glyph_after_selected(og);
                                     state.font_mode = FontMode::Vector;
                                 }
                             }
@@ -1463,15 +1471,22 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                                 tint_image(&atlas_img)
                             }
                             FontData::MirxBundle(fonts) => {
-                                if let Some(font) = fonts.get(state.font_bundle_index).or_else(|| fonts.first()) {
-                                    let atlas_img = icu_lib::endecoder::mirui::font_render::render_font_atlas(font);
+                                if let Some(font) =
+                                    fonts.get(state.font_bundle_index).or_else(|| fonts.first())
+                                {
+                                    let atlas_img =
+                                        icu_lib::endecoder::mirui::font_render::render_font_atlas(
+                                            font,
+                                        );
                                     tint_image(&atlas_img)
                                 } else {
                                     icu_lib::image::RgbaImage::new(1, 1)
                                 }
                             }
                             FontData::FreeType(f) => {
-                                icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(f, text_color)
+                                icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(
+                                    f, text_color,
+                                )
                             }
                         };
                         let w = rendered.width();
@@ -1480,7 +1495,8 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                             .chunks(4)
                             .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
                             .collect();
-                        state.font_atlas_cached = Some((theme_key.clone(), image.path.clone(), data.clone(), w, h));
+                        state.font_atlas_cached =
+                            Some((theme_key.clone(), image.path.clone(), data.clone(), w, h));
                     }
                 });
             } else if let Some((_, _, cached_data, cw, ch)) = &state.font_atlas_cached {
@@ -1489,29 +1505,35 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                     source_size: egui::vec2(*cw as f32, *ch as f32),
                     pixels: cached_data.clone(),
                 };
-                let _ = ui.ctx().load_texture(
-                    "font_atlas",
-                    color_image,
-                    egui::TextureOptions::LINEAR,
-                );
+                let _ =
+                    ui.ctx()
+                        .load_texture("font_atlas", color_image, egui::TextureOptions::LINEAR);
                 ImagePlotter::new("font_atlas_viewer")
                     .anti_alias(state.context.anti_alias)
                     .show_grid(false)
                     .show_only(true)
                     .background_color(state.context.background_color)
                     .badge(format!("{}×{}", cw, ch))
-                    .show(ui, &Some(crate::image_viewer::utils::single_image_item(
-                        "atlas".to_string(),
-                        icu_lib::endecoder::ImageInfo {
-                            width: *cw,
-                            height: *ch,
-                            data_size: 0,
-                            format: "atlas".to_string(),
-                            other_info: serde_json::Value::Null,
-                        },
-                        icu_lib::image::RgbaImage::from_raw(*cw, *ch, cached_data.iter().flat_map(|c| c.to_array()).collect()).unwrap_or_default(),
-                        None,
-                    )));
+                    .show(
+                        ui,
+                        &Some(crate::image_viewer::utils::single_image_item(
+                            "atlas".to_string(),
+                            icu_lib::endecoder::ImageInfo {
+                                width: *cw,
+                                height: *ch,
+                                data_size: 0,
+                                format: "atlas".to_string(),
+                                other_info: serde_json::Value::Null,
+                            },
+                            icu_lib::image::RgbaImage::from_raw(
+                                *cw,
+                                *ch,
+                                cached_data.iter().flat_map(|c| c.to_array()).collect(),
+                            )
+                            .unwrap_or_default(),
+                            None,
+                        )),
+                    );
             }
         }
     }

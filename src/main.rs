@@ -15,7 +15,7 @@ i18n!("locales");
 // When compiling to web using trunk:
 #[cfg(target_arch = "wasm32")]
 fn main() {
-    image_viewer::show_image(vec![]);
+    image_viewer::show_image(vec![], converter::ImageFormatCategory::Auto);
 }
 
 // When compiling natively:

@@ -49,13 +49,11 @@ pub enum ContentType {
 }
 
 pub fn get_content_type(state: &ViewerState) -> ContentType {
-    if let Some(idx) = state.selected_index {
-        if let Some(crate::image_viewer::model::SidebarItem::Glyph(_)) = state.items.get(idx) {
-            return ContentType::Glyph;
-        }
+    if let Some(crate::image_viewer::model::SidebarItem::Glyph(_)) = state.selected_item() {
+        return ContentType::Glyph;
     }
 
-    if let Some(image) = &state.current_image {
+    if let Some(image) = state.current_image() {
         if let Some(midata) = &image.midata {
             match midata {
                 MiData::FONT(_) => return ContentType::Font,
@@ -70,10 +68,10 @@ pub fn get_content_type(state: &ViewerState) -> ContentType {
 }
 
 pub fn get_diff_mode(state: &ViewerState) -> DiffMode {
-    let (Some(i1), Some(i2)) = (state.diff_image1_index, state.diff_image2_index) else {
+    let (Some(i1), Some(i2)) = (state.diff_image1_id, state.diff_image2_id) else {
         return DiffMode::None;
     };
-    let (Some(item1), Some(item2)) = (state.items.get(i1), state.items.get(i2)) else {
+    let (Some(item1), Some(item2)) = (state.item(i1), state.item(i2)) else {
         return DiffMode::None;
     };
     let (Some(a), Some(b)) = (item_image(item1), item_image(item2)) else {
@@ -107,6 +105,8 @@ fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
         return;
     }
 
+    let selected_index = state.selected_id.and_then(|id| state.index_of(id));
+    let mut plot_hover = state.hovered_diff_pixel_from_plot;
     let image_plotter = ImagePlotter::new("viewer")
         .anti_alias(state.context.anti_alias)
         .show_grid(state.context.show_grid)
@@ -116,7 +116,7 @@ fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
         } else {
             state.hovered_diff_pixel
         })
-        .on_hover(&mut state.hovered_diff_pixel_from_plot);
+        .on_hover(&mut plot_hover);
 
     if state.context.only_show_diff {
         if let Some((diff_img, _)) = &state.diff_result {
@@ -130,7 +130,9 @@ fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
         image_plotter
             .badge(format!("{}×{} · diff", diff_img.width, diff_img.height))
             .show(ui, &Some(diff_img.clone()));
-    } else if let Some(image) = state.current_image.as_mut() {
+    } else if let Some(crate::image_viewer::model::SidebarItem::Image(image)) =
+        selected_index.and_then(|index| state.content_at_mut(index))
+    {
         let advanced = image.advance_frame();
         if advanced || image.autoplay() {
             ui.ctx().request_repaint();
@@ -143,13 +145,6 @@ fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
             ))
             .show(ui, &Some(image_for_plot));
         draw_frame_controls(ui, image);
-        if let Some(idx) = state.selected_index {
-            if let Some(crate::image_viewer::model::SidebarItem::Image(src)) =
-                state.items.get_mut(idx)
-            {
-                src.frames = image.frames.clone();
-            }
-        }
     } else {
         let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
         let avail = ui.available_size();
@@ -193,18 +188,14 @@ fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
                     .collect();
                 if !files.is_empty() {
                     let new_items: Vec<crate::image_viewer::model::SidebarItem> =
-                        crate::image_viewer::utils::process_images(&files)
-                            .into_iter()
-                            .map(crate::image_viewer::model::SidebarItem::Image)
-                            .collect();
-                    let start_idx = state.items.len();
-                    state.items.extend(new_items);
-                    if let Some(crate::image_viewer::model::SidebarItem::Image(img)) =
-                        state.items.get(start_idx).cloned()
-                    {
-                        state.current_image = Some(img);
-                        state.selected_index = Some(start_idx);
-                    }
+                        crate::image_viewer::utils::process_images_with_format(
+                            &files,
+                            state.input_format,
+                        )
+                        .into_iter()
+                        .map(crate::image_viewer::model::SidebarItem::Image)
+                        .collect();
+                    state.insert_and_select_first(new_items);
                 }
             }
             #[cfg(target_arch = "wasm32")]
@@ -216,6 +207,7 @@ fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
             }
         }
     }
+    state.hovered_diff_pixel_from_plot = plot_hover;
 }
 
 fn draw_glyph_diff_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {

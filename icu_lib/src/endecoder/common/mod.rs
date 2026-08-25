@@ -32,6 +32,34 @@ pub struct PAM {}
 
 pub struct TGA {}
 
+fn decode_raster(
+    data: &[u8],
+) -> Result<(image::DynamicImage, image::ImageFormat), image::ImageError> {
+    let format = image::guess_format(data)?;
+    let image = image::load_from_memory_with_format(data, format)?;
+    Ok((image, format))
+}
+
+fn decode_fixed(data: &[u8], format: image::ImageFormat, label: &str) -> MiData {
+    match image::load_from_memory_with_format(data, format) {
+        Ok(image) => MiData::RGBA(image.to_rgba8()),
+        Err(error) => {
+            log::error!("Failed to decode {label}: {error}");
+            MiData::RGBA(image::RgbaImage::new(0, 0))
+        }
+    }
+}
+
+fn empty_image_info(data_size: usize) -> ImageInfo {
+    ImageInfo {
+        width: 0,
+        height: 0,
+        data_size: data_size as u32,
+        format: "unknown".to_string(),
+        other_info: serde_json::Value::Null,
+    }
+}
+
 impl EnDecoder for AutoDetect {
     fn can_decode(&self, data: &[u8]) -> bool {
         image::guess_format(data).is_ok()
@@ -42,17 +70,23 @@ impl EnDecoder for AutoDetect {
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
-        log::trace!("AutoDectect::decoding");
-        let img = image::load_from_memory(&data).unwrap();
-        log::trace!("AutoDectect::decoded");
-        MiData::RGBA(img.to_rgba8())
+        match decode_raster(&data) {
+            Ok((image, _)) => MiData::RGBA(image.to_rgba8()),
+            Err(error) => {
+                log::error!("Failed to decode raster image: {error}");
+                MiData::RGBA(image::RgbaImage::new(0, 0))
+            }
+        }
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        log::trace!("AutoDectect::decoding");
-        let img = image::load_from_memory(data).unwrap();
-        let img_format = image::guess_format(data).unwrap();
-        log::trace!("AutoDectect::decoded");
+        let (img, img_format) = match decode_raster(data) {
+            Ok(decoded) => decoded,
+            Err(error) => {
+                log::error!("Failed to inspect raster image: {error}");
+                return empty_image_info(data.len());
+            }
+        };
 
         let mut other_info = serde_json::Map::new();
 
@@ -91,7 +125,6 @@ impl EnDecoder for PNG {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Png
         } else {
-            log::error!("It's not a PNG file");
             false
         }
     }
@@ -198,11 +231,13 @@ impl EnDecoder for PNG {
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
-        MiData::RGBA(
-            image::load_from_memory_with_format(&data, image::ImageFormat::Png)
-                .unwrap()
-                .to_rgba8(),
-        )
+        match image::load_from_memory_with_format(&data, image::ImageFormat::Png) {
+            Ok(image) => MiData::RGBA(image.to_rgba8()),
+            Err(error) => {
+                log::error!("Failed to decode PNG: {error}");
+                MiData::RGBA(image::RgbaImage::new(0, 0))
+            }
+        }
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
@@ -236,7 +271,6 @@ impl EnDecoder for JPEG {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Jpeg
         } else {
-            log::error!("It's not a JPEG file");
             false
         }
     }
@@ -253,11 +287,13 @@ impl EnDecoder for JPEG {
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
-        MiData::RGBA(
-            image::load_from_memory_with_format(&data, image::ImageFormat::Jpeg)
-                .unwrap()
-                .to_rgba8(),
-        )
+        match image::load_from_memory_with_format(&data, image::ImageFormat::Jpeg) {
+            Ok(image) => MiData::RGBA(image.to_rgba8()),
+            Err(error) => {
+                log::error!("Failed to decode JPEG: {error}");
+                MiData::RGBA(image::RgbaImage::new(0, 0))
+            }
+        }
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
@@ -270,7 +306,6 @@ impl EnDecoder for BMP {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Bmp
         } else {
-            log::error!("It's not a BMP file");
             false
         }
     }
@@ -287,11 +322,7 @@ impl EnDecoder for BMP {
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
-        MiData::RGBA(
-            image::load_from_memory_with_format(&data, image::ImageFormat::Bmp)
-                .unwrap()
-                .to_rgba8(),
-        )
+        decode_fixed(&data, image::ImageFormat::Bmp, "BMP")
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
@@ -304,7 +335,6 @@ impl EnDecoder for GIF {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Gif
         } else {
-            log::error!("It's not a GIF file");
             false
         }
     }
@@ -321,11 +351,13 @@ impl EnDecoder for GIF {
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
-        MiData::RGBA(
-            image::load_from_memory_with_format(&data, image::ImageFormat::Gif)
-                .unwrap()
-                .to_rgba8(),
-        )
+        match image::load_from_memory_with_format(&data, image::ImageFormat::Gif) {
+            Ok(image) => MiData::RGBA(image.to_rgba8()),
+            Err(error) => {
+                log::error!("Failed to decode GIF: {error}");
+                MiData::RGBA(image::RgbaImage::new(0, 0))
+            }
+        }
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
@@ -338,7 +370,6 @@ impl EnDecoder for TIFF {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Tiff
         } else {
-            log::error!("It's not a TIFF file");
             false
         }
     }
@@ -355,11 +386,7 @@ impl EnDecoder for TIFF {
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
-        MiData::RGBA(
-            image::load_from_memory_with_format(&data, image::ImageFormat::Tiff)
-                .unwrap()
-                .to_rgba8(),
-        )
+        decode_fixed(&data, image::ImageFormat::Tiff, "TIFF")
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
@@ -372,7 +399,6 @@ impl EnDecoder for WEBP {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::WebP
         } else {
-            log::error!("It's not a WEBP file");
             false
         }
     }
@@ -389,11 +415,7 @@ impl EnDecoder for WEBP {
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
-        MiData::RGBA(
-            image::load_from_memory_with_format(&data, image::ImageFormat::WebP)
-                .unwrap()
-                .to_rgba8(),
-        )
+        decode_fixed(&data, image::ImageFormat::WebP, "WEBP")
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
@@ -406,7 +428,6 @@ impl EnDecoder for ICO {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Ico
         } else {
-            log::error!("It's not a ICO file");
             false
         }
     }
@@ -423,11 +444,7 @@ impl EnDecoder for ICO {
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
-        MiData::RGBA(
-            image::load_from_memory_with_format(&data, image::ImageFormat::Ico)
-                .unwrap()
-                .to_rgba8(),
-        )
+        decode_fixed(&data, image::ImageFormat::Ico, "ICO")
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
@@ -440,7 +457,6 @@ impl EnDecoder for PBM {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Pnm
         } else {
-            log::error!("It's not a PBM file");
             false
         }
     }
@@ -457,11 +473,13 @@ impl EnDecoder for PBM {
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
-        MiData::GRAY(
-            image::load_from_memory_with_format(&data, image::ImageFormat::Pnm)
-                .unwrap()
-                .to_luma_alpha8(),
-        )
+        match image::load_from_memory_with_format(&data, image::ImageFormat::Pnm) {
+            Ok(image) => MiData::GRAY(image.to_luma_alpha8()),
+            Err(error) => {
+                log::error!("Failed to decode PBM: {error}");
+                MiData::RGBA(image::RgbaImage::new(0, 0))
+            }
+        }
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
@@ -474,7 +492,6 @@ impl EnDecoder for PGM {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Pnm
         } else {
-            log::error!("It's not a PGM file");
             false
         }
     }
@@ -491,11 +508,13 @@ impl EnDecoder for PGM {
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
-        MiData::GRAY(
-            image::load_from_memory_with_format(&data, image::ImageFormat::Pnm)
-                .unwrap()
-                .to_luma_alpha8(),
-        )
+        match image::load_from_memory_with_format(&data, image::ImageFormat::Pnm) {
+            Ok(image) => MiData::GRAY(image.to_luma_alpha8()),
+            Err(error) => {
+                log::error!("Failed to decode PGM: {error}");
+                MiData::RGBA(image::RgbaImage::new(0, 0))
+            }
+        }
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
@@ -508,7 +527,6 @@ impl EnDecoder for PPM {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Pnm
         } else {
-            log::error!("It's not a PPM file");
             false
         }
     }
@@ -525,11 +543,7 @@ impl EnDecoder for PPM {
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
-        MiData::RGBA(
-            image::load_from_memory_with_format(&data, image::ImageFormat::Pnm)
-                .unwrap()
-                .to_rgba8(),
-        )
+        decode_fixed(&data, image::ImageFormat::Pnm, "PNM")
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
@@ -542,7 +556,6 @@ impl EnDecoder for PAM {
         if let Ok(format) = image::guess_format(data) {
             format == image::ImageFormat::Pnm
         } else {
-            log::error!("It's not a PAM file");
             false
         }
     }
@@ -559,11 +572,7 @@ impl EnDecoder for PAM {
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
-        MiData::RGBA(
-            image::load_from_memory_with_format(&data, image::ImageFormat::Pnm)
-                .unwrap()
-                .to_rgba8(),
-        )
+        decode_fixed(&data, image::ImageFormat::Pnm, "PNM")
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
@@ -571,9 +580,36 @@ impl EnDecoder for PAM {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{AutoDetect, BMP, JPEG, PNG};
+    use crate::endecoder::EnDecoder;
+    use crate::midata::MiData;
+
+    #[test]
+    fn format_probes_reject_non_raster_data_without_panicking() {
+        let data = vec![0x19, 0x0a, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert!(!PNG {}.can_decode(&data));
+        assert!(!JPEG {}.can_decode(&data));
+        assert!(!BMP {}.can_decode(&data));
+    }
+
+    #[test]
+    fn autodetect_rejects_truncated_raster_without_panicking() {
+        let data = b"\x89PNG\r\n\x1a\n".to_vec();
+        assert!(AutoDetect {}.can_decode(&data));
+        assert!(matches!(
+            AutoDetect {}.decode(data.clone()),
+            MiData::RGBA(image) if image.width() == 0 && image.height() == 0
+        ));
+        let info = AutoDetect {}.info(&data);
+        assert_eq!((info.width, info.height), (0, 0));
+        assert_eq!(info.data_size, data.len() as u32);
+    }
+}
+
 impl EnDecoder for TGA {
     fn can_decode(&self, _data: &[u8]) -> bool {
-        log::error!("TGA is not supported yet");
         false
     }
 

@@ -1,10 +1,10 @@
-use crate::arguments::{parse_args, SubCommands};
+use crate::arguments::{SubCommands, parse_args};
 use crate::converter::{ImageFormatCategory, ImageFormats, OutputFileFormatCategory};
 use crate::image_viewer::show_image;
 use eframe::egui::DroppedFile;
-use icu_lib::endecoder::{common, find_endecoder, lvgl, EnDecoder};
+use icu_lib::endecoder::{EnDecoder, common, find_endecoder, lvgl};
 use icu_lib::midata::MiData;
-use icu_lib::{endecoder, EncoderParams};
+use icu_lib::{EncoderParams, endecoder};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -36,7 +36,7 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
         }
         SubCommands::Show {
             files,
-            input_format: _image_format,
+            input_format,
         } => {
             let files = match files {
                 None => {
@@ -51,7 +51,7 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
                     .collect::<Vec<DroppedFile>>(),
             };
 
-            show_image(files);
+            show_image(files, *input_format);
         }
         SubCommands::Convert {
             input_files,
@@ -369,7 +369,7 @@ fn bake_font_command(
     output_folder: Option<&str>,
     override_output: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use icu_lib::endecoder::mirui::font_bake::{bake_font, FontBakeParams};
+    use icu_lib::endecoder::mirui::font_bake::{FontBakeParams, bake_font};
     use icu_lib::mirx::FontChunkKind;
 
     let ttf_bytes = fs::read(ttf)?;

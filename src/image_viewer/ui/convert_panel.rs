@@ -161,14 +161,17 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
 
     ui.add_space(16.0);
 
-    let image_items: Vec<crate::image_viewer::model::ImageItem> = state
-        .items
-        .iter()
-        .filter_map(|i| match i {
-            crate::image_viewer::model::SidebarItem::Image(img) => Some(img.clone()),
-            _ => None,
-        })
-        .collect();
+    let image_items = if state.selected_ids.len() > 1 {
+        state.selected_image_snapshots()
+    } else {
+        state
+            .selected_image_snapshots()
+            .into_iter()
+            .next()
+            .or_else(|| state.current_image().cloned())
+            .into_iter()
+            .collect()
+    };
 
     ui.vertical_centered(|ui| {
         if state.is_converting {

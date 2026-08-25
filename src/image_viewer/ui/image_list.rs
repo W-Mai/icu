@@ -2,6 +2,10 @@ use crate::image_viewer::model::{FrameSource, SidebarItem, ViewerState};
 use eframe::egui;
 use eframe::egui::Color32;
 
+pub(crate) fn keyboard_focus_id() -> egui::Id {
+    egui::Id::new("image_list_keyboard_focus")
+}
+
 pub fn draw_left_panel(
     ui: &mut egui::Ui,
     state: &mut ViewerState,
@@ -26,7 +30,7 @@ pub fn draw_left_panel(
                         ui.painter().text(
                             egui::pos2(hdr_rect.left() + 4.0, hdr_rect.center().y),
                             egui::Align2::LEFT_CENTER,
-                            t!("files_header", count = state.items.len()).to_string(),
+                            t!("files_header", count = state.len()).to_string(),
                             egui::FontId::proportional(11.0),
                             p.overlay0,
                         );
@@ -70,18 +74,14 @@ pub fn draw_left_panel(
                                     .collect();
                                 if !files.is_empty() {
                                     let new_items: Vec<SidebarItem> =
-                                        crate::image_viewer::utils::process_images(&files)
-                                            .into_iter()
-                                            .map(SidebarItem::Image)
-                                            .collect();
-                                    let start_idx = state.items.len();
-                                    state.items.extend(new_items);
-                                    if let Some(SidebarItem::Image(img)) =
-                                        state.items.get(start_idx).cloned()
-                                    {
-                                        state.selected_index = Some(start_idx);
-                                        state.current_image = Some(img);
-                                    }
+                                        crate::image_viewer::utils::process_images_with_format(
+                                            &files,
+                                            state.input_format,
+                                        )
+                                        .into_iter()
+                                        .map(SidebarItem::Image)
+                                        .collect();
+                                    state.insert_and_select_first(new_items);
                                 }
                             }
                             #[cfg(target_arch = "wasm32")]
@@ -118,26 +118,82 @@ pub fn draw_left_panel(
                             p.red,
                         );
                         if clr_resp.clicked() {
-                            state.items.clear();
                             reset_callback(state);
                         }
                     }
 
                     ui.separator();
+                    if state.selected_ids.len() > 1
+                        || state
+                            .selected_ids
+                            .iter()
+                            .any(|id| state.is_sequence_group(*id))
+                    {
+                        ui.horizontal_wrapped(|ui| {
+                            if state.selected_ids.len() > 1 && ui.button("Group").clicked() {
+                                state.group_selected();
+                            }
+                            if state
+                                .selected_ids
+                                .iter()
+                                .any(|id| state.is_sequence_group(*id))
+                                && ui.button(t!("ctx_ungroup")).clicked()
+                            {
+                                state.ungroup_selected();
+                            }
+                            if ui.button(t!("ctx_remove")).clicked() {
+                                state.remove_selected();
+                            }
+                            if ui.button(t!("ctx_export")).clicked() {
+                                state.context.right_tab =
+                                    crate::image_viewer::model::RightTab::Convert;
+                                state.blur_list();
+                            }
+                        });
+                    }
 
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         ui.allocate_space(egui::vec2(4.0, 0.0));
-                        for (index, item) in state.items.clone().iter().enumerate() {
-                            draw_sidebar_item(ui, state, index, item);
+                        for workspace_item in state.items_snapshot() {
+                            draw_sidebar_item(
+                                ui,
+                                state,
+                                workspace_item.id(),
+                                workspace_item.content(),
+                            );
                             ui.add_space(2.0);
                         }
                     });
+                    let owns_keyboard = ui.memory(|memory| memory.has_focus(keyboard_focus_id()));
+                    state.list_focus = owns_keyboard;
+                    if owns_keyboard {
+                        let (up, down, delete) = ui.input(|input| {
+                            (
+                                input.key_pressed(egui::Key::ArrowUp),
+                                input.key_pressed(egui::Key::ArrowDown),
+                                input.key_pressed(egui::Key::Delete),
+                            )
+                        });
+                        if up {
+                            state.move_selection(-1);
+                        } else if down {
+                            state.move_selection(1);
+                        } else if delete {
+                            state.remove_selected();
+                        }
+                    }
                 });
         });
 }
 
-fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, item: &SidebarItem) {
-    let is_selected = state.selected_index == Some(index);
+fn draw_sidebar_item(
+    ui: &mut egui::Ui,
+    state: &mut ViewerState,
+    id: crate::image_viewer::model::WorkspaceId,
+    item: &SidebarItem,
+) {
+    let is_selected = state.selected_ids.contains(&id);
+    let is_primary = state.selected_id == Some(id);
     let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
 
     let (name, meta, badge_text, badge_color) = match item {
@@ -195,14 +251,14 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
         None
     };
     let arrow_resp = arrow_rect.and_then(|ar| {
-        let r = ui.interact(ar, ui.id().with(("sb_arrow", index)), egui::Sense::click());
+        let r = ui.interact(ar, ui.id().with(("sb_arrow", id)), egui::Sense::click());
         Some((ar, r))
     });
 
     if ui.is_rect_visible(rect) {
-        let fill = if is_selected {
+        let fill = if is_primary {
             p.accent_dim()
-        } else if response.hovered() {
+        } else if is_selected || response.hovered() {
             p.surface1
         } else {
             Color32::TRANSPARENT
@@ -248,7 +304,7 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
                     egui::StrokeKind::Inside,
                 );
                 let tex = ui.ctx().load_texture(
-                    format!("sb_thumb_{}", index),
+                    format!("sb_thumb_{id:?}"),
                     egui::ColorImage {
                         size: [thumb_w as usize, thumb_h as usize],
                         source_size: egui::vec2(thumb_w as f32, thumb_h as f32),
@@ -347,48 +403,52 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
 
     if let Some((_, ar)) = arrow_resp {
         if ar.clicked() {
-            if let Some(SidebarItem::Image(img)) = state.items.get_mut(index) {
+            if let Some(SidebarItem::Image(img)) = state.item_mut(id) {
                 img.expanded = !img.expanded;
             }
         }
     }
 
     if response.clicked() {
-        state.selected_index = Some(index);
-        if let SidebarItem::Image(image_item) = item {
-            state.current_image = Some(image_item.clone());
+        ui.memory_mut(|memory| memory.request_focus(keyboard_focus_id()));
+        let modifiers = ui.input(|input| input.modifiers);
+        if modifiers.shift {
+            state.extend_selection(id);
+        } else if modifiers.command || modifiers.ctrl {
+            state.toggle_selection(id);
+        } else {
+            state.focus_list(id);
+        }
+        if matches!(item, SidebarItem::Image(_)) {
             state.font_mode = crate::image_viewer::model::FontMode::Grid;
         }
     }
     if response.hovered() {
-        state.hovered_index = Some(index);
+        state.hovered_id = Some(id);
     }
 
     response.context_menu(|ui| {
         if ui.button(t!("ctx_open")).clicked() {
-            state.selected_index = Some(index);
-            if let SidebarItem::Image(image_item) = item {
-                state.current_image = Some(image_item.clone());
-            }
+            state.select(id);
             ui.close();
         }
         if ui.button(t!("ctx_info")).clicked() {
             state.context.right_tab = crate::image_viewer::model::RightTab::Info;
-            state.selected_index = Some(index);
+            state.select(id);
             ui.close();
         }
         if ui.button(t!("ctx_export")).clicked() {
             state.context.right_tab = crate::image_viewer::model::RightTab::Convert;
-            state.selected_index = Some(index);
+            state.select(id);
             ui.close();
         }
         ui.separator();
+        if state.is_sequence_group(id) && ui.button(t!("ctx_ungroup")).clicked() {
+            state.ungroup(id);
+            ui.close();
+        }
         if ui.button(t!("ctx_remove")).clicked() {
-            if state.selected_index == Some(index) {
-                state.selected_index = None;
-                state.current_image = None;
-            }
-            state.items.remove(index);
+            state.remove_id(id);
             ui.close();
         }
     });
@@ -403,21 +463,21 @@ fn draw_sidebar_item(ui: &mut egui::Ui, state: &mut ViewerState, index: usize, i
                 diff_rect.size(),
                 egui::Layout::left_to_right(egui::Align::Center),
                 |ui| {
-                    draw_diff_selection_buttons(ui, state, index);
+                    draw_diff_selection_buttons(ui, state, id);
                 },
             );
         }
     }
 
     if is_animated && is_expanded {
-        draw_frame_child_rows(ui, state, index, frame_count, current_frame, is_selected);
+        draw_frame_child_rows(ui, state, id, frame_count, current_frame, is_selected);
     }
 }
 
 fn draw_frame_child_rows(
     ui: &mut egui::Ui,
     state: &mut ViewerState,
-    parent_index: usize,
+    parent_id: crate::image_viewer::model::WorkspaceId,
     frame_count: usize,
     current_frame: usize,
     parent_selected: bool,
@@ -462,8 +522,8 @@ fn draw_frame_child_rows(
         }
 
         if response.clicked() {
-            state.selected_index = Some(parent_index);
-            if let Some(SidebarItem::Image(img)) = state.items.get_mut(parent_index) {
+            state.select(parent_id);
+            if let Some(SidebarItem::Image(img)) = state.item_mut(parent_id) {
                 if let FrameSource::Animated {
                     current,
                     last_advance,
@@ -474,35 +534,36 @@ fn draw_frame_child_rows(
                     *last_advance = None;
                 }
             }
-            if let Some(SidebarItem::Image(img)) = state.items.get(parent_index).cloned() {
-                state.current_image = Some(img);
-                state.font_mode = crate::image_viewer::model::FontMode::Grid;
-            }
+            state.font_mode = crate::image_viewer::model::FontMode::Grid;
         }
     }
 }
 
-fn draw_diff_selection_buttons(ui: &mut egui::Ui, state: &mut ViewerState, index: usize) {
+fn draw_diff_selection_buttons(
+    ui: &mut egui::Ui,
+    state: &mut ViewerState,
+    id: crate::image_viewer::model::WorkspaceId,
+) {
     ui.horizontal(|ui| {
-        let diff1_selected = state.diff_image1_index == Some(index);
-        let diff2_selected = state.diff_image2_index == Some(index);
+        let diff1_selected = state.diff_image1_id == Some(id);
+        let diff2_selected = state.diff_image2_id == Some(id);
         if ui.selectable_label(diff1_selected, t!("diff1")).clicked() {
-            if state.diff_image1_index == Some(index) {
-                state.diff_image1_index = None;
+            if state.diff_image1_id == Some(id) {
+                state.diff_image1_id = None;
             } else {
-                state.diff_image1_index = Some(index);
-                if state.diff_image2_index == Some(index) {
-                    state.diff_image2_index = None;
+                state.diff_image1_id = Some(id);
+                if state.diff_image2_id == Some(id) {
+                    state.diff_image2_id = None;
                 }
             }
         }
         if ui.selectable_label(diff2_selected, t!("diff2")).clicked() {
-            if state.diff_image2_index == Some(index) {
-                state.diff_image2_index = None;
+            if state.diff_image2_id == Some(id) {
+                state.diff_image2_id = None;
             } else {
-                state.diff_image2_index = Some(index);
-                if state.diff_image1_index == Some(index) {
-                    state.diff_image1_index = None;
+                state.diff_image2_id = Some(id);
+                if state.diff_image1_id == Some(id) {
+                    state.diff_image1_id = None;
                 }
             }
         }

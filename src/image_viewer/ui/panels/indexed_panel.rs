@@ -1,7 +1,7 @@
 use crate::image_viewer::plotter::ImagePlotter;
+use clap::ValueEnum;
 use eframe::egui;
 use eframe::egui::Color32;
-use icu_lib::endecoder::EnDecoder;
 use icu_lib::midata::MiData;
 
 fn selected_indexed(
@@ -10,14 +10,25 @@ fn selected_indexed(
     if state.context.diff_active {
         return None;
     }
-    let indexed = match state.current_image.as_ref()?.midata.as_ref()? {
+    let selected_id = state.selected_id?;
+    let revision = state
+        .items()
+        .iter()
+        .find(|item| item.id() == selected_id)
+        .map(|item| item.content_revision())?;
+    let indexed = match state.current_image()?.midata.as_ref()? {
         MiData::INDEXED(indexed) => indexed.clone(),
         _ => return None,
     };
 
     Some(if state.indexed_dither > 0 {
-        if state.indexed_dither != state.indexed_dither_cached {
+        if state.indexed_dither != state.indexed_dither_cached
+            || state.indexed_dither_cached_id != Some(selected_id)
+            || state.indexed_dither_cached_revision != revision
+        {
             state.indexed_dither_cached = state.indexed_dither;
+            state.indexed_dither_cached_id = Some(selected_id);
+            state.indexed_dither_cached_revision = revision;
             state.indexed_requantized =
                 icu_lib::midata::requantize_indexed(&indexed, state.indexed_dither);
         }
@@ -25,6 +36,8 @@ fn selected_indexed(
     } else {
         state.indexed_requantized = None;
         state.indexed_dither_cached = u32::MAX;
+        state.indexed_dither_cached_id = None;
+        state.indexed_dither_cached_revision = 0;
         indexed
     })
 }
@@ -91,16 +104,8 @@ pub fn draw_indexed_convert_section(
                         hovered_palette = Some(i as u8);
                     }
                     if btn.clicked() {
-                        let mut picked = egui::Rgba::from_rgb(
-                            color[0] as f32 / 255.0,
-                            color[1] as f32 / 255.0,
-                            color[2] as f32 / 255.0,
-                        );
-                        egui::color_picker::color_edit_button_rgba(
-                            ui,
-                            &mut picked,
-                            egui::color_picker::Alpha::Opaque,
-                        );
+                        state.indexed_edit_palette = Some(i);
+                        state.indexed_edit_color = c;
                     }
                     if (i + 1) % cols == 0 {
                         ui.end_row();
@@ -112,36 +117,44 @@ pub fn draw_indexed_convert_section(
         } else {
             state.indexed_hover_palette = hovered_palette;
         }
+        if let Some(index) = state.indexed_edit_palette {
+            ui.separator();
+            ui.label(format!("Palette index {index}"));
+            let mut rgba = state.indexed_edit_color.to_array();
+            if ui.color_edit_button_srgba_unmultiplied(&mut rgba).changed() {
+                let color = Color32::from_rgba_unmultiplied(rgba[0], rgba[1], rgba[2], rgba[3]);
+                if state.edit_indexed_palette_color(index, color) {
+                    state.indexed_edit_color = color;
+                }
+            }
+        }
     });
     ui.add_space(4.0);
     crate::image_viewer::ui::widgets::section_card(ui, t!("section_export").as_ref(), |ui| {
-        if ui.button(t!("btn_export_png")).clicked() {
-            let img = indexed.rgba.clone();
-            if let Some(path) = super::pick_save_file(&[("PNG", &["png"])], &"indexed.png") {
-                let _ = img.save(&path);
-            }
-        }
-        if ui.button(t!("btn_export_lvgl")).clicked() {
-            let cf = match indexed.bpp {
-                1 => icu_lib::endecoder::ColorFormat::I1,
-                2 => icu_lib::endecoder::ColorFormat::I2,
-                4 => icu_lib::endecoder::ColorFormat::I4,
-                _ => icu_lib::endecoder::ColorFormat::I8,
-            };
-            let params = icu_lib::EncoderParams::default().with_color_format(cf);
-            let midata = icu_lib::midata::MiData::INDEXED(indexed.clone());
-            let bytes = icu_lib::endecoder::lvgl::LVGL {}.encode(&midata, params);
-            if !bytes.is_empty() {
-                if let Some(path) = super::pick_save_file(&[("bin", &["bin"])], &"indexed.bin") {
-                    let _ = std::fs::write(&path, bytes);
-                }
+        ui.horizontal(|ui| {
+            ui.label("Format");
+            egui::ComboBox::from_id_salt("indexed_output_format")
+                .selected_text(format!("{:?}", state.context.convert_params.output_format))
+                .show_ui(ui, |ui| {
+                    for &format in crate::image_viewer::model::ImageFormat::value_variants() {
+                        ui.selectable_value(
+                            &mut state.context.convert_params.output_format,
+                            format,
+                            format!("{format:?}"),
+                        );
+                    }
+                });
+        });
+        if ui.button(t!("ctx_export")).clicked() {
+            if let Some(item) = state.current_image().cloned() {
+                crate::image_viewer::utils::save_images(&[item], &state.context.convert_params);
             }
         }
     });
 }
 
 pub fn draw_indexed_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
-    let Some(image) = state.current_image.clone() else {
+    let Some(image) = state.current_image().cloned() else {
         return;
     };
     let Some(indexed) = selected_indexed(state) else {

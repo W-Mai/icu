@@ -8,6 +8,8 @@ use icu_lib::endecoder::ImageInfo;
 use icu_lib::endecoder::utils::diff::ImageDiffResult;
 use icu_lib::midata::MiData;
 use serde::{Deserialize, Serialize};
+use std::collections::{BTreeSet, HashMap};
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 #[derive(Clone, PartialEq)]
@@ -63,6 +65,114 @@ pub struct ImageItem {
     pub frames: FrameSource,
     pub midata: Option<MiData>,
     pub expanded: bool,
+}
+
+type SequenceKey = (String, String, String, String, usize, u32, u32);
+
+fn sequence_key(path: &str, width: u32, height: u32) -> Option<(SequenceKey, u32)> {
+    let path = Path::new(path);
+    let stem = path.file_stem()?.to_string_lossy();
+    let extension = path.extension()?.to_string_lossy().to_ascii_lowercase();
+    let digit_end = stem.rfind(|c: char| c.is_ascii_digit())? + 1;
+    let digit_start = stem[..digit_end]
+        .rfind(|c: char| !c.is_ascii_digit())
+        .map_or(0, |index| index + 1);
+    let digits = &stem[digit_start..digit_end];
+    let prefix = &stem[..digit_start];
+    if prefix.is_empty() {
+        return None;
+    }
+    let number = digits.parse::<u32>().ok()?;
+    let parent = path
+        .parent()
+        .unwrap_or_else(|| Path::new(""))
+        .to_string_lossy()
+        .into_owned();
+    Some((
+        (
+            parent,
+            prefix.to_string(),
+            stem[digit_end..].to_string(),
+            extension,
+            digits.len(),
+            width,
+            height,
+        ),
+        number,
+    ))
+}
+
+#[derive(Clone, PartialEq)]
+struct SequenceMember {
+    id: WorkspaceId,
+    image: ImageItem,
+}
+
+#[derive(Clone, Copy)]
+struct GroupPlayback {
+    current_member: Option<WorkspaceId>,
+    autoplay: bool,
+    expanded: bool,
+}
+
+#[derive(Clone)]
+struct SequenceGroup {
+    members: Vec<SequenceMember>,
+    automatic: bool,
+}
+
+fn playback_state(image: &ImageItem, members: &[SequenceMember]) -> GroupPlayback {
+    let (current_member, autoplay) = match &image.frames {
+        FrameSource::Animated {
+            current, autoplay, ..
+        } => (members.get(*current).map(|member| member.id), *autoplay),
+        FrameSource::Single { .. } => (members.first().map(|member| member.id), true),
+    };
+    GroupPlayback {
+        current_member,
+        autoplay,
+        expanded: image.expanded,
+    }
+}
+
+fn sequence_image(members: &[SequenceMember], playback: GroupPlayback) -> Option<ImageItem> {
+    let mut image = members.first()?.image.clone();
+    image.width = members.iter().map(|member| member.image.width).max()?;
+    image.height = members.iter().map(|member| member.image.height).max()?;
+    image.info.width = image.width;
+    image.info.height = image.height;
+    let frames = members
+        .iter()
+        .map(|member| {
+            let (pixels, width, height) = member.image.current_pixels();
+            Frame {
+                pixels: pixels.to_vec(),
+                width,
+                height,
+                left: 0,
+                top: 0,
+                delay: Duration::from_millis(100),
+            }
+        })
+        .collect::<Vec<_>>();
+    let current = playback
+        .current_member
+        .and_then(|id| members.iter().position(|member| member.id == id))
+        .unwrap_or(0);
+    image.frames = FrameSource::Animated {
+        current,
+        autoplay: playback.autoplay,
+        last_advance: None,
+        frames,
+    };
+    image.expanded = playback.expanded;
+    image.midata = None;
+    image.path = format!(
+        "{} … {}",
+        members.first()?.image.path,
+        members.last()?.image.path
+    );
+    Some(image)
 }
 
 impl ImageItem {
@@ -162,6 +272,30 @@ impl ImageItem {
                     .fold(Duration::ZERO, |acc, frame| acc.saturating_add(frame.delay)),
             ),
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct WorkspaceId(u64);
+
+#[derive(Clone, PartialEq)]
+pub struct WorkspaceItem {
+    id: WorkspaceId,
+    content_revision: u64,
+    content: SidebarItem,
+}
+
+impl WorkspaceItem {
+    pub fn id(&self) -> WorkspaceId {
+        self.id
+    }
+
+    pub fn content(&self) -> &SidebarItem {
+        &self.content
+    }
+
+    pub fn content_revision(&self) -> u64 {
+        self.content_revision
     }
 }
 
@@ -391,14 +525,20 @@ fn default_mirx_export_kind() -> String {
 
 #[allow(dead_code)]
 pub struct ViewerState {
-    pub current_image: Option<ImageItem>,
-    pub items: Vec<SidebarItem>,
-    pub selected_index: Option<usize>,
-    pub hovered_index: Option<usize>,
+    items: Vec<WorkspaceItem>,
+    next_workspace_id: u64,
+    sequence_groups: HashMap<WorkspaceId, SequenceGroup>,
+    pub selected_id: Option<WorkspaceId>,
+    pub selected_ids: BTreeSet<WorkspaceId>,
+    pub list_focus: bool,
+    pub focused_id: Option<WorkspaceId>,
+    range_anchor: Option<WorkspaceId>,
+    pub hovered_id: Option<WorkspaceId>,
     pub dropped_files: Vec<DroppedFile>,
+    pub input_format: crate::converter::ImageFormatCategory,
     pub context: AppContext,
-    pub diff_image1_index: Option<usize>,
-    pub diff_image2_index: Option<usize>,
+    pub diff_image1_id: Option<WorkspaceId>,
+    pub diff_image2_id: Option<WorkspaceId>,
     pub diff_result: Option<(ImageItem, ImageDiffResult)>,
     pub selected_diff_pixel: Option<[u32; 2]>,
     pub hovered_diff_pixel: Option<[u32; 2]>,
@@ -410,6 +550,8 @@ pub struct ViewerState {
     pub selected_node: Option<usize>,
     pub path_mode: PathMode,
     pub indexed_hover_palette: Option<u8>,
+    pub indexed_edit_palette: Option<usize>,
+    pub indexed_edit_color: Color32,
     pub indexed_show_quality: bool,
     pub indexed_view_mode: IndexedViewMode,
     pub font_bake_size: u16,
@@ -421,6 +563,8 @@ pub struct ViewerState {
     pub font_bake_charset_file: Option<String>,
     pub indexed_dither: u32,
     pub indexed_dither_cached: u32,
+    pub indexed_dither_cached_id: Option<WorkspaceId>,
+    pub indexed_dither_cached_revision: u64,
     pub indexed_requantized: Option<icu_lib::midata::IndexedImageData>,
     pub merge_font_paths: Vec<String>,
     pub font_mode: FontMode,
@@ -439,17 +583,689 @@ pub struct ViewerState {
     pub pending_dropped: std::rc::Rc<std::cell::RefCell<Vec<DroppedFile>>>,
 }
 
+impl ViewerState {
+    fn allocate_id(&mut self) -> WorkspaceId {
+        let id = WorkspaceId(self.next_workspace_id);
+        self.next_workspace_id = self
+            .next_workspace_id
+            .checked_add(1)
+            .expect("workspace id overflow");
+        id
+    }
+
+    pub fn items(&self) -> &[WorkspaceItem] {
+        &self.items
+    }
+
+    pub fn items_snapshot(&self) -> Vec<WorkspaceItem> {
+        self.items.clone()
+    }
+
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    pub fn content_at_mut(&mut self, index: usize) -> Option<&mut SidebarItem> {
+        self.items.get_mut(index).map(|item| &mut item.content)
+    }
+
+    pub fn index_of(&self, id: WorkspaceId) -> Option<usize> {
+        self.items.iter().position(|item| item.id == id)
+    }
+
+    pub fn item(&self, id: WorkspaceId) -> Option<&SidebarItem> {
+        self.items
+            .iter()
+            .find(|item| item.id == id)
+            .map(|item| &item.content)
+    }
+
+    pub fn item_mut(&mut self, id: WorkspaceId) -> Option<&mut SidebarItem> {
+        self.items
+            .iter_mut()
+            .find(|item| item.id == id)
+            .map(|item| &mut item.content)
+    }
+
+    pub fn selected_item(&self) -> Option<&SidebarItem> {
+        self.item(self.selected_id?)
+    }
+
+    pub fn selected_item_mut(&mut self) -> Option<&mut SidebarItem> {
+        self.item_mut(self.selected_id?)
+    }
+
+    pub fn current_image(&self) -> Option<&ImageItem> {
+        self.selected_item().and_then(SidebarItem::as_image)
+    }
+
+    pub fn current_image_mut(&mut self) -> Option<&mut ImageItem> {
+        match self.selected_item_mut()? {
+            SidebarItem::Image(image) => Some(image),
+            SidebarItem::Glyph(_) => None,
+        }
+    }
+
+    pub fn select(&mut self, id: WorkspaceId) -> bool {
+        if self.index_of(id).is_none() {
+            return false;
+        }
+        let changed = self.selected_id != Some(id);
+        self.selected_id = Some(id);
+        self.selected_ids.clear();
+        self.selected_ids.insert(id);
+        self.focused_id = Some(id);
+        self.range_anchor = Some(id);
+        if changed {
+            self.invalidate_selection_state();
+        }
+        true
+    }
+
+    pub fn focus_list(&mut self, id: WorkspaceId) -> bool {
+        if !self.select(id) {
+            return false;
+        }
+        self.list_focus = true;
+        true
+    }
+
+    pub fn blur_list(&mut self) {
+        self.list_focus = false;
+    }
+
+    pub fn toggle_selection(&mut self, id: WorkspaceId) -> bool {
+        if self.index_of(id).is_none() {
+            return false;
+        }
+        self.list_focus = true;
+        self.focused_id = Some(id);
+        if !self.selected_ids.remove(&id) {
+            self.selected_ids.insert(id);
+        }
+        if self.selected_ids.is_empty() {
+            self.select(id);
+        } else {
+            self.selected_id = Some(id);
+        }
+        true
+    }
+
+    pub fn extend_selection(&mut self, id: WorkspaceId) -> bool {
+        let Some(anchor) = self.range_anchor.or(self.selected_id) else {
+            return self.select(id);
+        };
+        let Some(a) = self.index_of(anchor) else {
+            return self.select(id);
+        };
+        let Some(b) = self.index_of(id) else {
+            return false;
+        };
+        let (start, end) = if a <= b { (a, b) } else { (b, a) };
+        self.selected_ids = self.items[start..=end]
+            .iter()
+            .map(WorkspaceItem::id)
+            .collect();
+        self.selected_id = Some(id);
+        self.focused_id = Some(id);
+        self.list_focus = true;
+        true
+    }
+
+    pub fn move_selection(&mut self, delta: isize) -> bool {
+        if !self.list_focus || self.items.is_empty() {
+            return false;
+        }
+        let current = self
+            .focused_id
+            .or(self.selected_id)
+            .and_then(|id| self.index_of(id))
+            .unwrap_or(0);
+        let next = (current as isize + delta).clamp(0, self.items.len() as isize - 1) as usize;
+        if next == current {
+            return false;
+        }
+        let id = self.items[next].id;
+        self.select(id)
+    }
+
+    pub fn edit_indexed_palette_color(&mut self, index: usize, color: Color32) -> bool {
+        let Some(selected_id) = self.selected_id else {
+            return false;
+        };
+        let Some(image) = self.current_image_mut() else {
+            return false;
+        };
+        if !matches!(image.frames, FrameSource::Single { .. }) {
+            return false;
+        }
+        let Some(MiData::INDEXED(indexed)) = image.midata.as_mut() else {
+            return false;
+        };
+        if !indexed.set_palette_color(index, color.to_array()) {
+            return false;
+        }
+        let pixels = indexed
+            .rgba
+            .chunks(4)
+            .map(|pixel| Color32::from_rgba_unmultiplied(pixel[0], pixel[1], pixel[2], pixel[3]))
+            .collect::<Vec<_>>();
+        image.frames = FrameSource::single(pixels, indexed.width, indexed.height);
+        if let Some(item) = self.items.iter_mut().find(|item| item.id == selected_id) {
+            item.content_revision = item.content_revision.saturating_add(1);
+        }
+        self.invalidate_derived_state();
+        true
+    }
+
+    pub fn selected_image_snapshots(&self) -> Vec<ImageItem> {
+        self.items
+            .iter()
+            .filter_map(|item| {
+                if !self.selected_ids.contains(&item.id) {
+                    return None;
+                }
+                item.content.as_image().cloned()
+            })
+            .collect()
+    }
+
+    pub fn remove_selected(&mut self) {
+        let ids = self.selected_ids.iter().copied().collect::<Vec<_>>();
+        for id in ids {
+            self.remove_id(id);
+        }
+        let valid_ids = self
+            .items
+            .iter()
+            .map(WorkspaceItem::id)
+            .collect::<BTreeSet<_>>();
+        self.selected_ids.retain(|id| valid_ids.contains(id));
+        if let Some(id) = self.selected_id {
+            if !valid_ids.contains(&id) {
+                self.selected_id = self.items.first().map(WorkspaceItem::id);
+            }
+        }
+    }
+
+    fn insert_items(
+        &mut self,
+        index: usize,
+        items: impl IntoIterator<Item = SidebarItem>,
+    ) -> Vec<WorkspaceId> {
+        let mut inserted = Vec::new();
+        let mut index = index.min(self.items.len());
+        for content in items {
+            let id = self.allocate_id();
+            self.items.insert(
+                index,
+                WorkspaceItem {
+                    id,
+                    content_revision: 0,
+                    content,
+                },
+            );
+            inserted.push(id);
+            index += 1;
+        }
+        inserted
+    }
+
+    fn append_items(&mut self, items: impl IntoIterator<Item = SidebarItem>) -> Vec<WorkspaceId> {
+        self.insert_items(self.items.len(), items)
+    }
+
+    pub fn insert_glyph_after_selected(&mut self, glyph: OpenedGlyph) -> WorkspaceId {
+        let index = self
+            .selected_id
+            .and_then(|id| self.index_of(id))
+            .map_or(self.items.len(), |index| index + 1);
+        let id = self.insert_items(index, [SidebarItem::Glyph(glyph)])[0];
+        self.select(id);
+        id
+    }
+
+    pub fn insert_and_select_first(
+        &mut self,
+        items: impl IntoIterator<Item = SidebarItem>,
+    ) -> Vec<WorkspaceId> {
+        let playback = self.expand_automatic_sequence_groups();
+        let mut seen_paths = self
+            .items
+            .iter()
+            .filter_map(|item| item.content.as_image().map(|image| image.path.clone()))
+            .collect::<std::collections::HashSet<_>>();
+        let ids = self.append_items(items.into_iter().filter(|item| {
+            item.as_image()
+                .is_none_or(|image| seen_paths.insert(image.path.clone()))
+        }));
+        self.auto_group_sequences(&playback);
+        if !ids.is_empty() {
+            let selected = self
+                .items
+                .iter()
+                .find(|item| ids.contains(&item.id))
+                .map(WorkspaceItem::id)
+                .or_else(|| {
+                    self.sequence_groups.iter().find_map(|(group_id, group)| {
+                        group
+                            .members
+                            .iter()
+                            .any(|member| ids.contains(&member.id))
+                            .then_some(*group_id)
+                    })
+                });
+            if let Some(selected) = selected {
+                self.select(selected);
+            }
+        }
+        ids
+    }
+
+    fn expand_automatic_sequence_groups(&mut self) -> HashMap<SequenceKey, GroupPlayback> {
+        let group_ids = self
+            .sequence_groups
+            .iter()
+            .filter_map(|(id, group)| group.automatic.then_some(*id))
+            .collect::<Vec<_>>();
+        let mut playback = HashMap::new();
+        for group_id in group_ids {
+            let Some(group) = self.sequence_groups.remove(&group_id) else {
+                continue;
+            };
+            let Some(index) = self.index_of(group_id) else {
+                continue;
+            };
+            if let SidebarItem::Image(image) = &self.items[index].content
+                && let Some(first) = group.members.first()
+                && let Some((key, _)) =
+                    sequence_key(&first.image.path, first.image.width, first.image.height)
+            {
+                playback.insert(key, playback_state(image, &group.members));
+            }
+            self.items.remove(index);
+            for (offset, member) in group.members.into_iter().enumerate() {
+                self.items.insert(
+                    index + offset,
+                    WorkspaceItem {
+                        id: member.id,
+                        content_revision: 0,
+                        content: SidebarItem::Image(member.image),
+                    },
+                );
+            }
+        }
+        playback
+    }
+
+    pub fn is_sequence_group(&self, id: WorkspaceId) -> bool {
+        self.sequence_groups.contains_key(&id)
+    }
+
+    fn remap_group_references(&mut self, member_ids: &[WorkspaceId], group_id: WorkspaceId) {
+        let mut was_selected = false;
+        for id in member_ids {
+            was_selected |= self.selected_ids.remove(id);
+        }
+        if was_selected {
+            self.selected_ids.insert(group_id);
+        }
+        if self.focused_id.is_some_and(|id| member_ids.contains(&id)) {
+            self.focused_id = Some(group_id);
+        }
+        if self.range_anchor.is_some_and(|id| member_ids.contains(&id)) {
+            self.range_anchor = Some(group_id);
+        }
+        if self.selected_id.is_some_and(|id| member_ids.contains(&id)) {
+            self.selected_id = Some(group_id);
+        }
+        if self.hovered_id.is_some_and(|id| member_ids.contains(&id)) {
+            self.hovered_id = Some(group_id);
+        }
+        if self
+            .diff_image1_id
+            .is_some_and(|id| member_ids.contains(&id))
+        {
+            self.diff_image1_id = Some(group_id);
+        }
+        if self
+            .diff_image2_id
+            .is_some_and(|id| member_ids.contains(&id))
+        {
+            self.diff_image2_id = Some(group_id);
+        }
+    }
+
+    pub fn group_selected(&mut self) -> Option<WorkspaceId> {
+        let ids = self.selected_ids.iter().copied().collect::<Vec<_>>();
+        self.group_images(&ids)
+    }
+
+    pub fn ungroup_selected(&mut self) -> usize {
+        let group_ids = self
+            .items
+            .iter()
+            .filter_map(|item| {
+                (self.selected_ids.contains(&item.id)
+                    && self.sequence_groups.contains_key(&item.id))
+                .then_some(item.id)
+            })
+            .collect::<Vec<_>>();
+        let mut restored = Vec::new();
+        for group_id in &group_ids {
+            if let Some(member_ids) = self.ungroup_members(*group_id) {
+                restored.extend(member_ids);
+            }
+        }
+        if let Some(primary) = restored.first().copied() {
+            self.selected_ids = restored.iter().copied().collect();
+            self.selected_id = Some(primary);
+            self.focused_id = Some(primary);
+            self.range_anchor = Some(primary);
+            self.invalidate_selection_state();
+        }
+        group_ids.len()
+    }
+
+    pub fn group_images(&mut self, ids: &[WorkspaceId]) -> Option<WorkspaceId> {
+        let unique = ids
+            .iter()
+            .copied()
+            .collect::<std::collections::HashSet<_>>();
+        if unique.len() != ids.len() {
+            return None;
+        }
+        let mut members = ids
+            .iter()
+            .filter_map(|id| {
+                let index = self.index_of(*id)?;
+                let SidebarItem::Image(image) = &self.items[index].content else {
+                    return None;
+                };
+                (image.frame_count() == 1).then_some((
+                    index,
+                    SequenceMember {
+                        id: *id,
+                        image: image.clone(),
+                    },
+                ))
+            })
+            .collect::<Vec<_>>();
+        members.sort_by_key(|(index, _)| *index);
+        if members.len() < 2 || members.len() != ids.len() {
+            return None;
+        }
+        let width = members[0].1.image.width;
+        let height = members[0].1.image.height;
+        if members
+            .iter()
+            .any(|(_, member)| member.image.width != width || member.image.height != height)
+        {
+            return None;
+        }
+        let first_index = members[0].0;
+        let originals = members
+            .iter()
+            .map(|(_, member)| member.clone())
+            .collect::<Vec<_>>();
+        let group_image = sequence_image(
+            &originals,
+            GroupPlayback {
+                current_member: originals.first().map(|member| member.id),
+                autoplay: true,
+                expanded: false,
+            },
+        )?;
+        let group_id = originals[0].id;
+        let member_ids = originals.iter().map(|member| member.id).collect::<Vec<_>>();
+        self.remap_group_references(&member_ids, group_id);
+        self.sequence_groups.insert(
+            group_id,
+            SequenceGroup {
+                members: originals,
+                automatic: false,
+            },
+        );
+        self.items[first_index].content = SidebarItem::Image(group_image);
+        for index in members.iter().skip(1).map(|(index, _)| *index).rev() {
+            self.items.remove(index);
+        }
+        self.selected_id = Some(group_id);
+        self.invalidate_selection_state();
+        Some(group_id)
+    }
+
+    fn auto_group_sequences(&mut self, playback: &HashMap<SequenceKey, GroupPlayback>) {
+        let mut candidates: HashMap<SequenceKey, Vec<(usize, u32)>> = HashMap::new();
+        for (index, item) in self.items.iter().enumerate() {
+            let SidebarItem::Image(image) = &item.content else {
+                continue;
+            };
+            if image.frame_count() != 1 || !matches!(image.midata, None | Some(MiData::RGBA(_))) {
+                continue;
+            }
+            let Some((key, number)) = sequence_key(&image.path, image.width, image.height) else {
+                continue;
+            };
+            candidates.entry(key).or_default().push((index, number));
+        }
+
+        let mut groups = candidates
+            .into_iter()
+            .filter_map(|(key, mut members)| {
+                members.sort_by_key(|(_, number)| *number);
+                (members.len() >= 2 && members.windows(2).all(|pair| pair[1].1 == pair[0].1 + 1))
+                    .then_some((key, members))
+            })
+            .collect::<Vec<_>>();
+        groups.sort_by_key(|(_, members)| members[0].0);
+
+        for (key, members) in groups.into_iter().rev() {
+            let first_index = members[0].0;
+            if first_index >= self.items.len() {
+                continue;
+            }
+            let member_ids = members
+                .iter()
+                .map(|(index, _)| self.items[*index].id)
+                .collect::<Vec<_>>();
+            if member_ids
+                .iter()
+                .any(|id| self.sequence_groups.contains_key(id))
+            {
+                continue;
+            }
+            let originals = members
+                .iter()
+                .filter_map(|(index, _)| match &self.items[*index].content {
+                    SidebarItem::Image(image) => Some(SequenceMember {
+                        id: self.items[*index].id,
+                        image: image.clone(),
+                    }),
+                    SidebarItem::Glyph(_) => None,
+                })
+                .collect::<Vec<_>>();
+            if originals.len() < 2 {
+                continue;
+            }
+            let state = playback.get(&key).copied().unwrap_or(GroupPlayback {
+                current_member: originals.first().map(|member| member.id),
+                autoplay: true,
+                expanded: false,
+            });
+            let Some(group_image) = sequence_image(&originals, state) else {
+                continue;
+            };
+            let group_id = originals[0].id;
+            let member_ids = originals.iter().map(|member| member.id).collect::<Vec<_>>();
+            self.remap_group_references(&member_ids, group_id);
+            self.sequence_groups.insert(
+                group_id,
+                SequenceGroup {
+                    members: originals,
+                    automatic: true,
+                },
+            );
+            self.items[first_index].content = SidebarItem::Image(group_image);
+            for index in members.iter().skip(1).map(|(index, _)| *index).rev() {
+                self.items.remove(index);
+            }
+        }
+    }
+
+    fn ungroup_members(&mut self, group_id: WorkspaceId) -> Option<Vec<WorkspaceId>> {
+        let members = self.sequence_groups.remove(&group_id)?;
+        let index = self.index_of(group_id)?;
+        self.items.remove(index);
+        let member_ids = members
+            .members
+            .iter()
+            .map(|member| member.id)
+            .collect::<Vec<_>>();
+        let first_member_id = member_ids.first().copied();
+        if let Some(first_member_id) = first_member_id {
+            if self.selected_id == Some(group_id) {
+                self.selected_id = Some(first_member_id);
+            }
+            if self.hovered_id == Some(group_id) {
+                self.hovered_id = Some(first_member_id);
+            }
+            if self.diff_image1_id == Some(group_id) {
+                self.diff_image1_id = Some(first_member_id);
+            }
+            if self.diff_image2_id == Some(group_id) {
+                self.diff_image2_id = Some(first_member_id);
+            }
+        }
+        for (offset, member) in members.members.into_iter().enumerate() {
+            self.items.insert(
+                index + offset,
+                WorkspaceItem {
+                    id: member.id,
+                    content_revision: 0,
+                    content: SidebarItem::Image(member.image),
+                },
+            );
+        }
+        Some(member_ids)
+    }
+
+    pub fn ungroup(&mut self, group_id: WorkspaceId) -> bool {
+        let Some(member_ids) = self.ungroup_members(group_id) else {
+            return false;
+        };
+        if let Some(first_member_id) = member_ids.first().copied() {
+            self.select(first_member_id);
+        }
+        true
+    }
+
+    #[allow(dead_code)]
+    pub fn replace_id(&mut self, id: WorkspaceId, content: SidebarItem) -> Option<SidebarItem> {
+        let item = self.items.iter_mut().find(|item| item.id == id)?;
+        let previous = std::mem::replace(&mut item.content, content);
+        self.invalidate_derived_state();
+        Some(previous)
+    }
+
+    fn invalidate_selection_state(&mut self) {
+        self.selected_op = None;
+        self.selected_node = None;
+        self.indexed_hover_palette = None;
+        self.indexed_edit_palette = None;
+        self.indexed_requantized = None;
+        self.indexed_dither_cached = u32::MAX;
+        self.indexed_dither_cached_id = None;
+        self.indexed_dither_cached_revision = 0;
+        self.font_rendered_preview = None;
+        self.font_atlas_cached = None;
+        self.font_grid_cached = None;
+        self.font_grid_big_cached = None;
+        self.selected_glyph = None;
+        self.font_bundle_index = 0;
+    }
+
+    fn invalidate_derived_state(&mut self) {
+        self.diff_result = None;
+        self.selected_diff_pixel = None;
+        self.hovered_diff_pixel = None;
+        self.hovered_diff_pixel_from_plot = None;
+        self.invalidate_selection_state();
+    }
+
+    pub fn remove_id(&mut self, id: WorkspaceId) -> Option<SidebarItem> {
+        let index = self.index_of(id)?;
+        let removed = self.items.remove(index).content;
+        self.sequence_groups.remove(&id);
+        self.sequence_groups
+            .retain(|_, members| members.members.iter().all(|member| member.id != id));
+
+        self.selected_ids.remove(&id);
+        if self.focused_id == Some(id) {
+            self.focused_id = None;
+        }
+        if self.range_anchor == Some(id) {
+            self.range_anchor = None;
+        }
+        if self.selected_id == Some(id) {
+            self.selected_id = self
+                .items
+                .get(index)
+                .or_else(|| self.items.last())
+                .map(|item| item.id);
+            if let Some(selected) = self.selected_id {
+                self.selected_ids.insert(selected);
+                self.focused_id = Some(selected);
+            }
+        }
+        if self.hovered_id == Some(id) {
+            self.hovered_id = None;
+        }
+        if self.diff_image1_id == Some(id) {
+            self.diff_image1_id = None;
+        }
+        if self.diff_image2_id == Some(id) {
+            self.diff_image2_id = None;
+        }
+        self.invalidate_derived_state();
+        Some(removed)
+    }
+
+    pub fn clear_items(&mut self) {
+        self.items.clear();
+        self.sequence_groups.clear();
+        self.selected_id = None;
+        self.selected_ids.clear();
+        self.focused_id = None;
+        self.range_anchor = None;
+        self.hovered_id = None;
+        self.diff_image1_id = None;
+        self.diff_image2_id = None;
+        self.invalidate_derived_state();
+    }
+}
+
 impl Default for ViewerState {
     fn default() -> Self {
         Self {
-            current_image: None,
             items: Vec::new(),
-            selected_index: None,
-            hovered_index: None,
+            next_workspace_id: 1,
+            sequence_groups: HashMap::new(),
+            selected_id: None,
+            selected_ids: BTreeSet::new(),
+            list_focus: false,
+            focused_id: None,
+            range_anchor: None,
+            hovered_id: None,
             dropped_files: Vec::new(),
+            input_format: crate::converter::ImageFormatCategory::Auto,
             context: AppContext::default(),
-            diff_image1_index: None,
-            diff_image2_index: None,
+            diff_image1_id: None,
+            diff_image2_id: None,
             diff_result: None,
             selected_diff_pixel: None,
             hovered_diff_pixel: None,
@@ -461,6 +1277,8 @@ impl Default for ViewerState {
             selected_node: None,
             path_mode: PathMode::default(),
             indexed_hover_palette: None,
+            indexed_edit_palette: None,
+            indexed_edit_color: Color32::WHITE,
             indexed_show_quality: false,
             indexed_view_mode: IndexedViewMode::default(),
             font_bake_size: 24,
@@ -472,6 +1290,8 @@ impl Default for ViewerState {
             font_bake_charset_file: None,
             indexed_dither: 0,
             indexed_dither_cached: u32::MAX,
+            indexed_dither_cached_id: None,
+            indexed_dither_cached_revision: 0,
             indexed_requantized: None,
             merge_font_paths: Vec::new(),
             font_mode: FontMode::default(),
@@ -489,5 +1309,414 @@ impl Default for ViewerState {
             #[cfg(target_arch = "wasm32")]
             pending_dropped: std::rc::Rc::new(std::cell::RefCell::new(Vec::new())),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn glyph(name: &str) -> SidebarItem {
+        SidebarItem::Glyph(OpenedGlyph {
+            name: name.to_string(),
+            codepoint: 0,
+            char_repr: String::new(),
+            advance: 0,
+            bearing: (0, 0),
+            bbox: (0, 0, 0, 0),
+            outline: Vec::new(),
+            outline_approximate: false,
+            source_font: String::new(),
+            source_is_sdf: false,
+        })
+    }
+
+    fn image(path: &str) -> SidebarItem {
+        SidebarItem::Image(ImageItem {
+            path: path.to_string(),
+            info: ImageInfo {
+                width: 1,
+                height: 1,
+                data_size: 4,
+                format: "rgba".to_string(),
+                other_info: serde_json::Value::Null,
+            },
+            width: 1,
+            height: 1,
+            frames: FrameSource::single(vec![Color32::BLACK], 1, 1),
+            midata: None,
+            expanded: false,
+        })
+    }
+
+    #[test]
+    fn inserting_before_selection_preserves_identity() {
+        let mut state = ViewerState::default();
+        let ids = state.append_items([glyph("first"), glyph("selected")]);
+        assert!(state.select(ids[1]));
+
+        state.insert_items(0, [glyph("inserted")]);
+
+        assert_eq!(state.selected_id, Some(ids[1]));
+        assert_eq!(state.index_of(ids[1]), Some(2));
+        assert_eq!(
+            state.selected_item().map(SidebarItem::name),
+            Some("selected")
+        );
+    }
+
+    #[test]
+    fn removing_selection_uses_next_then_previous_and_clears_references() {
+        let mut state = ViewerState::default();
+        let ids = state.append_items([glyph("first"), glyph("middle"), glyph("last")]);
+        state.select(ids[1]);
+        state.hovered_id = Some(ids[1]);
+        state.diff_image1_id = Some(ids[1]);
+        state.diff_image2_id = Some(ids[2]);
+
+        state.remove_id(ids[1]);
+
+        assert_eq!(state.selected_id, Some(ids[2]));
+        assert_eq!(state.hovered_id, None);
+        assert_eq!(state.diff_image1_id, None);
+        assert_eq!(state.diff_image2_id, Some(ids[2]));
+
+        state.remove_id(ids[2]);
+        assert_eq!(state.selected_id, Some(ids[0]));
+    }
+
+    #[test]
+    fn current_image_mut_edits_workspace_source() {
+        let mut state = ViewerState::default();
+        let id = state.append_items([image("before")])[0];
+        state.select(id);
+
+        state.current_image_mut().unwrap().path = "after".to_string();
+
+        assert_eq!(
+            state.current_image().map(|image| image.path.as_str()),
+            Some("after")
+        );
+        assert_eq!(state.item(id).map(SidebarItem::name), Some("after"));
+    }
+
+    #[test]
+    fn sequence_key_uses_rightmost_numeric_token_and_stable_suffix() {
+        let (key, number) = sequence_key("/tmp/walk_0001_diffuse.png", 8, 4).unwrap();
+        assert_eq!(number, 1);
+        assert_eq!(key.1, "walk_");
+        assert_eq!(key.2, "_diffuse");
+        assert_eq!(key.3, "png");
+        assert_eq!(key.4, 4);
+        assert!(sequence_key("/tmp/2024.png", 8, 4).is_none());
+    }
+
+    #[test]
+    fn auto_group_is_workspace_wide_and_ungroup_is_lossless() {
+        let mut state = ViewerState::default();
+        let first_batch = state
+            .insert_and_select_first([image("/tmp/walk_0001.png"), image("/tmp/walk_0002.png")]);
+        assert_eq!(state.len(), 1);
+        let group_id = state.items()[0].id();
+        assert!(state.is_sequence_group(group_id));
+        assert_eq!(state.current_image().unwrap().frame_count(), 2);
+
+        let second_batch = state.insert_and_select_first([image("/tmp/walk_0003.png")]);
+        assert_eq!(state.len(), 1);
+        assert!(state.is_sequence_group(group_id));
+        assert_eq!(state.current_image().unwrap().frame_count(), 3);
+        assert_eq!(state.selected_id, Some(group_id));
+        assert!(!second_batch.is_empty());
+
+        assert!(state.ungroup(group_id));
+        assert_eq!(state.len(), 3);
+        let paths = state
+            .items()
+            .iter()
+            .map(|item| item.content().name().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            paths,
+            [
+                "/tmp/walk_0001.png",
+                "/tmp/walk_0002.png",
+                "/tmp/walk_0003.png"
+            ]
+        );
+        assert_eq!(state.items()[0].id(), first_batch[0]);
+        assert_eq!(state.items()[1].id(), first_batch[1]);
+        assert_eq!(state.items()[2].id(), second_batch[0]);
+    }
+
+    #[test]
+    fn regroup_maps_member_references_to_the_new_group_id() {
+        let mut state = ViewerState::default();
+        state.insert_and_select_first([image("/tmp/walk_0001.png"), image("/tmp/walk_0002.png")]);
+        let old_group_id = state.items()[0].id();
+        state.hovered_id = Some(old_group_id);
+        state.diff_image1_id = Some(old_group_id);
+
+        let earlier = state.insert_and_select_first([image("/tmp/walk_0000.png")]);
+        let new_group_id = state.items()[0].id();
+
+        assert_eq!(new_group_id, earlier[0]);
+        assert_eq!(state.selected_id, Some(new_group_id));
+        assert_eq!(state.hovered_id, Some(new_group_id));
+        assert_eq!(state.diff_image1_id, Some(new_group_id));
+        assert!(state.item(old_group_id).is_none());
+    }
+
+    #[test]
+    fn manual_group_is_reversible_and_rejects_duplicate_ids() {
+        let mut state = ViewerState::default();
+        let ids = state.append_items([image("/a/a.png"), image("/a/b.png")]);
+        assert!(state.group_images(&[ids[0], ids[0]]).is_none());
+
+        let group_id = state.group_images(&ids).unwrap();
+        assert_eq!(state.len(), 1);
+        assert!(state.is_sequence_group(group_id));
+        assert!(state.ungroup(group_id));
+        assert_eq!(state.items()[0].id(), ids[0]);
+        assert_eq!(state.items()[1].id(), ids[1]);
+    }
+
+    #[test]
+    fn regroup_preserves_playback_state_and_group_frames_loop() {
+        let mut state = ViewerState::default();
+        state.insert_and_select_first([image("/tmp/walk_0001.png"), image("/tmp/walk_0002.png")]);
+        let group_id = state.items()[0].id();
+        let group_image = match state.item_mut(group_id).unwrap() {
+            SidebarItem::Image(image) => image,
+            SidebarItem::Glyph(_) => unreachable!(),
+        };
+        group_image.expanded = true;
+        if let FrameSource::Animated {
+            current,
+            autoplay,
+            last_advance,
+            ..
+        } = &mut group_image.frames
+        {
+            *current = 1;
+            *autoplay = false;
+            *last_advance = Some(Instant::now() - Duration::from_secs(1));
+        }
+
+        state.insert_and_select_first([image("/tmp/walk_0000.png")]);
+        let image = state.current_image_mut().unwrap();
+        assert!(image.expanded);
+        assert!(!image.autoplay());
+        assert!(!image.advance_frame());
+        if let FrameSource::Animated {
+            current,
+            autoplay,
+            last_advance,
+            ..
+        } = &mut image.frames
+        {
+            assert_eq!(*current, 2);
+            *autoplay = true;
+            *last_advance = Some(Instant::now() - Duration::from_millis(101));
+        }
+        assert!(image.advance_frame());
+        assert!(matches!(
+            image.frames,
+            FrameSource::Animated { current: 0, .. }
+        ));
+    }
+
+    #[test]
+    fn auto_group_rejects_gaps_padding_extension_directory_and_size_mismatch() {
+        let cases = [
+            ["/a/walk_01.png", "/a/walk_03.png"],
+            ["/a/walk_1.png", "/a/walk_02.png"],
+            ["/a/walk_01.png", "/a/walk_02.jpg"],
+            ["/a/walk_01.png", "/b/walk_02.png"],
+        ];
+        for paths in cases {
+            let mut state = ViewerState::default();
+            state.insert_and_select_first(paths.map(image));
+            assert_eq!(state.len(), 2, "unexpected group for {paths:?}");
+        }
+
+        let mut state = ViewerState::default();
+        let mut second = match image("/a/walk_02.png") {
+            SidebarItem::Image(image) => image,
+            SidebarItem::Glyph(_) => unreachable!(),
+        };
+        second.width = 2;
+        state.insert_and_select_first([image("/a/walk_01.png"), SidebarItem::Image(second)]);
+        assert_eq!(state.len(), 2);
+    }
+
+    #[test]
+    fn duplicate_paths_are_not_reinserted() {
+        let mut state = ViewerState::default();
+        state.insert_and_select_first([image("/a/frame_01.png")]);
+        let ids =
+            state.insert_and_select_first([image("/a/frame_01.png"), image("/a/frame_01.png")]);
+        assert!(ids.is_empty());
+        assert_eq!(state.len(), 1);
+    }
+
+    #[test]
+    fn multi_selection_supports_toggle_range_focus_and_keyboard_bounds() {
+        let mut state = ViewerState::default();
+        let ids = state.append_items([
+            glyph("first"),
+            glyph("second"),
+            glyph("third"),
+            glyph("fourth"),
+        ]);
+
+        assert!(state.focus_list(ids[1]));
+        assert_eq!(state.selected_ids, BTreeSet::from([ids[1]]));
+        assert!(state.toggle_selection(ids[3]));
+        assert_eq!(state.selected_ids, BTreeSet::from([ids[1], ids[3]]));
+        assert!(state.extend_selection(ids[2]));
+        assert_eq!(state.selected_ids, BTreeSet::from([ids[1], ids[2]]));
+        assert!(state.move_selection(-1));
+        assert_eq!(state.selected_id, Some(ids[1]));
+        assert!(state.move_selection(-1));
+        assert_eq!(state.selected_id, Some(ids[0]));
+        assert!(!state.move_selection(-1));
+        assert!(state.move_selection(1));
+        assert_eq!(state.selected_id, Some(ids[1]));
+        state.blur_list();
+        assert!(!state.move_selection(1));
+    }
+
+    #[test]
+    fn batch_remove_keeps_selection_consistent_and_export_snapshot_stable() {
+        let mut state = ViewerState::default();
+        let ids = state.append_items([
+            image("/a/one.png"),
+            image("/a/two.png"),
+            image("/a/three.png"),
+        ]);
+        state.focus_list(ids[0]);
+        state.toggle_selection(ids[1]);
+        let snapshots = state.selected_image_snapshots();
+        assert_eq!(snapshots.len(), 2);
+        assert_eq!(snapshots[0].path, "/a/one.png");
+        assert_eq!(snapshots[1].path, "/a/two.png");
+        state.remove_selected();
+        assert_eq!(state.len(), 1);
+        assert_eq!(state.selected_ids, BTreeSet::from([ids[2]]));
+        assert_eq!(state.selected_id, Some(ids[2]));
+        assert!(
+            state
+                .items()
+                .iter()
+                .all(|item| item.id() != ids[0] && item.id() != ids[1])
+        );
+    }
+
+    #[test]
+    fn grouping_selected_items_updates_selection_to_group() {
+        let mut state = ViewerState::default();
+        let ids = state.append_items([image("/a/one.png"), image("/a/two.png")]);
+        state.focus_list(ids[0]);
+        state.toggle_selection(ids[1]);
+        let group_id = state.group_selected().unwrap();
+        assert_eq!(state.selected_ids, BTreeSet::from([group_id]));
+        assert!(state.is_sequence_group(group_id));
+        assert_eq!(state.ungroup_selected(), 1);
+        assert_eq!(state.selected_ids, ids.into_iter().collect());
+    }
+
+    #[test]
+    fn ungroup_selected_restores_every_selected_group() {
+        let mut state = ViewerState::default();
+        let first = state.append_items([image("/a/one.png"), image("/a/two.png")]);
+        let second = state.append_items([image("/b/three.png"), image("/b/four.png")]);
+        let first_group = state.group_images(&first).unwrap();
+        let second_group = state.group_images(&second).unwrap();
+        state.focus_list(first_group);
+        state.toggle_selection(second_group);
+
+        assert_eq!(state.ungroup_selected(), 2);
+        assert_eq!(state.len(), 4);
+        assert_eq!(
+            state.selected_ids,
+            first.iter().chain(&second).copied().collect()
+        );
+        assert_eq!(state.selected_id, Some(first[0]));
+        assert_eq!(state.focused_id, Some(first[0]));
+        assert!(state.sequence_groups.is_empty());
+    }
+
+    #[test]
+    fn workspace_ids_remain_unique_across_insert_remove_and_reinsert() {
+        let mut state = ViewerState::default();
+        let first = state.append_items([glyph("a"), glyph("b")]);
+        let inserted = state.insert_items(1, [glyph("c")]);
+        state.remove_id(first[0]);
+        let later = state.append_items([glyph("d"), glyph("e")]);
+
+        let ids = state
+            .items()
+            .iter()
+            .map(WorkspaceItem::id)
+            .collect::<Vec<_>>();
+        let unique = ids
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(ids.len(), unique.len());
+        assert!(!ids.contains(&first[0]));
+        assert!(ids.contains(&first[1]));
+        assert!(ids.contains(&inserted[0]));
+        assert!(
+            later
+                .iter()
+                .all(|id| !first.contains(id) && !inserted.contains(id))
+        );
+    }
+
+    #[test]
+    fn changing_selection_invalidates_item_bound_state() {
+        let mut state = ViewerState::default();
+        let ids = state.append_items([image("first"), image("second")]);
+        state.select(ids[0]);
+        state.indexed_requantized = Some(icu_lib::midata::IndexedImageData {
+            rgba: icu_lib::image::RgbaImage::new(1, 1),
+            palette: vec![[0, 0, 0, 255]],
+            indexes: vec![0],
+            bpp: 1,
+            width: 1,
+            height: 1,
+        });
+        state.indexed_dither_cached = 7;
+        state.font_rendered_preview = Some(icu_lib::image::RgbaImage::new(1, 1));
+        state.selected_glyph = Some(3);
+        state.font_bundle_index = 2;
+
+        state.select(ids[1]);
+
+        assert!(state.indexed_requantized.is_none());
+        assert_eq!(state.indexed_dither_cached, u32::MAX);
+        assert!(state.font_rendered_preview.is_none());
+        assert_eq!(state.selected_glyph, None);
+        assert_eq!(state.font_bundle_index, 0);
+    }
+
+    #[test]
+    fn replacing_content_preserves_id_and_invalidates_derived_state() {
+        let mut state = ViewerState::default();
+        let id = state.append_items([glyph("before")])[0];
+        state.select(id);
+        state.diff_image1_id = Some(id);
+        state.selected_diff_pixel = Some([1, 2]);
+        state.indexed_dither_cached = 3;
+
+        let previous = state.replace_id(id, glyph("after"));
+
+        assert_eq!(previous.as_ref().map(SidebarItem::name), Some("before"));
+        assert_eq!(state.items()[0].id(), id);
+        assert_eq!(state.selected_item().map(SidebarItem::name), Some("after"));
+        assert_eq!(state.diff_image1_id, Some(id));
+        assert_eq!(state.selected_diff_pixel, None);
+        assert_eq!(state.indexed_dither_cached, u32::MAX);
     }
 }

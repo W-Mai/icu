@@ -42,15 +42,16 @@ fn setup_custom_fonts(ctx: &eframe::egui::Context) {
 
 // When compiling to web using trunk:
 #[cfg(target_arch = "wasm32")]
-pub fn show_image(files: Vec<DroppedFile>) {
+pub fn show_image(files: Vec<DroppedFile>, input_format: crate::converter::ImageFormatCategory) {
     use eframe::wasm_bindgen::JsCast as _;
 
     // Redirect `log` message to `console.log` and friends:
     eframe::WebLogger::init(log::LevelFilter::Debug).ok();
 
     let web_options = eframe::WebOptions::default();
+    let input_format = input_format;
 
-    wasm_bindgen_futures::spawn_local(async {
+    wasm_bindgen_futures::spawn_local(async move {
         let document = web_sys::window()
             .expect("No window")
             .document()
@@ -66,9 +67,9 @@ pub fn show_image(files: Vec<DroppedFile>) {
             .start(
                 canvas,
                 web_options,
-                Box::new(|cc| {
+                Box::new(move |cc| {
                     setup_custom_fonts(&cc.egui_ctx);
-                    Ok(Box::new(MyEguiApp::new(cc, files)))
+                    Ok(Box::new(MyEguiApp::new(cc, files, input_format)))
                 }),
             )
             .await;
@@ -90,7 +91,7 @@ pub fn show_image(files: Vec<DroppedFile>) {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn show_image(files: Vec<DroppedFile>) {
+pub fn show_image(files: Vec<DroppedFile>, input_format: crate::converter::ImageFormatCategory) {
     let native_options = eframe::NativeOptions::default();
 
     eframe::run_native(
@@ -98,7 +99,7 @@ pub fn show_image(files: Vec<DroppedFile>) {
         native_options,
         Box::new(move |cc| {
             setup_custom_fonts(&cc.egui_ctx);
-            Ok(Box::new(MyEguiApp::new(cc, files)))
+            Ok(Box::new(MyEguiApp::new(cc, files, input_format)))
         }),
     )
     .expect("Failed to run eframe");

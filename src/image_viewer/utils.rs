@@ -1,27 +1,25 @@
-use crate::image_viewer::model::{ConvertParams, Frame, FrameSource, ImageItem};
+use crate::converter::ImageFormatCategory;
+use crate::image_viewer::model::{ConvertParams, Frame, FrameSource, ImageFormat, ImageItem};
 use eframe::egui::{Color32, DroppedFile};
 use icu_lib::EncoderParams;
-use icu_lib::endecoder::ImageInfo;
+use icu_lib::endecoder::{EnDecoder, ImageInfo};
 use icu_lib::image::AnimationDecoder;
 use icu_lib::midata::MiData;
 use std::io::Cursor;
 use std::path::Path;
 use std::time::Duration;
 
-#[cfg(not(target_arch = "wasm32"))]
-use std::collections::{HashMap, HashSet};
-#[cfg(not(target_arch = "wasm32"))]
-use std::path::PathBuf;
-
-pub fn process_images(files: &[DroppedFile]) -> Vec<ImageItem> {
-    let items = files
+pub fn process_images_with_format(
+    files: &[DroppedFile],
+    input_format: ImageFormatCategory,
+) -> Vec<ImageItem> {
+    files
         .iter()
-        .filter_map(decode_dropped_file)
-        .collect::<Vec<_>>();
-    aggregate_sequences(items)
+        .filter_map(|file| decode_dropped_file(file, input_format))
+        .collect()
 }
 
-fn decode_dropped_file(file: &DroppedFile) -> Option<ImageItem> {
+fn decode_dropped_file(file: &DroppedFile, input_format: ImageFormatCategory) -> Option<ImageItem> {
     let file_path_info = if let Some(path) = &file.path {
         path.display().to_string()
     } else if !file.name.is_empty() {
@@ -35,11 +33,17 @@ fn decode_dropped_file(file: &DroppedFile) -> Option<ImageItem> {
         None => std::fs::read(&file_path_info).ok()?,
     };
 
-    if let Some(item) = decode_animation(&file_path_info, &data) {
+    if input_format != ImageFormatCategory::LVGL_V9
+        && let Some(item) = decode_animation(&file_path_info, &data)
+    {
         return Some(item);
     }
 
-    let coder = icu_lib::endecoder::find_endecoder(&data)?;
+    let coder: &dyn EnDecoder = match input_format {
+        ImageFormatCategory::Auto => icu_lib::endecoder::find_endecoder(&data)?,
+        ImageFormatCategory::Common => &icu_lib::endecoder::common::AutoDetect {},
+        ImageFormatCategory::LVGL_V9 => &icu_lib::endecoder::lvgl::LVGL {},
+    };
     let mi_data = coder.decode(data.clone());
     image_item_from_midata(file_path_info, coder.info(&data), mi_data)
 }
@@ -201,134 +205,6 @@ fn delay_to_duration(delay: icu_lib::image::Delay) -> Duration {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-fn aggregate_sequences(items: Vec<ImageItem>) -> Vec<ImageItem> {
-    let mut groups: HashMap<SequenceKey, Vec<(usize, u32)>> = HashMap::new();
-    for (idx, item) in items.iter().enumerate() {
-        if item.frame_count() != 1 {
-            continue;
-        }
-        if !matches!(item.midata, None | Some(icu_lib::midata::MiData::RGBA(_))) {
-            continue;
-        }
-        if let Some((key, number)) = sequence_key(Path::new(&item.path)) {
-            groups.entry(key).or_default().push((idx, number));
-        }
-    }
-
-    let mut consumed = HashSet::new();
-    let mut replacements = HashMap::new();
-    for mut members in groups.into_values() {
-        members.sort_by_key(|(_, number)| *number);
-        if members.len() <= 1 || !is_contiguous(&members) {
-            continue;
-        }
-
-        let frames = members
-            .iter()
-            .map(|(idx, _)| {
-                let (pixels, width, height) = items[*idx].current_pixels();
-                Frame {
-                    pixels: pixels.to_vec(),
-                    width,
-                    height,
-                    left: 0,
-                    top: 0,
-                    delay: Duration::from_millis(100),
-                }
-            })
-            .collect::<Vec<_>>();
-        let first_idx = members[0].0;
-        let first = &items[first_idx];
-        let width = frames.iter().map(|f| f.width).max().unwrap_or(first.width);
-        let height = frames
-            .iter()
-            .map(|f| f.height)
-            .max()
-            .unwrap_or(first.height);
-        let mut item = first.clone();
-        item.width = width;
-        item.height = height;
-        item.info.width = width;
-        item.info.height = height;
-        item.frames = FrameSource::animated(frames);
-        item.midata = None;
-        item.path = sequence_label(&members, &items);
-        replacements.insert(first_idx, item);
-        for (idx, _) in members.iter().skip(1) {
-            consumed.insert(*idx);
-        }
-    }
-
-    items
-        .into_iter()
-        .enumerate()
-        .filter_map(|(idx, item)| {
-            if consumed.contains(&idx) {
-                None
-            } else {
-                Some(replacements.remove(&idx).unwrap_or(item))
-            }
-        })
-        .collect()
-}
-
-#[cfg(target_arch = "wasm32")]
-fn aggregate_sequences(items: Vec<ImageItem>) -> Vec<ImageItem> {
-    items
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-#[derive(Hash, PartialEq, Eq)]
-struct SequenceKey {
-    parent: PathBuf,
-    prefix: String,
-    ext: String,
-    digits: usize,
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn sequence_key(path: &Path) -> Option<(SequenceKey, u32)> {
-    let stem = path.file_stem()?.to_string_lossy();
-    let ext = path.extension()?.to_string_lossy().to_ascii_lowercase();
-    let split_at = stem.trim_end_matches(|c: char| c.is_ascii_digit()).len();
-    if split_at == stem.len() {
-        return None;
-    }
-    let digits = &stem[split_at..];
-    let number = digits.parse::<u32>().ok()?;
-    Some((
-        SequenceKey {
-            parent: path.parent().unwrap_or_else(|| Path::new("")).to_path_buf(),
-            prefix: stem[..split_at].to_string(),
-            ext,
-            digits: digits.len(),
-        },
-        number,
-    ))
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn is_contiguous(members: &[(usize, u32)]) -> bool {
-    members
-        .windows(2)
-        .all(|pair| pair[1].1 == pair[0].1.saturating_add(1))
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn sequence_label(members: &[(usize, u32)], items: &[ImageItem]) -> String {
-    let first = &items[members[0].0].path;
-    let last = &items[members[members.len() - 1].0].path;
-    format!(
-        "{} … {}",
-        first,
-        Path::new(last)
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-    )
-}
-
 pub fn get_system_locale() -> String {
     let locale = sys_locale::get_locale().unwrap_or_else(|| "en-US".to_string());
     locale.replace('_', "-")
@@ -338,16 +214,29 @@ pub fn convert_image(
     image_item: &ImageItem,
     params: &ConvertParams,
 ) -> Result<(Vec<u8>, String), String> {
-    let (pixels, width, height) = image_item.current_pixels();
-    let midata = MiData::from_rgba(
-        width,
-        height,
-        pixels
-            .iter()
-            .flat_map(|x| x.to_array())
-            .collect::<Vec<u8>>(),
-    )
-    .ok_or("Failed to create MiData")?;
+    let output_format = params.output_format;
+    let midata = if output_format == ImageFormat::LVGL {
+        match &image_item.midata {
+            Some(MiData::INDEXED(indexed)) => MiData::INDEXED(indexed.clone()),
+            _ => {
+                let (pixels, width, height) = image_item.current_pixels();
+                MiData::from_rgba(
+                    width,
+                    height,
+                    pixels.iter().flat_map(|pixel| pixel.to_array()).collect(),
+                )
+                .ok_or("Failed to create MiData")?
+            }
+        }
+    } else {
+        let (pixels, width, height) = image_item.current_pixels();
+        MiData::from_rgba(
+            width,
+            height,
+            pixels.iter().flat_map(|pixel| pixel.to_array()).collect(),
+        )
+        .ok_or("Failed to create MiData")?
+    };
 
     let encoder_params = EncoderParams {
         lvgl_version: params.lvgl_version.into(),
@@ -366,6 +255,12 @@ pub fn convert_image(
 
     let encoder = output_format.get_endecoder();
     let data = encoder.encode(&midata, encoder_params);
+    if data.is_empty() {
+        return Err(format!(
+            "{:?} does not support this image representation",
+            output_format
+        ));
+    }
     let ext = output_format.get_file_extension().to_string();
 
     Ok((data, ext))
@@ -376,15 +271,18 @@ pub fn save_images(items: &[ImageItem], params: &ConvertParams) {
     let folder = rfd::FileDialog::new().pick_folder();
     if let Some(folder) = folder {
         for item in items {
-            if let Ok((data, ext)) = convert_image(item, params) {
-                let file_name = Path::new(&item.path)
-                    .file_stem()
-                    .unwrap_or_default()
-                    .to_string_lossy();
-                let new_path = folder.join(format!("{}.{}", file_name, ext));
-                if let Err(e) = std::fs::write(&new_path, data) {
-                    log::error!("Failed to save file: {}", e);
+            match convert_image(item, params) {
+                Ok((data, ext)) => {
+                    let file_name = Path::new(&item.path)
+                        .file_stem()
+                        .unwrap_or_default()
+                        .to_string_lossy();
+                    let new_path = folder.join(format!("{}.{}", file_name, ext));
+                    if let Err(error) = std::fs::write(&new_path, data) {
+                        log::error!("Failed to save {}: {error}", new_path.display());
+                    }
                 }
+                Err(error) => log::error!("Failed to convert {}: {error}", item.path),
             }
         }
     }
@@ -395,42 +293,46 @@ pub fn save_images(items: &[ImageItem], params: &ConvertParams) {
     use eframe::wasm_bindgen::JsCast;
 
     for item in items {
-        if let Ok((data, ext)) = convert_image(item, params) {
-            let file_name = Path::new(&item.path)
-                .file_stem()
-                .unwrap_or_default()
-                .to_string_lossy();
-            let file_name = format!("{}.{}", file_name, ext);
+        match convert_image(item, params) {
+            Ok((data, ext)) => {
+                let file_name = Path::new(&item.path)
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy();
+                let file_name = format!("{}.{}", file_name, ext);
 
-            let window = web_sys::window().expect("window not found");
-            let document = window.document().expect("document not found");
-            let body = document.body().expect("body not found");
+                let window = web_sys::window().expect("window not found");
+                let document = window.document().expect("document not found");
+                let body = document.body().expect("body not found");
 
-            let uint8_array = unsafe { js_sys::Uint8Array::view(&data) };
-            let array = js_sys::Array::new();
-            array.push(&uint8_array);
-            let blob_options = web_sys::BlobPropertyBag::new();
-            blob_options.set_type("application/octet-stream");
-            let blob = web_sys::Blob::new_with_u8_array_sequence_and_options(&array, &blob_options)
-                .expect("failed to create blob");
+                let uint8_array = unsafe { js_sys::Uint8Array::view(&data) };
+                let array = js_sys::Array::new();
+                array.push(&uint8_array);
+                let blob_options = web_sys::BlobPropertyBag::new();
+                blob_options.set_type("application/octet-stream");
+                let blob =
+                    web_sys::Blob::new_with_u8_array_sequence_and_options(&array, &blob_options)
+                        .expect("failed to create blob");
 
-            let url = web_sys::Url::create_object_url_with_blob(&blob)
-                .expect("failed to create object url");
+                let url = web_sys::Url::create_object_url_with_blob(&blob)
+                    .expect("failed to create object url");
 
-            let a = document
-                .create_element("a")
-                .expect("failed to create anchor")
-                .dyn_into::<web_sys::HtmlAnchorElement>()
-                .expect("failed to cast to anchor");
+                let a = document
+                    .create_element("a")
+                    .expect("failed to create anchor")
+                    .dyn_into::<web_sys::HtmlAnchorElement>()
+                    .expect("failed to cast to anchor");
 
-            a.set_href(&url);
-            a.set_download(&file_name);
-            a.style().set_property("display", "none").ok();
+                a.set_href(&url);
+                a.set_download(&file_name);
+                a.style().set_property("display", "none").ok();
 
-            body.append_child(&a).ok();
-            a.click();
-            body.remove_child(&a).ok();
-            web_sys::Url::revoke_object_url(&url).ok();
+                body.append_child(&a).ok();
+                a.click();
+                body.remove_child(&a).ok();
+                web_sys::Url::revoke_object_url(&url).ok();
+            }
+            Err(error) => log::error!("Failed to convert {}: {error}", item.path),
         }
     }
 }

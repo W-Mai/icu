@@ -42,10 +42,7 @@ pub(super) fn pick_save_file(
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn export_current_as_png(state: &ViewerState) {
-    let Some(idx) = state.selected_index else {
-        return;
-    };
-    let Some(item) = state.items.get(idx) else {
+    let Some(item) = state.selected_item() else {
         return;
     };
     let SidebarItem::Image(img) = item else {

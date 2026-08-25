@@ -6,7 +6,7 @@ pub fn draw_path_export_section(
     ui: &mut egui::Ui,
     state: &mut crate::image_viewer::model::ViewerState,
 ) {
-    let Some(image) = state.current_image.clone() else {
+    let Some(image) = state.current_image().cloned() else {
         return;
     };
     let Some(MiData::PATH(scene_data)) = &image.midata else {
@@ -116,7 +116,7 @@ pub fn draw_path_export_section(
 }
 
 pub fn draw_path_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
-    let Some(image) = state.current_image.clone() else {
+    let Some(image) = state.current_image().cloned() else {
         return;
     };
     let Some(MiData::PATH(scene_data)) = &image.midata else {

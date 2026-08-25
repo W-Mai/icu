@@ -56,25 +56,28 @@ pub fn draw_bottom_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
                 let small = |text: &str| egui::RichText::new(text).size(11.0).color(p.overlay0);
 
                 let file_count = state
-                    .items
+                    .items()
                     .iter()
-                    .filter(|i| matches!(i, crate::image_viewer::model::SidebarItem::Image(_)))
+                    .filter(|i| {
+                        matches!(
+                            i.content(),
+                            crate::image_viewer::model::SidebarItem::Image(_)
+                        )
+                    })
                     .count();
                 ui.label(small(&t!("n_files", count = file_count).to_string()));
-                if let Some(idx) = state.selected_index {
-                    if let Some(item) = state.items.get(idx) {
-                        let name = match item {
-                            crate::image_viewer::model::SidebarItem::Image(i) => {
-                                std::path::Path::new(&i.path)
-                                    .file_name()
-                                    .map(|n| n.to_string_lossy().into_owned())
-                                    .unwrap_or_else(|| i.path.clone())
-                            }
-                            crate::image_viewer::model::SidebarItem::Glyph(g) => g.name.clone(),
-                        };
-                        ui.separator();
-                        ui.label(small(&name));
-                    }
+                if let Some(item) = state.selected_item() {
+                    let name = match item {
+                        crate::image_viewer::model::SidebarItem::Image(i) => {
+                            std::path::Path::new(&i.path)
+                                .file_name()
+                                .map(|n| n.to_string_lossy().into_owned())
+                                .unwrap_or_else(|| i.path.clone())
+                        }
+                        crate::image_viewer::model::SidebarItem::Glyph(g) => g.name.clone(),
+                    };
+                    ui.separator();
+                    ui.label(small(&name));
                 }
                 ui.separator();
                 crate::image_viewer::ui::widgets::kbd(ui, "⌘O");
