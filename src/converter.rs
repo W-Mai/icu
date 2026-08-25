@@ -41,6 +41,7 @@ pub enum LVGL_Version {
 pub enum ImageFormats {
     // Common image formats like: PNG, JPEG, BMP, etc.
     PNG,
+    APNG,
     JPEG,
     BMP,
     GIF,
@@ -94,6 +95,7 @@ impl ImageFormats {
     pub fn get_endecoder(&self) -> &dyn EnDecoder {
         match &self {
             ImageFormats::PNG => &icu_lib::endecoder::common::PNG {} as &dyn EnDecoder,
+            ImageFormats::APNG => &icu_lib::endecoder::common::PNG {} as &dyn EnDecoder,
             ImageFormats::JPEG => &icu_lib::endecoder::common::JPEG {} as &dyn EnDecoder,
             ImageFormats::BMP => &icu_lib::endecoder::common::BMP {} as &dyn EnDecoder,
             ImageFormats::GIF => &icu_lib::endecoder::common::GIF {} as &dyn EnDecoder,
@@ -112,6 +114,7 @@ impl ImageFormats {
     pub fn get_file_extension(&self) -> &'static str {
         match &self {
             ImageFormats::PNG => "png",
+            ImageFormats::APNG => "apng",
             ImageFormats::JPEG => "jpeg",
             ImageFormats::BMP => "bmp",
             ImageFormats::GIF => "gif",

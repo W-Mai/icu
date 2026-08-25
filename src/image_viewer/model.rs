@@ -754,10 +754,15 @@ impl ViewerState {
     }
 
     pub fn select_frame(&mut self, collection: WorkspaceId, index: usize) -> bool {
-        let Some(group) = self.sequence_groups.get(&collection) else {
+        if let Some(group) = self.sequence_groups.get(&collection)
+            && index >= group.members.len()
+        {
+            return false;
+        }
+        let Some(SidebarItem::Image(image)) = self.item(collection) else {
             return false;
         };
-        if index >= group.members.len() {
+        if !matches!(image.frames, FrameSource::Animated { .. }) {
             return false;
         }
         if !self.select(collection) {
@@ -765,11 +770,15 @@ impl ViewerState {
         }
         if let Some(SidebarItem::Image(image)) = self.item_mut(collection)
             && let FrameSource::Animated {
+                frames,
                 current,
                 last_advance,
                 ..
             } = &mut image.frames
         {
+            if index >= frames.len() {
+                return false;
+            }
             *current = index;
             *last_advance = None;
         }
@@ -777,13 +786,11 @@ impl ViewerState {
         true
     }
 
-    pub fn set_group_interval(&mut self, id: WorkspaceId, interval: Duration) -> bool {
-        if !self.sequence_groups.contains_key(&id) {
-            return false;
-        }
+    pub fn set_animation_interval(&mut self, id: WorkspaceId, interval: Duration) -> bool {
         let Some(SidebarItem::Image(image)) = self.item_mut(id) else {
             return false;
         };
+
         let FrameSource::Animated {
             frames,
             last_advance,
@@ -839,8 +846,56 @@ impl ViewerState {
         let SelectionTarget::Frame { collection, index } = self.primary_target? else {
             return None;
         };
-        let member = self.sequence_groups.get(&collection)?.members.get(index)?;
-        Some((collection, index, &member.image))
+        if let Some(group) = self.sequence_groups.get(&collection)
+            && let Some(member) = group.members.get(index)
+        {
+            return Some((collection, index, &member.image));
+        }
+        let SidebarItem::Image(image) = self.item(collection)? else {
+            return None;
+        };
+        Some((collection, index, image))
+    }
+
+    pub fn frame_snapshots(&self, id: WorkspaceId) -> Option<Vec<(String, ImageItem)>> {
+        if let Some(members) = self.group_members(id) {
+            return Some(
+                members
+                    .into_iter()
+                    .map(|(_, name, image)| (name, image))
+                    .collect(),
+            );
+        }
+        let SidebarItem::Image(image) = self.item(id)? else {
+            return None;
+        };
+        let FrameSource::Animated { frames, .. } = &image.frames else {
+            return None;
+        };
+        Some(
+            frames
+                .iter()
+                .enumerate()
+                .map(|(index, frame)| {
+                    (
+                        format!("{}#{}", image.path, index + 1),
+                        ImageItem {
+                            path: format!("{}#{}", image.path, index + 1),
+                            info: image.info.clone(),
+                            width: frame.width,
+                            height: frame.height,
+                            frames: FrameSource::single(
+                                frame.pixels.clone(),
+                                frame.width,
+                                frame.height,
+                            ),
+                            midata: None,
+                            expanded: false,
+                        },
+                    )
+                })
+                .collect(),
+        )
     }
 
     pub fn toggle_selection(&mut self, id: WorkspaceId) -> bool {
@@ -1730,7 +1785,7 @@ mod tests {
         let mut state = ViewerState::default();
         state.insert_and_select_first([image("/tmp/walk_0001.png"), image("/tmp/walk_0002.png")]);
         let group_id = state.items()[0].id();
-        assert!(state.set_group_interval(group_id, Duration::from_millis(240)));
+        assert!(state.set_animation_interval(group_id, Duration::from_millis(240)));
         let image = state.current_image().unwrap();
         let FrameSource::Animated { frames, .. } = &image.frames else {
             panic!("expected grouped animation");

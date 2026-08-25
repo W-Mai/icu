@@ -26,6 +26,7 @@ clap = { version = "4.5.20", features = ["derive", "suggestions"] }
 clap_complete = "4.5.1"
 egui_plot = "0.36.0"
 image = { version = "0.25", default-features = false, features = ["png", "gif"] }
+png = "0.17"
 log = "0.4.20"
 env_logger = "0.11.2"
 serde_yaml = "0.9.33"

@@ -249,10 +249,31 @@ pub struct ExportPlan {
 pub fn export_plan(state: &ViewerState, target: ExportTarget) -> Option<ExportPlan> {
     match target {
         ExportTarget::Frame { collection, index } => {
-            let (_, _, item) = state.group_members(collection)?.into_iter().nth(index)?;
+            if let Some((_, _, item)) = state
+                .group_members(collection)
+                .and_then(|members| members.into_iter().nth(index))
+            {
+                return Some(ExportPlan {
+                    label: state.group_label(collection)?.to_string(),
+                    items: vec![item],
+                });
+            }
+            let image = state.item(collection)?.as_image()?.clone();
+            let FrameSource::Animated { frames, .. } = image.frames else {
+                return None;
+            };
+            let frame = frames.get(index)?.clone();
             Some(ExportPlan {
-                label: state.group_label(collection)?.to_string(),
-                items: vec![item.clone()],
+                label: format!("{}-{}", image.path, index + 1),
+                items: vec![ImageItem {
+                    path: format!("{}-{}", image.path, index + 1),
+                    info: image.info,
+                    width: frame.width,
+                    height: frame.height,
+                    frames: FrameSource::single(frame.pixels, frame.width, frame.height),
+                    midata: None,
+                    expanded: false,
+                }],
             })
         }
         ExportTarget::Entry(id) => {
@@ -285,16 +306,23 @@ pub fn export_target_from_selection(state: &ViewerState) -> Option<ExportTarget>
 }
 
 pub fn save_export_plan(plan: &ExportPlan, params: &ConvertParams) {
-    if params.output_format == ImageFormat::GIF && plan.items.len() > 1 {
+    let has_animation =
+        plan.items.len() > 1 || plan.items.iter().any(|item| item.frame_count() > 1);
+    if has_animation && matches!(params.output_format, ImageFormat::GIF | ImageFormat::APNG) {
         let options = GifExportOptions {
             interval: Duration::from_millis(params.gif_interval_ms.max(1) as u64),
             repeat: params
                 .gif_repeat
                 .map_or(GifRepeat::Infinite, GifRepeat::Finite),
         };
-        match encode_gif_frames(&plan.items, options) {
-            Ok(data) => save_export_bytes(&plan.label, "gif", data),
-            Err(error) => log::error!("Failed to encode GIF {}: {error}", plan.label),
+        let encoded = if params.output_format == ImageFormat::GIF {
+            encode_gif_frames(&plan.items, options).map(|data| ("gif", data))
+        } else {
+            encode_apng_frames(&plan.items, options).map(|data| ("apng", data))
+        };
+        match encoded {
+            Ok((extension, data)) => save_export_bytes(&plan.label, extension, data),
+            Err(error) => log::error!("Failed to encode animation {}: {error}", plan.label),
         }
     } else {
         save_images(&plan.items, params);
@@ -395,6 +423,67 @@ pub fn encode_gif_frames(
         .map_err(|error| error.to_string())?;
     drop(encoder);
     Ok(output.into_inner())
+}
+
+fn encode_apng_frames(items: &[ImageItem], options: GifExportOptions) -> Result<Vec<u8>, String> {
+    let frames = animation_frames(items);
+    let first = frames.first().ok_or("Cannot encode an empty APNG")?;
+    let mut output = Cursor::new(Vec::new());
+    let mut encoder = png::Encoder::new(&mut output, first.width, first.height);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder
+        .set_animated(
+            frames.len() as u32,
+            match options.repeat {
+                GifRepeat::Infinite => 0,
+                GifRepeat::Finite(count) => count as u32,
+            },
+        )
+        .map_err(|error| error.to_string())?;
+    let mut writer = encoder.write_header().map_err(|error| error.to_string())?;
+    for frame in frames {
+        let delay = if frame.delay.is_zero() {
+            options.interval
+        } else {
+            frame.delay
+        };
+        let millis = delay.as_millis().clamp(1, u16::MAX as u128) as u16;
+        writer
+            .set_frame_delay(millis, 1000)
+            .map_err(|error| error.to_string())?;
+        let pixels = frame
+            .pixels
+            .iter()
+            .flat_map(|pixel| pixel.to_array())
+            .collect::<Vec<_>>();
+        writer
+            .write_image_data(&pixels)
+            .map_err(|error| error.to_string())?;
+    }
+    drop(writer);
+    Ok(output.into_inner())
+}
+
+fn animation_frames(items: &[ImageItem]) -> Vec<Frame> {
+    items
+        .iter()
+        .flat_map(|item| match &item.frames {
+            FrameSource::Single {
+                pixels,
+                width,
+                height,
+            } => vec![Frame {
+                pixels: pixels.clone(),
+                width: *width,
+                height: *height,
+                left: 0,
+                top: 0,
+                delay: Duration::ZERO,
+            }],
+            FrameSource::Animated { frames, .. } => frames.clone(),
+        })
+        .collect()
 }
 
 fn encoded_frame(
@@ -621,4 +710,69 @@ pub fn pick_files_web(
     input.style().set_property("display", "none").ok();
     input.click();
     let _ = JsValue::from(input);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::AnimationDecoder;
+
+    fn animation_item() -> ImageItem {
+        ImageItem {
+            path: "animation".to_string(),
+            info: ImageInfo {
+                width: 2,
+                height: 1,
+                data_size: 0,
+                format: "animation".to_string(),
+                other_info: serde_json::Value::Null,
+            },
+            width: 2,
+            height: 1,
+            frames: FrameSource::animated(vec![
+                Frame {
+                    pixels: vec![Color32::RED, Color32::RED],
+                    width: 2,
+                    height: 1,
+                    left: 0,
+                    top: 0,
+                    delay: Duration::from_millis(80),
+                },
+                Frame {
+                    pixels: vec![Color32::BLUE, Color32::BLUE],
+                    width: 2,
+                    height: 1,
+                    left: 0,
+                    top: 0,
+                    delay: Duration::from_millis(120),
+                },
+            ]),
+            midata: None,
+            expanded: false,
+        }
+    }
+
+    #[test]
+    fn gif_animation_round_trip_preserves_frame_count() {
+        let data = encode_gif_frames(&[animation_item()], GifExportOptions::default()).unwrap();
+        let decoder = image::codecs::gif::GifDecoder::new(Cursor::new(data)).unwrap();
+        assert_eq!(decoder.into_frames().collect_frames().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn apng_animation_round_trip_preserves_frame_count() {
+        let data = encode_apng_frames(&[animation_item()], GifExportOptions::default()).unwrap();
+        let decoder = image::codecs::png::PngDecoder::new(Cursor::new(data)).unwrap();
+        assert!(decoder.is_apng().unwrap());
+        assert_eq!(
+            decoder
+                .apng()
+                .unwrap()
+                .into_frames()
+                .collect_frames()
+                .unwrap()
+                .len(),
+            2
+        );
+    }
 }

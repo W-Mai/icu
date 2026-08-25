@@ -170,11 +170,16 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
     ui.add_space(12.0);
     draw_lvgl_options(ui, state);
     draw_mirx_options(ui, state);
-    if state.context.convert_params.output_format == ImageFormat::GIF
-        && state
-            .selected_id
-            .is_some_and(|id| state.group_members(id).is_some())
-    {
+    if matches!(
+        state.context.convert_params.output_format,
+        ImageFormat::GIF | ImageFormat::APNG
+    ) && state.selected_id.is_some_and(|id| {
+        state.group_members(id).is_some()
+            || state
+                .item(id)
+                .and_then(|item| item.as_image())
+                .is_some_and(|image| image.frame_count() > 1)
+    }) {
         crate::image_viewer::ui::widgets::section_card(ui, &t!("section_export"), |ui| {
             param_row(ui, t!("collection_interval").as_ref(), |ui| {
                 let response = ui.add(
@@ -183,7 +188,7 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                 );
                 if response.changed() {
                     if let Some(id) = state.selected_id {
-                        state.set_group_interval(
+                        state.set_animation_interval(
                             id,
                             std::time::Duration::from_millis(
                                 state.context.convert_params.gif_interval_ms.max(1) as u64,
@@ -264,6 +269,10 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                         target,
                         crate::image_viewer::utils::ExportTarget::Entry(id)
                             if state.group_members(*id).is_some()
+                                || state
+                                    .item(*id)
+                                    .and_then(|item| item.as_image())
+                                    .is_some_and(|image| image.frame_count() > 1)
                     )
                 });
                 if is_group_or_frame {

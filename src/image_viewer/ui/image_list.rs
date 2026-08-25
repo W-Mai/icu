@@ -521,10 +521,10 @@ fn draw_frame_child_rows(
     let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
     let row_h = 24.0;
     let indent = 16.0;
-    let members = state.group_members(parent_id).map(|items| {
+    let members = state.frame_snapshots(parent_id).map(|items| {
         items
             .into_iter()
-            .map(|(id, name, image)| (id, name, image))
+            .map(|(name, image)| (name, image))
             .collect::<Vec<_>>()
     });
     for frame_idx in 0..frame_count {
@@ -552,9 +552,7 @@ fn draw_frame_child_rows(
             ui.painter()
                 .rect_filled(bar, egui::CornerRadius::same(0), p.peach);
 
-            if let Some((_, _, frame_item)) =
-                members.as_ref().and_then(|items| items.get(frame_idx))
-            {
+            if let Some((_, frame_item)) = members.as_ref().and_then(|items| items.get(frame_idx)) {
                 let (pixels, width, height) = frame_item.current_pixels();
                 if width > 0 && height > 0 {
                     let tex = ui.ctx().load_texture(
@@ -581,7 +579,7 @@ fn draw_frame_child_rows(
             let label = members
                 .as_ref()
                 .and_then(|items| items.get(frame_idx))
-                .map(|(_, name, _)| {
+                .map(|(name, _)| {
                     std::path::Path::new(name)
                         .file_name()
                         .map(|name| name.to_string_lossy().into_owned())
