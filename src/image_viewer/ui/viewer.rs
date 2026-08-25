@@ -489,7 +489,11 @@ fn draw_frame_controls(ui: &mut egui::Ui, image: &mut crate::image_viewer::model
     }
 
     ui.horizontal(|ui| {
-        let label = if *autoplay { "Pause" } else { "Play" };
+        let label = if *autoplay {
+            t!("ctx_pause")
+        } else {
+            t!("ctx_play")
+        };
         if ui.button(label).clicked() {
             *autoplay = !*autoplay;
             *last_advance = None;
@@ -497,7 +501,7 @@ fn draw_frame_controls(ui: &mut egui::Ui, image: &mut crate::image_viewer::model
         }
 
         let mut frame_index = *current;
-        let frame_label = format!("frame {} / {}", *current + 1, frames.len());
+        let frame_label = t!("frame_label", current = *current + 1, total = frames.len());
         let slider = egui::Slider::new(&mut frame_index, 0..=frames.len() - 1).text(frame_label);
         if ui.add(slider).changed() {
             *current = frame_index;

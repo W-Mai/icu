@@ -1,5 +1,4 @@
 use crate::image_viewer::plotter::ImagePlotter;
-use clap::ValueEnum;
 use eframe::egui;
 use eframe::egui::Color32;
 use icu_lib::midata::MiData;
@@ -130,23 +129,16 @@ pub fn draw_indexed_convert_section(
         }
     });
     ui.add_space(4.0);
+    crate::image_viewer::ui::convert_panel::draw_output_format_selector(ui, state);
+    crate::image_viewer::ui::convert_panel::draw_lvgl_options(ui, state);
+    crate::image_viewer::ui::convert_panel::draw_mirx_options(ui, state);
     crate::image_viewer::ui::widgets::section_card(ui, t!("section_export").as_ref(), |ui| {
-        ui.horizontal(|ui| {
-            ui.label("Format");
-            egui::ComboBox::from_id_salt("indexed_output_format")
-                .selected_text(format!("{:?}", state.context.convert_params.output_format))
-                .show_ui(ui, |ui| {
-                    for &format in crate::image_viewer::model::ImageFormat::value_variants() {
-                        ui.selectable_value(
-                            &mut state.context.convert_params.output_format,
-                            format,
-                            format!("{format:?}"),
-                        );
-                    }
-                });
-        });
         if ui.button(t!("ctx_export")).clicked() {
-            if let Some(item) = state.current_image().cloned() {
+            if let Some(target) = crate::image_viewer::utils::export_target_from_selection(state)
+                && let Some(plan) = crate::image_viewer::utils::export_plan(state, target)
+            {
+                crate::image_viewer::utils::save_export_plan(&plan, &state.context.convert_params);
+            } else if let Some(item) = state.current_image().cloned() {
                 crate::image_viewer::utils::save_images(&[item], &state.context.convert_params);
             }
         }

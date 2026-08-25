@@ -168,14 +168,20 @@ pub fn draw_left_panel(
                     let owns_keyboard = ui.memory(|memory| memory.has_focus(keyboard_focus_id()));
                     state.list_focus = owns_keyboard;
                     if owns_keyboard {
-                        let (up, down, delete) = ui.input(|input| {
+                        let (up, down, delete, select_all) = ui.input(|input| {
                             (
                                 input.key_pressed(egui::Key::ArrowUp),
                                 input.key_pressed(egui::Key::ArrowDown),
                                 input.key_pressed(egui::Key::Delete),
+                                input.key_pressed(egui::Key::A)
+                                    && (input.modifiers.mac_cmd
+                                        || input.modifiers.command
+                                        || input.modifiers.ctrl),
                             )
                         });
-                        if up {
+                        if select_all {
+                            state.select_all();
+                        } else if up {
                             state.move_selection(-1);
                         } else if down {
                             state.move_selection(1);
@@ -199,10 +205,12 @@ fn draw_sidebar_item(
 
     let (name, meta, badge_text, badge_color) = match item {
         SidebarItem::Image(img) => {
-            let fname = std::path::Path::new(&img.path)
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_else(|| img.path.clone());
+            let fname = state.group_label(id).map(str::to_owned).unwrap_or_else(|| {
+                std::path::Path::new(&img.path)
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| img.path.clone())
+            });
             let meta_str = format!("{}×{}", img.width, img.height);
             let (badge, color) = match &img.midata {
                 Some(icu_lib::midata::MiData::FONT(_)) => ("FONT", p.mauve),
@@ -444,15 +452,42 @@ fn draw_sidebar_item(
             ui.close();
         }
         ui.separator();
-        if state.is_sequence_group(id) && ui.button(t!("ctx_ungroup")).clicked() {
-            state.ungroup(id);
-            ui.close();
+        if state.is_sequence_group(id) {
+            if ui.button(t!("collection_rename")).clicked() {
+                state.renaming_group = Some(id);
+                state.rename_buffer = state.group_label(id).unwrap_or_default().to_owned();
+                ui.close();
+            }
+            if ui.button(t!("ctx_ungroup")).clicked() {
+                state.ungroup(id);
+                ui.close();
+            }
         }
         if ui.button(t!("ctx_remove")).clicked() {
             state.remove_id(id);
             ui.close();
         }
     });
+
+    if state.renaming_group == Some(id) {
+        egui::Window::new(t!("collection_rename"))
+            .id(ui.id().with(("rename_group", id)))
+            .collapsible(false)
+            .resizable(false)
+            .show(ui.ctx(), |ui| {
+                let response = ui.text_edit_singleline(&mut state.rename_buffer);
+                if response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)) {
+                    let label = std::mem::take(&mut state.rename_buffer);
+                    state.set_group_label(id, label);
+                    state.renaming_group = None;
+                }
+                if ui.button(t!("convert")).clicked() {
+                    let label = std::mem::take(&mut state.rename_buffer);
+                    state.set_group_label(id, label);
+                    state.renaming_group = None;
+                }
+            });
+    }
 
     if state.context.diff_active {
         if let SidebarItem::Image(_) = item {
@@ -486,6 +521,12 @@ fn draw_frame_child_rows(
     let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
     let row_h = 24.0;
     let indent = 16.0;
+    let members = state.group_members(parent_id).map(|items| {
+        items
+            .into_iter()
+            .map(|(id, name, image)| (id, name, image))
+            .collect::<Vec<_>>()
+    });
     for frame_idx in 0..frame_count {
         let desired = egui::vec2(ui.available_width(), row_h);
         let (rect, response) = ui.allocate_exact_size(desired, egui::Sense::click());
@@ -511,30 +552,54 @@ fn draw_frame_child_rows(
             ui.painter()
                 .rect_filled(bar, egui::CornerRadius::same(0), p.peach);
 
-            let label = format!("frame {}", frame_idx + 1);
+            if let Some((_, _, frame_item)) =
+                members.as_ref().and_then(|items| items.get(frame_idx))
+            {
+                let (pixels, width, height) = frame_item.current_pixels();
+                if width > 0 && height > 0 {
+                    let tex = ui.ctx().load_texture(
+                        format!("sb_frame_{parent_id:?}_{frame_idx}"),
+                        egui::ColorImage {
+                            size: [width as usize, height as usize],
+                            source_size: egui::vec2(width as f32, height as f32),
+                            pixels: pixels.to_vec(),
+                        },
+                        egui::TextureOptions::LINEAR,
+                    );
+                    let thumb = egui::Rect::from_min_size(
+                        egui::pos2(rect.left() + indent + 6.0, rect.center().y - 8.0),
+                        egui::vec2(16.0, 16.0),
+                    );
+                    ui.painter().image(
+                        tex.id(),
+                        thumb,
+                        egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                        egui::Color32::WHITE,
+                    );
+                }
+            }
+            let label = members
+                .as_ref()
+                .and_then(|items| items.get(frame_idx))
+                .map(|(_, name, _)| {
+                    std::path::Path::new(name)
+                        .file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| name.clone())
+                })
+                .unwrap_or_else(|| t!("frame_short", index = frame_idx + 1).to_string());
             let color = if is_current { p.text } else { p.subtext0 };
             ui.painter().text(
-                egui::pos2(rect.left() + indent + 10.0, rect.center().y),
+                egui::pos2(rect.left() + indent + 28.0, rect.center().y),
                 egui::Align2::LEFT_CENTER,
-                &label,
+                label,
                 egui::FontId::proportional(11.0),
                 color,
             );
         }
 
         if response.clicked() {
-            state.select(parent_id);
-            if let Some(SidebarItem::Image(img)) = state.item_mut(parent_id) {
-                if let FrameSource::Animated {
-                    current,
-                    last_advance,
-                    ..
-                } = &mut img.frames
-                {
-                    *current = frame_idx;
-                    *last_advance = None;
-                }
-            }
+            state.select_frame(parent_id, frame_idx);
             state.font_mode = crate::image_viewer::model::FontMode::Grid;
         }
     }

@@ -67,7 +67,16 @@ pub struct ImageItem {
     pub expanded: bool,
 }
 
-type SequenceKey = (String, String, String, String, usize, u32, u32);
+type SequenceKey = (String, String, String, String, u32, u32);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SelectionTarget {
+    Entry(WorkspaceId),
+    Frame {
+        collection: WorkspaceId,
+        index: usize,
+    },
+}
 
 fn sequence_key(path: &str, width: u32, height: u32) -> Option<(SequenceKey, u32)> {
     let path = Path::new(path);
@@ -95,7 +104,6 @@ fn sequence_key(path: &str, width: u32, height: u32) -> Option<(SequenceKey, u32
             prefix.to_string(),
             stem[digit_end..].to_string(),
             extension,
-            digits.len(),
             width,
             height,
         ),
@@ -107,6 +115,8 @@ fn sequence_key(path: &str, width: u32, height: u32) -> Option<(SequenceKey, u32
 struct SequenceMember {
     id: WorkspaceId,
     image: ImageItem,
+    sequence_number: Option<u32>,
+    digit_width: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -118,8 +128,42 @@ struct GroupPlayback {
 
 #[derive(Clone)]
 struct SequenceGroup {
+    label: String,
     members: Vec<SequenceMember>,
     automatic: bool,
+}
+
+fn sequence_digits(path: &str) -> Option<(u32, usize)> {
+    let stem = Path::new(path).file_stem()?.to_string_lossy();
+    let digit_end = stem.rfind(|c: char| c.is_ascii_digit())? + 1;
+    let digit_start = stem[..digit_end]
+        .rfind(|c: char| !c.is_ascii_digit())
+        .map_or(0, |index| index + 1);
+    let digits = &stem[digit_start..digit_end];
+    Some((digits.parse().ok()?, digits.len()))
+}
+
+fn sequence_label(members: &[SequenceMember]) -> String {
+    let Some(first) = members.first() else {
+        return String::new();
+    };
+    let Some(last) = members.last() else {
+        return first.image.path.clone();
+    };
+    let Some((key, first_number)) =
+        sequence_key(&first.image.path, first.image.width, first.image.height)
+    else {
+        return format!("{} - {}", first.image.path, last.image.path);
+    };
+    let last_number = last.sequence_number.unwrap_or(first_number);
+    let width = members
+        .iter()
+        .map(|member| member.digit_width)
+        .max()
+        .unwrap_or(1)
+        .max(2);
+    let range = format!("{first_number:0width$}-{last_number:0width$}");
+    format!("{}{}{}", key.1, range, key.2)
 }
 
 fn playback_state(image: &ImageItem, members: &[SequenceMember]) -> GroupPlayback {
@@ -136,7 +180,11 @@ fn playback_state(image: &ImageItem, members: &[SequenceMember]) -> GroupPlaybac
     }
 }
 
-fn sequence_image(members: &[SequenceMember], playback: GroupPlayback) -> Option<ImageItem> {
+fn sequence_image(
+    members: &[SequenceMember],
+    label: &str,
+    playback: GroupPlayback,
+) -> Option<ImageItem> {
     let mut image = members.first()?.image.clone();
     image.width = members.iter().map(|member| member.image.width).max()?;
     image.height = members.iter().map(|member| member.image.height).max()?;
@@ -168,11 +216,7 @@ fn sequence_image(members: &[SequenceMember], playback: GroupPlayback) -> Option
     };
     image.expanded = playback.expanded;
     image.midata = None;
-    image.path = format!(
-        "{} … {}",
-        members.first()?.image.path,
-        members.last()?.image.path
-    );
+    image.path = label.to_string();
     Some(image)
 }
 
@@ -478,6 +522,10 @@ pub struct ConvertParams {
     pub stride_align: u8,
     pub dither: bool,
     pub dither_level: u32,
+    #[serde(default = "default_gif_interval_ms")]
+    pub gif_interval_ms: u32,
+    #[serde(default)]
+    pub gif_repeat: Option<u16>,
 }
 
 impl Default for ConvertParams {
@@ -490,6 +538,8 @@ impl Default for ConvertParams {
             stride_align: 1,
             dither: false,
             dither_level: 10,
+            gif_interval_ms: 100,
+            gif_repeat: None,
         }
     }
 }
@@ -524,12 +574,19 @@ fn default_mirx_export_kind() -> String {
     "scene".to_string()
 }
 
+fn default_gif_interval_ms() -> u32 {
+    100
+}
+
 #[allow(dead_code)]
 pub struct ViewerState {
     items: Vec<WorkspaceItem>,
     next_workspace_id: u64,
     sequence_groups: HashMap<WorkspaceId, SequenceGroup>,
     pub selected_id: Option<WorkspaceId>,
+    pub primary_target: Option<SelectionTarget>,
+    pub renaming_group: Option<WorkspaceId>,
+    pub rename_buffer: String,
     pub selected_ids: BTreeSet<WorkspaceId>,
     pub list_focus: bool,
     pub focused_id: Option<WorkspaceId>,
@@ -657,6 +714,7 @@ impl ViewerState {
         }
         let changed = self.selected_id != Some(id);
         self.selected_id = Some(id);
+        self.primary_target = Some(SelectionTarget::Entry(id));
         self.selected_ids.clear();
         self.selected_ids.insert(id);
         self.focused_id = Some(id);
@@ -679,6 +737,90 @@ impl ViewerState {
         self.list_focus = false;
     }
 
+    pub fn select_all(&mut self) {
+        self.selected_ids = self
+            .items
+            .iter()
+            .filter(|item| matches!(item.content, SidebarItem::Image(_)))
+            .map(WorkspaceItem::id)
+            .collect();
+        if self.selected_id.is_none() || !self.selected_ids.contains(&self.selected_id.unwrap()) {
+            self.selected_id = self.selected_ids.iter().next().copied();
+        }
+        if let Some(id) = self.selected_id {
+            self.focused_id = Some(id);
+            self.primary_target = Some(SelectionTarget::Entry(id));
+        }
+    }
+
+    pub fn select_frame(&mut self, collection: WorkspaceId, index: usize) -> bool {
+        let Some(group) = self.sequence_groups.get(&collection) else {
+            return false;
+        };
+        if index >= group.members.len() {
+            return false;
+        }
+        if !self.select(collection) {
+            return false;
+        }
+        if let Some(SidebarItem::Image(image)) = self.item_mut(collection)
+            && let FrameSource::Animated {
+                current,
+                last_advance,
+                ..
+            } = &mut image.frames
+        {
+            *current = index;
+            *last_advance = None;
+        }
+        self.primary_target = Some(SelectionTarget::Frame { collection, index });
+        true
+    }
+
+    pub fn group_label(&self, id: WorkspaceId) -> Option<&str> {
+        self.sequence_groups
+            .get(&id)
+            .map(|group| group.label.as_str())
+    }
+
+    pub fn set_group_label(&mut self, id: WorkspaceId, label: String) -> bool {
+        let label = label.trim();
+        if label.is_empty() {
+            return false;
+        }
+        let Some(group) = self.sequence_groups.get_mut(&id) else {
+            return false;
+        };
+        group.label = label.to_string();
+        if let Some(SidebarItem::Image(image)) = self
+            .items
+            .iter_mut()
+            .find(|item| item.id == id)
+            .map(|item| &mut item.content)
+        {
+            image.path = label.to_string();
+        }
+        true
+    }
+
+    pub fn group_members(&self, id: WorkspaceId) -> Option<Vec<(WorkspaceId, String, ImageItem)>> {
+        self.sequence_groups.get(&id).map(|group| {
+            group
+                .members
+                .iter()
+                .map(|member| (member.id, member.image.path.clone(), member.image.clone()))
+                .collect()
+        })
+    }
+
+    pub fn selected_frame(&self) -> Option<(WorkspaceId, usize, &ImageItem)> {
+        let SelectionTarget::Frame { collection, index } = self.primary_target? else {
+            return None;
+        };
+        let member = self.sequence_groups.get(&collection)?.members.get(index)?;
+        Some((collection, index, &member.image))
+    }
+
     pub fn toggle_selection(&mut self, id: WorkspaceId) -> bool {
         if self.index_of(id).is_none() {
             return false;
@@ -692,6 +834,7 @@ impl ViewerState {
             self.select(id);
         } else {
             self.selected_id = Some(id);
+            self.primary_target = Some(SelectionTarget::Entry(id));
         }
         true
     }
@@ -712,6 +855,7 @@ impl ViewerState {
             .map(WorkspaceItem::id)
             .collect();
         self.selected_id = Some(id);
+        self.primary_target = Some(SelectionTarget::Entry(id));
         self.focused_id = Some(id);
         self.list_focus = true;
         true
@@ -881,12 +1025,20 @@ impl ViewerState {
             let Some(index) = self.index_of(group_id) else {
                 continue;
             };
-            if let SidebarItem::Image(image) = &self.items[index].content
-                && let Some(first) = group.members.first()
-                && let Some((key, _)) =
-                    sequence_key(&first.image.path, first.image.width, first.image.height)
-            {
-                playback.insert(key, playback_state(image, &group.members));
+            let current_member = if let SidebarItem::Image(image) = &self.items[index].content {
+                let state = playback_state(image, &group.members);
+                if let Some(first) = group.members.first()
+                    && let Some((key, _)) =
+                        sequence_key(&first.image.path, first.image.width, first.image.height)
+                {
+                    playback.insert(key, state);
+                }
+                state.current_member
+            } else {
+                None
+            };
+            if let Some(member_id) = current_member {
+                self.remap_expanded_group_references(group_id, member_id);
             }
             self.items.remove(index);
             for (offset, member) in group.members.into_iter().enumerate() {
@@ -905,6 +1057,30 @@ impl ViewerState {
 
     pub fn is_sequence_group(&self, id: WorkspaceId) -> bool {
         self.sequence_groups.contains_key(&id)
+    }
+
+    fn remap_expanded_group_references(&mut self, group_id: WorkspaceId, member_id: WorkspaceId) {
+        if self.selected_ids.remove(&group_id) {
+            self.selected_ids.insert(member_id);
+        }
+        for reference in [
+            &mut self.selected_id,
+            &mut self.focused_id,
+            &mut self.range_anchor,
+            &mut self.hovered_id,
+            &mut self.diff_image1_id,
+            &mut self.diff_image2_id,
+        ] {
+            if *reference == Some(group_id) {
+                *reference = Some(member_id);
+            }
+        }
+        if self.primary_target.is_some_and(|target| match target {
+            SelectionTarget::Entry(id) => id == group_id,
+            SelectionTarget::Frame { collection, .. } => collection == group_id,
+        }) {
+            self.primary_target = Some(SelectionTarget::Entry(member_id));
+        }
     }
 
     fn remap_group_references(&mut self, member_ids: &[WorkspaceId], group_id: WorkspaceId) {
@@ -965,6 +1141,7 @@ impl ViewerState {
         if let Some(primary) = restored.first().copied() {
             self.selected_ids = restored.iter().copied().collect();
             self.selected_id = Some(primary);
+            self.primary_target = Some(SelectionTarget::Entry(primary));
             self.focused_id = Some(primary);
             self.range_anchor = Some(primary);
             self.invalidate_selection_state();
@@ -992,6 +1169,8 @@ impl ViewerState {
                     SequenceMember {
                         id: *id,
                         image: image.clone(),
+                        sequence_number: sequence_digits(&image.path).map(|value| value.0),
+                        digit_width: sequence_digits(&image.path).map_or(0, |value| value.1),
                     },
                 ))
             })
@@ -1013,29 +1192,37 @@ impl ViewerState {
             .iter()
             .map(|(_, member)| member.clone())
             .collect::<Vec<_>>();
+        let label = sequence_label(&originals);
         let group_image = sequence_image(
             &originals,
+            &label,
             GroupPlayback {
                 current_member: originals.first().map(|member| member.id),
                 autoplay: true,
                 expanded: false,
             },
         )?;
-        let group_id = originals[0].id;
         let member_ids = originals.iter().map(|member| member.id).collect::<Vec<_>>();
+        let group_id = self.allocate_id();
         self.remap_group_references(&member_ids, group_id);
         self.sequence_groups.insert(
             group_id,
             SequenceGroup {
+                label,
                 members: originals,
                 automatic: false,
             },
         );
-        self.items[first_index].content = SidebarItem::Image(group_image);
+        self.items[first_index] = WorkspaceItem {
+            id: group_id,
+            content_revision: 0,
+            content: SidebarItem::Image(group_image),
+        };
         for index in members.iter().skip(1).map(|(index, _)| *index).rev() {
             self.items.remove(index);
         }
         self.selected_id = Some(group_id);
+        self.primary_target = Some(SelectionTarget::Entry(group_id));
         self.invalidate_selection_state();
         Some(group_id)
     }
@@ -1046,7 +1233,12 @@ impl ViewerState {
             let SidebarItem::Image(image) = &item.content else {
                 continue;
             };
-            if image.frame_count() != 1 || !matches!(image.midata, None | Some(MiData::RGBA(_))) {
+            if image.frame_count() != 1
+                || !matches!(
+                    image.midata,
+                    None | Some(MiData::RGBA(_)) | Some(MiData::INDEXED(_))
+                )
+            {
                 continue;
             }
             let Some((key, number)) = sequence_key(&image.path, image.width, image.height) else {
@@ -1086,6 +1278,8 @@ impl ViewerState {
                     SidebarItem::Image(image) => Some(SequenceMember {
                         id: self.items[*index].id,
                         image: image.clone(),
+                        sequence_number: sequence_digits(&image.path).map(|value| value.0),
+                        digit_width: sequence_digits(&image.path).map_or(0, |value| value.1),
                     }),
                     SidebarItem::Glyph(_) => None,
                 })
@@ -1098,20 +1292,26 @@ impl ViewerState {
                 autoplay: true,
                 expanded: false,
             });
-            let Some(group_image) = sequence_image(&originals, state) else {
+            let label = sequence_label(&originals);
+            let Some(group_image) = sequence_image(&originals, &label, state) else {
                 continue;
             };
-            let group_id = originals[0].id;
             let member_ids = originals.iter().map(|member| member.id).collect::<Vec<_>>();
+            let group_id = self.allocate_id();
             self.remap_group_references(&member_ids, group_id);
             self.sequence_groups.insert(
                 group_id,
                 SequenceGroup {
+                    label,
                     members: originals,
                     automatic: true,
                 },
             );
-            self.items[first_index].content = SidebarItem::Image(group_image);
+            self.items[first_index] = WorkspaceItem {
+                id: group_id,
+                content_revision: 0,
+                content: SidebarItem::Image(group_image),
+            };
             for index in members.iter().skip(1).map(|(index, _)| *index).rev() {
                 self.items.remove(index);
             }
@@ -1131,6 +1331,7 @@ impl ViewerState {
         if let Some(first_member_id) = first_member_id {
             if self.selected_id == Some(group_id) {
                 self.selected_id = Some(first_member_id);
+                self.primary_target = Some(SelectionTarget::Entry(first_member_id));
             }
             if self.hovered_id == Some(group_id) {
                 self.hovered_id = Some(first_member_id);
@@ -1257,6 +1458,9 @@ impl Default for ViewerState {
             next_workspace_id: 1,
             sequence_groups: HashMap::new(),
             selected_id: None,
+            primary_target: None,
+            renaming_group: None,
+            rename_buffer: String::new(),
             selected_ids: BTreeSet::new(),
             list_focus: false,
             focused_id: None,
@@ -1408,7 +1612,8 @@ mod tests {
         assert_eq!(key.1, "walk_");
         assert_eq!(key.2, "_diffuse");
         assert_eq!(key.3, "png");
-        assert_eq!(key.4, 4);
+        assert_eq!(key.4, 8);
+        assert_eq!(key.5, 4);
         assert!(sequence_key("/tmp/2024.png", 8, 4).is_some());
         assert!(sequence_key("/tmp/2024", 8, 4).is_none());
     }
@@ -1438,12 +1643,14 @@ mod tests {
 
         let second_batch = state.insert_and_select_first([image("/tmp/walk_0003.png")]);
         assert_eq!(state.len(), 1);
-        assert!(state.is_sequence_group(group_id));
+        let regrouped_id = state.items()[0].id();
+        assert_ne!(regrouped_id, group_id);
+        assert!(state.is_sequence_group(regrouped_id));
         assert_eq!(state.current_image().unwrap().frame_count(), 3);
-        assert_eq!(state.selected_id, Some(group_id));
+        assert_eq!(state.selected_id, Some(regrouped_id));
         assert!(!second_batch.is_empty());
 
-        assert!(state.ungroup(group_id));
+        assert!(state.ungroup(regrouped_id));
         assert_eq!(state.len(), 3);
         let paths = state
             .items()
@@ -1474,7 +1681,8 @@ mod tests {
         let earlier = state.insert_and_select_first([image("/tmp/walk_0000.png")]);
         let new_group_id = state.items()[0].id();
 
-        assert_eq!(new_group_id, earlier[0]);
+        assert_ne!(new_group_id, earlier[0]);
+        assert_ne!(new_group_id, old_group_id);
         assert_eq!(state.selected_id, Some(new_group_id));
         assert_eq!(state.hovered_id, Some(new_group_id));
         assert_eq!(state.diff_image1_id, Some(new_group_id));
@@ -1548,10 +1756,10 @@ mod tests {
             ["/a/walk_01.png", "/a/walk_02.jpg"],
             ["/a/walk_01.png", "/b/walk_02.png"],
         ];
-        for paths in cases {
+        for (paths, expected_len) in cases.into_iter().zip([2, 1, 2, 2]) {
             let mut state = ViewerState::default();
             state.insert_and_select_first(paths.map(image));
-            assert_eq!(state.len(), 2, "unexpected group for {paths:?}");
+            assert_eq!(state.len(), expected_len, "unexpected group for {paths:?}");
         }
 
         let mut state = ViewerState::default();

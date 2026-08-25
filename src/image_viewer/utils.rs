@@ -1,10 +1,15 @@
 use crate::converter::ImageFormatCategory;
-use crate::image_viewer::model::{ConvertParams, Frame, FrameSource, ImageFormat, ImageItem};
+use crate::image_viewer::model::{
+    ConvertParams, Frame, FrameSource, ImageFormat, ImageItem, SelectionTarget, ViewerState,
+    WorkspaceId,
+};
 use eframe::egui::{Color32, DroppedFile};
 use icu_lib::EncoderParams;
 use icu_lib::endecoder::{EnDecoder, ImageInfo};
 use icu_lib::image::AnimationDecoder;
 use icu_lib::midata::MiData;
+use image::codecs::gif::{GifEncoder, Repeat};
+use image::{Delay, Frame as EncodedFrame, RgbaImage};
 use std::io::Cursor;
 use std::path::Path;
 use std::time::Duration;
@@ -203,6 +208,213 @@ fn delay_to_duration(delay: icu_lib::image::Delay) -> Duration {
     } else {
         Duration::from_secs_f64(numer as f64 / denom as f64 / 1000.0)
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GifRepeat {
+    Infinite,
+    Finite(u16),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GifExportOptions {
+    pub interval: Duration,
+    pub repeat: GifRepeat,
+}
+
+impl Default for GifExportOptions {
+    fn default() -> Self {
+        Self {
+            interval: Duration::from_millis(100),
+            repeat: GifRepeat::Infinite,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ExportTarget {
+    Entry(WorkspaceId),
+    Frame {
+        collection: WorkspaceId,
+        index: usize,
+    },
+}
+
+#[derive(Clone)]
+pub struct ExportPlan {
+    pub label: String,
+    pub items: Vec<ImageItem>,
+}
+
+pub fn export_plan(state: &ViewerState, target: ExportTarget) -> Option<ExportPlan> {
+    match target {
+        ExportTarget::Frame { collection, index } => {
+            let (_, _, item) = state.group_members(collection)?.into_iter().nth(index)?;
+            Some(ExportPlan {
+                label: state.group_label(collection)?.to_string(),
+                items: vec![item.clone()],
+            })
+        }
+        ExportTarget::Entry(id) => {
+            if let Some(members) = state.group_members(id) {
+                return Some(ExportPlan {
+                    label: state.group_label(id)?.to_string(),
+                    items: members.into_iter().map(|(_, _, item)| item).collect(),
+                });
+            }
+            let item = state.item(id)?.as_image()?.clone();
+            Some(ExportPlan {
+                label: Path::new(&item.path)
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned(),
+                items: vec![item],
+            })
+        }
+    }
+}
+
+pub fn export_target_from_selection(state: &ViewerState) -> Option<ExportTarget> {
+    match state.primary_target? {
+        SelectionTarget::Entry(id) => Some(ExportTarget::Entry(id)),
+        SelectionTarget::Frame { collection, index } => {
+            Some(ExportTarget::Frame { collection, index })
+        }
+    }
+}
+
+pub fn save_export_plan(plan: &ExportPlan, params: &ConvertParams) {
+    if params.output_format == ImageFormat::GIF && plan.items.len() > 1 {
+        let options = GifExportOptions {
+            interval: Duration::from_millis(params.gif_interval_ms.max(1) as u64),
+            repeat: params
+                .gif_repeat
+                .map_or(GifRepeat::Infinite, GifRepeat::Finite),
+        };
+        match encode_gif_frames(&plan.items, options) {
+            Ok(data) => save_export_bytes(&plan.label, "gif", data),
+            Err(error) => log::error!("Failed to encode GIF {}: {error}", plan.label),
+        }
+    } else {
+        save_images(&plan.items, params);
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn save_export_bytes(label: &str, extension: &str, data: Vec<u8>) {
+    if let Some(path) = rfd::FileDialog::new()
+        .set_file_name(format!("{label}.{extension}"))
+        .save_file()
+    {
+        if let Err(error) = std::fs::write(path, data) {
+            log::error!("Failed to save GIF: {error}");
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn save_export_bytes(label: &str, extension: &str, data: Vec<u8>) {
+    use eframe::wasm_bindgen::JsCast;
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let Some(document) = window.document() else {
+        return;
+    };
+    let Some(body) = document.body() else { return };
+    let array = js_sys::Array::new();
+    array.push(&js_sys::Uint8Array::from(data.as_slice()));
+    let Ok(blob) = web_sys::Blob::new_with_u8_array_sequence(&array) else {
+        return;
+    };
+    let Ok(url) = web_sys::Url::create_object_url_with_blob(&blob) else {
+        return;
+    };
+    let Ok(anchor) = document.create_element("a") else {
+        return;
+    };
+    let Ok(anchor) = anchor.dyn_into::<web_sys::HtmlAnchorElement>() else {
+        return;
+    };
+    anchor.set_href(&url);
+    anchor.set_download(&format!("{label}.{extension}"));
+    let _ = body.append_child(&anchor);
+    anchor.click();
+    let _ = body.remove_child(&anchor);
+    let _ = web_sys::Url::revoke_object_url(&url);
+}
+
+pub fn encode_gif_frames(
+    items: &[ImageItem],
+    options: GifExportOptions,
+) -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+    for item in items {
+        match &item.frames {
+            FrameSource::Single {
+                pixels,
+                width,
+                height,
+            } => {
+                frames.push(encoded_frame(pixels, *width, *height, options.interval)?);
+            }
+            FrameSource::Animated {
+                frames: item_frames,
+                ..
+            } => {
+                for frame in item_frames {
+                    frames.push(encoded_frame(
+                        &frame.pixels,
+                        frame.width,
+                        frame.height,
+                        if frame.delay.is_zero() {
+                            options.interval
+                        } else {
+                            frame.delay
+                        },
+                    )?);
+                }
+            }
+        }
+    }
+    if frames.is_empty() {
+        return Err("Cannot encode an empty GIF".to_string());
+    }
+
+    let mut output = Cursor::new(Vec::new());
+    let mut encoder = GifEncoder::new(&mut output);
+    encoder
+        .set_repeat(match options.repeat {
+            GifRepeat::Infinite => Repeat::Infinite,
+            GifRepeat::Finite(count) => Repeat::Finite(count),
+        })
+        .map_err(|error| error.to_string())?;
+    encoder
+        .encode_frames(frames)
+        .map_err(|error| error.to_string())?;
+    drop(encoder);
+    Ok(output.into_inner())
+}
+
+fn encoded_frame(
+    pixels: &[Color32],
+    width: u32,
+    height: u32,
+    delay: Duration,
+) -> Result<EncodedFrame, String> {
+    let bytes = pixels
+        .iter()
+        .flat_map(|pixel| pixel.to_array())
+        .collect::<Vec<_>>();
+    let image = RgbaImage::from_raw(width, height, bytes)
+        .ok_or_else(|| format!("Invalid RGBA frame dimensions: {width}x{height}"))?;
+    Ok(EncodedFrame::from_parts(
+        image,
+        0,
+        0,
+        Delay::from_saturating_duration(delay),
+    ))
 }
 
 pub fn get_system_locale() -> String {

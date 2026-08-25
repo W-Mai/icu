@@ -13,10 +13,7 @@ fn param_row(ui: &mut egui::Ui, label: &str, add: impl FnOnce(&mut egui::Ui)) {
     });
 }
 
-#[allow(unused_assignments)]
-pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
-    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-
+pub(crate) fn draw_output_format_selector(ui: &mut egui::Ui, state: &mut ViewerState) {
     crate::image_viewer::ui::widgets::section_card(ui, &t!("output_format"), |ui| {
         egui::ComboBox::from_id_salt("output_format")
             .selected_text(format!("{:?}", state.context.convert_params.output_format))
@@ -31,9 +28,9 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                 }
             });
     });
+}
 
-    ui.add_space(12.0);
-
+pub(crate) fn draw_lvgl_options(ui: &mut egui::Ui, state: &mut ViewerState) {
     if state.context.convert_params.output_format == ImageFormat::LVGL {
         crate::image_viewer::ui::widgets::section_card(
             ui,
@@ -92,6 +89,11 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
             },
         );
     }
+}
+
+#[allow(unused_assignments)]
+pub(crate) fn draw_mirx_options(ui: &mut egui::Ui, state: &mut ViewerState) {
+    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
 
     if state.context.convert_params.output_format == ImageFormat::MIRX {
         crate::image_viewer::ui::widgets::section_card(
@@ -158,10 +160,55 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
             },
         );
     }
+}
 
+#[allow(unused_assignments)]
+pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
+    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+
+    draw_output_format_selector(ui, state);
+    ui.add_space(12.0);
+    draw_lvgl_options(ui, state);
+    draw_mirx_options(ui, state);
+    if state.context.convert_params.output_format == ImageFormat::GIF
+        && state
+            .selected_id
+            .is_some_and(|id| state.group_members(id).is_some())
+    {
+        crate::image_viewer::ui::widgets::section_card(ui, &t!("section_export"), |ui| {
+            param_row(ui, t!("collection_interval").as_ref(), |ui| {
+                ui.add(
+                    egui::DragValue::new(&mut state.context.convert_params.gif_interval_ms)
+                        .range(1..=60_000),
+                );
+            });
+            param_row(ui, t!("collection_repeat").as_ref(), |ui| {
+                let mut infinite = state.context.convert_params.gif_repeat.is_none();
+                if ui
+                    .checkbox(&mut infinite, t!("collection_repeat_infinite"))
+                    .changed()
+                {
+                    state.context.convert_params.gif_repeat = if infinite { None } else { Some(1) };
+                }
+                if let Some(repeat) = &mut state.context.convert_params.gif_repeat {
+                    ui.add(egui::DragValue::new(repeat).range(1..=u16::MAX));
+                }
+            });
+        });
+    }
     ui.add_space(16.0);
 
-    let image_items = if state.selected_ids.len() > 1 {
+    let image_items = if state.primary_target.is_some_and(|target| {
+        matches!(
+            target,
+            crate::image_viewer::model::SelectionTarget::Frame { .. }
+        )
+    }) {
+        state
+            .selected_frame()
+            .map(|(_, _, image)| vec![image.clone()])
+            .unwrap_or_default()
+    } else if state.selected_ids.len() > 1 {
         state.selected_image_snapshots()
     } else {
         state
@@ -195,10 +242,32 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                 .clicked()
             {
                 state.is_converting = true;
-                crate::image_viewer::utils::save_images(
-                    &image_items,
-                    &state.context.convert_params,
-                );
+                let target = crate::image_viewer::utils::export_target_from_selection(state);
+                let is_group_or_frame = target.as_ref().is_some_and(|target| {
+                    matches!(
+                        target,
+                        crate::image_viewer::utils::ExportTarget::Frame { .. }
+                    ) || matches!(
+                        target,
+                        crate::image_viewer::utils::ExportTarget::Entry(id)
+                            if state.group_members(*id).is_some()
+                    )
+                });
+                if is_group_or_frame {
+                    if let Some(plan) = target
+                        .and_then(|target| crate::image_viewer::utils::export_plan(state, target))
+                    {
+                        crate::image_viewer::utils::save_export_plan(
+                            &plan,
+                            &state.context.convert_params,
+                        );
+                    }
+                } else {
+                    crate::image_viewer::utils::save_images(
+                        &image_items,
+                        &state.context.convert_params,
+                    );
+                }
                 state.is_converting = false;
             }
         }
