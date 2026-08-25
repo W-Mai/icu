@@ -126,7 +126,7 @@ icu convert res -O output -F jpeg -r
 
 Important conversion options include:
 
-- `-F, --output-format`: `png`, `jpeg`, `bmp`, `gif`, `tiff`, `webp`, `ico`, `pbm`, `pgm`, `ppm`, `pam`, `lvgl`, or `mirx`.
+- `-F, --output-format`: `png`, `apng`, `jpeg`, `bmp`, `gif`, `tiff`, `webp`, `ico`, `pbm`, `pgm`, `ppm`, `pam`, `lvgl`, or `mirx`.
 - `-O, --output-folder`: write output under a different directory.
 - `-r, --override-output`: replace existing output files.
 - `-C, --output-color-format`: select an LVGL or MIRX pixel format.

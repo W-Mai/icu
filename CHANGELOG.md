@@ -2,7 +2,29 @@
 
 ## [Unreleased]
 
-- ✨ Add LVGL v9 raw-block LZ4 compression and decompression using `lz4_flex`.
+## [v0.8.0] - 2026-08-25
+
+### 🚀 New Features
+
+- ✨ Export grouped and imported GIF animations with configurable frame intervals and repeat counts.
+- ✨ Export animated image groups as APNG with per-frame timing and repeat support.
+- ✨ Select and export individual frames from imported GIF and APNG files.
+- ✨ Show frame thumbnails for imported GIF/APNG animations and grouped image sequences.
+- ✨ Add Cmd/Ctrl+A list selection, focused Up/Down navigation, and consistent Toggle controls for playback settings.
+- ✨ Add workspace-wide numeric sequence grouping across mixed filename digit widths.
+- ✨ Add indexed-image export parameter panels for LVGL, MIRX, and PNG workflows.
+
+### 🎨 Improvements
+
+- 🎨 Localize playback labels and frame information in the viewer.
+- 🎨 Synchronize converter animation intervals with preview playback.
+- 🎨 Refresh README branding, badges, navigation, and viewer snapshot presentation.
+
+### 🐛 Fixes
+
+- 🐛 Use a WASM-safe monotonic animation clock instead of `std::time::Instant`.
+- 🛡️ Add GIF/APNG animation round-trip coverage and preserve frame timing during export.
+- 🛡️ Add LVGL v9 raw-block LZ4 compression and decompression using `lz4_flex`.
 - 🛡️ Validate compressed sizes and truncated LVGL headers without panicking.
 - 🔄 Convert indexed LVGL inputs through their RGBA view when writing common output formats.
 
