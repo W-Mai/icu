@@ -160,10 +160,10 @@ impl EnDecoder for LVGL {
         }
 
         if has_flag(header.flags(), HeaderFlag::COMPRESSED) {
-            if let Some(compressed) = header
-                .expected_data_size()
-                .and_then(|expected| CompressedImage::parse(payload, expected))
-            {
+            if let Some(compressed) = header.expected_data_size().and_then(|expected| {
+                let block_size = ((header.cf().get_bpp() + 7) >> 3) as usize;
+                CompressedImage::parse(payload, expected, block_size)
+            }) {
                 let (method, compressed_size, decompressed_size) = compressed.info();
                 other_info.insert(
                     "Compressed Info".to_owned(),

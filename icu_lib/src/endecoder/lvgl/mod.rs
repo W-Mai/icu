@@ -107,27 +107,35 @@ struct ImageCompressedHeader {
 struct CompressedImage<'a> {
     method: Compress,
     decompressed_size: usize,
+    expected_size: usize,
     payload: &'a [u8],
 }
 
 impl<'a> CompressedImage<'a> {
-    fn parse(data: &'a [u8], expected_size: usize) -> Option<Self> {
+    fn parse(data: &'a [u8], expected_size: usize, block_size: usize) -> Option<Self> {
         let header_size = size_of::<ImageCompressedHeader>();
         let header = ImageCompressedHeader::from_bytes(data.get(..header_size)?.try_into().ok()?);
         let payload = data.get(header_size..)?;
         let compressed_size = usize::try_from(header.compressed_size()).ok()?;
         let decompressed_size = usize::try_from(header.decompressed_size()).ok()?;
 
-        if header.reserved() != 0
-            || compressed_size != payload.len()
-            || decompressed_size != expected_size
-        {
+        let method = header.method_or_err().ok()?;
+        let size_matches = match method {
+            Compress::Rle => {
+                decompressed_size == expected_size
+                    || decompressed_size == expected_size.checked_add(block_size)?
+            }
+            Compress::LZ4 => decompressed_size == expected_size,
+            Compress::NONE => false,
+        };
+        if header.reserved() != 0 || compressed_size != payload.len() || !size_matches {
             return None;
         }
 
         Some(Self {
-            method: header.method_or_err().ok()?,
+            method,
             decompressed_size,
+            expected_size,
             payload,
         })
     }
@@ -160,18 +168,22 @@ impl<'a> CompressedImage<'a> {
     fn decode(&self, block_size: usize) -> Option<Vec<u8>> {
         let decoded = match self.method {
             Compress::NONE => return None,
-            Compress::Rle => super::utils::rle::RleCoder::new()
-                .with_block_size(block_size)
-                .ok()?
-                .decode(self.payload)
-                .ok()?,
+            Compress::Rle => {
+                let mut decoded = super::utils::rle::RleCoder::new()
+                    .with_block_size(block_size)
+                    .ok()?
+                    .decode(self.payload)
+                    .ok()?;
+                decoded.truncate(self.expected_size);
+                decoded
+            }
             Compress::LZ4 => {
                 let mut decoded = vec![0; self.decompressed_size];
                 let len = lz4_flex::block::decompress_into(self.payload, &mut decoded).ok()?;
                 (len == self.decompressed_size).then_some(decoded)?
             }
         };
-        (decoded.len() == self.decompressed_size).then_some(decoded)
+        (decoded.len() == self.expected_size).then_some(decoded)
     }
 }
 
@@ -412,7 +424,7 @@ impl ImageDescriptor {
         };
         let image_data = if has_flag(header.flags(), HeaderFlag::COMPRESSED) {
             let block_size = ((header.cf().get_bpp() + 7) >> 3) as usize;
-            CompressedImage::parse(payload, expected_size)
+            CompressedImage::parse(payload, expected_size, block_size)
                 .and_then(|compressed| compressed.decode(block_size))
         } else {
             Some(payload.to_vec())
@@ -479,6 +491,7 @@ impl ColorFormat {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::endecoder::utils::rle::RleCoder;
 
     #[test]
     fn image_header_parsing_is_safe_for_truncated_input() {
@@ -504,6 +517,25 @@ mod tests {
             ImageHeader::parse(&v9.encode()).unwrap().version(),
             LVGLVersion::V9
         );
+    }
+
+    #[test]
+    fn rle_accepts_lvgl_final_block_padding() {
+        let raw = vec![1, 2, 3, 4];
+        let encoded = RleCoder::new()
+            .with_block_size(1)
+            .unwrap()
+            .encode(&raw)
+            .unwrap();
+        let mut container = ImageCompressedHeader::new()
+            .with_method(Compress::Rle)
+            .with_compressed_size(encoded.len() as u32)
+            .with_decompressed_size((raw.len() + 1) as u32)
+            .into_bytes()
+            .to_vec();
+        container.extend_from_slice(&encoded);
+        let parsed = CompressedImage::parse(&container, raw.len(), 1).unwrap();
+        assert_eq!(parsed.decode(1).unwrap(), raw);
     }
 
     #[test]

@@ -130,7 +130,8 @@ pub fn draw_left_panel(
                             .any(|id| state.is_sequence_group(*id))
                     {
                         ui.horizontal_wrapped(|ui| {
-                            if state.selected_ids.len() > 1 && ui.button("Group").clicked() {
+                            if state.selected_ids.len() > 1 && ui.button(t!("ctx_group")).clicked()
+                            {
                                 state.group_selected();
                             }
                             if state

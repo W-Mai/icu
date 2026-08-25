@@ -79,7 +79,8 @@ fn sequence_key(path: &str, width: u32, height: u32) -> Option<(SequenceKey, u32
         .map_or(0, |index| index + 1);
     let digits = &stem[digit_start..digit_end];
     let prefix = &stem[..digit_start];
-    if prefix.is_empty() {
+    let suffix = &stem[digit_end..];
+    if prefix.is_empty() && suffix.is_empty() && extension.is_empty() {
         return None;
     }
     let number = digits.parse::<u32>().ok()?;
@@ -1408,7 +1409,21 @@ mod tests {
         assert_eq!(key.2, "_diffuse");
         assert_eq!(key.3, "png");
         assert_eq!(key.4, 4);
-        assert!(sequence_key("/tmp/2024.png", 8, 4).is_none());
+        assert!(sequence_key("/tmp/2024.png", 8, 4).is_some());
+        assert!(sequence_key("/tmp/2024", 8, 4).is_none());
+    }
+
+    #[test]
+    fn numeric_filename_sequence_is_grouped_in_one_batch() {
+        let mut state = ViewerState::default();
+        state.insert_and_select_first([
+            image("/tmp/0.bin"),
+            image("/tmp/1.bin"),
+            image("/tmp/2.bin"),
+        ]);
+        assert_eq!(state.len(), 1);
+        assert!(state.is_sequence_group(state.items()[0].id()));
+        assert_eq!(state.current_image().unwrap().frame_count(), 3);
     }
 
     #[test]
