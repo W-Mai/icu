@@ -1009,7 +1009,7 @@ impl ViewerState {
         let Some(MiData::INDEXED(indexed)) = image.midata.as_mut() else {
             return false;
         };
-        if !indexed.set_palette_color(index, color.to_array()) {
+        if !indexed.set_palette_color(index, color.to_srgba_unmultiplied()) {
             return false;
         }
         let pixels = indexed

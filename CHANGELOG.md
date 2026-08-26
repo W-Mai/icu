@@ -7,6 +7,7 @@
 - ⚠️ Extend `EncoderParams` with PNG/JPEG fields; external struct literals must add them or use `..Default::default()`.
 - 🐛 Convert RGBA images to RGB inside the JPEG encoder instead of panicking on unsupported color data.
 - 🐛 Convert indexed sources through their RGBA view for LVGL true-color and LZ4 exports, and reject invalid Viewer LVGL settings explicitly.
+- 🐛 Preserve straight RGBA colors when the Viewer exports semi-transparent indexed images.
 
 ## [v0.8.0] - 2026-08-25
 

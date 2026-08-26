@@ -119,7 +119,7 @@ pub fn draw_indexed_convert_section(
         if let Some(index) = state.indexed_edit_palette {
             ui.separator();
             ui.label(format!("Palette index {index}"));
-            let mut rgba = state.indexed_edit_color.to_array();
+            let mut rgba = state.indexed_edit_color.to_srgba_unmultiplied();
             if ui.color_edit_button_srgba_unmultiplied(&mut rgba).changed() {
                 let color = Color32::from_rgba_unmultiplied(rgba[0], rgba[1], rgba[2], rgba[3]);
                 if state.edit_indexed_palette_color(index, color) {

@@ -1,12 +1,21 @@
-use super::model::Frame;
 use image::codecs::webp::WebPEncoder;
 use image::{ExtendedColorType, ImageEncoder};
 use std::time::Duration;
 
 const MAX_U24: u32 = 0x00ff_ffff;
 
+#[derive(Clone)]
+pub(super) struct ExportFrame {
+    pub rgba: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+    pub left: u32,
+    pub top: u32,
+    pub delay: Duration,
+}
+
 pub(super) fn encode(
-    frames: &[Frame],
+    frames: &[ExportFrame],
     interval: Duration,
     loop_count: u16,
 ) -> Result<Vec<u8>, String> {
@@ -80,7 +89,7 @@ fn validate_dimension(value: u32, label: &str) -> Result<(), String> {
     }
 }
 
-fn normalize_frame(frame: &Frame, width: u32, height: u32) -> Result<Vec<u8>, String> {
+fn normalize_frame(frame: &ExportFrame, width: u32, height: u32) -> Result<Vec<u8>, String> {
     validate_dimension(frame.width, "frame width")?;
     validate_dimension(frame.height, "frame height")?;
     let right = frame
@@ -101,13 +110,14 @@ fn normalize_frame(frame: &Frame, width: u32, height: u32) -> Result<Vec<u8>, St
     let frame_width = usize::try_from(frame.width).map_err(|_| "WebP frame width is too large")?;
     let frame_height =
         usize::try_from(frame.height).map_err(|_| "WebP frame height is too large")?;
-    let expected_pixels = frame_width
+    let expected_bytes = frame_width
         .checked_mul(frame_height)
-        .ok_or("WebP frame pixel count overflow")?;
-    if frame.pixels.len() != expected_pixels {
+        .and_then(|pixels| pixels.checked_mul(4))
+        .ok_or("WebP frame byte count overflow")?;
+    if frame.rgba.len() != expected_bytes {
         return Err(format!(
-            "Invalid WebP frame pixel count: expected {expected_pixels}, got {}",
-            frame.pixels.len()
+            "Invalid WebP frame byte count: expected {expected_bytes}, got {}",
+            frame.rgba.len()
         ));
     }
 
@@ -123,7 +133,7 @@ fn normalize_frame(frame: &Frame, width: u32, height: u32) -> Result<Vec<u8>, St
     let row_bytes = frame_width
         .checked_mul(4)
         .ok_or("WebP frame row size overflow")?;
-    for (y, row) in frame.pixels.chunks_exact(frame_width).enumerate() {
+    for (y, row) in frame.rgba.chunks_exact(row_bytes).enumerate() {
         let start = top
             .checked_add(y)
             .and_then(|y| y.checked_mul(canvas_width))
@@ -136,9 +146,7 @@ fn normalize_frame(frame: &Frame, width: u32, height: u32) -> Result<Vec<u8>, St
         let destination = output
             .get_mut(start..end)
             .ok_or("WebP frame row exceeds canvas")?;
-        for (target, pixel) in destination.chunks_exact_mut(4).zip(row) {
-            target.copy_from_slice(&pixel.to_array());
-        }
+        destination.copy_from_slice(row);
     }
     Ok(output)
 }
@@ -268,22 +276,21 @@ fn write_chunk(output: &mut Vec<u8>, fourcc: &[u8; 4], payload: &[u8]) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
-    use eframe::egui::Color32;
     use image::AnimationDecoder;
     use std::io::Cursor;
 
-    fn frames() -> Vec<Frame> {
+    fn frames() -> Vec<ExportFrame> {
         vec![
-            Frame {
-                pixels: vec![Color32::RED, Color32::TRANSPARENT],
+            ExportFrame {
+                rgba: vec![255, 0, 0, 255, 0, 0, 0, 0],
                 width: 2,
                 height: 1,
                 left: 0,
                 top: 0,
                 delay: Duration::from_millis(80),
             },
-            Frame {
-                pixels: vec![Color32::BLUE, Color32::GREEN],
+            ExportFrame {
+                rgba: vec![0, 0, 255, 255, 0, 255, 0, 255],
                 width: 2,
                 height: 1,
                 left: 0,
@@ -312,8 +319,8 @@ mod tests {
     #[test]
     fn partial_frames_are_composited_into_the_canvas() {
         let mut partial = frames();
-        partial[1] = Frame {
-            pixels: vec![Color32::GREEN],
+        partial[1] = ExportFrame {
+            rgba: vec![0, 255, 0, 255],
             width: 1,
             height: 1,
             left: 1,

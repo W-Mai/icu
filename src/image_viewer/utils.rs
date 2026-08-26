@@ -194,6 +194,13 @@ pub fn color32_from_rgba<'a>(chunks: impl Iterator<Item = &'a [u8]>) -> Vec<Colo
         .collect()
 }
 
+pub(crate) fn straight_rgba_from_color32(pixels: &[Color32]) -> Vec<u8> {
+    pixels
+        .iter()
+        .flat_map(Color32::to_srgba_unmultiplied)
+        .collect()
+}
+
 fn frame_from_image_frame(frame: icu_lib::image::Frame) -> Frame {
     let delay = delay_to_duration(frame.delay());
     let left = frame.left();
@@ -473,13 +480,8 @@ fn encode_apng_frames(items: &[ImageItem], options: GifExportOptions) -> Result<
         writer
             .set_frame_delay(millis, 1000)
             .map_err(|error| error.to_string())?;
-        let pixels = frame
-            .pixels
-            .iter()
-            .flat_map(|pixel| pixel.to_array())
-            .collect::<Vec<_>>();
         writer
-            .write_image_data(&pixels)
+            .write_image_data(&frame.rgba)
             .map_err(|error| error.to_string())?;
     }
     drop(writer);
@@ -497,7 +499,7 @@ pub fn encode_webp_frames(
     super::webp_animation::encode(&animation_frames(items), options.interval, loop_count)
 }
 
-fn animation_frames(items: &[ImageItem]) -> Vec<Frame> {
+fn animation_frames(items: &[ImageItem]) -> Vec<super::webp_animation::ExportFrame> {
     items
         .iter()
         .flat_map(|item| match &item.frames {
@@ -505,15 +507,35 @@ fn animation_frames(items: &[ImageItem]) -> Vec<Frame> {
                 pixels,
                 width,
                 height,
-            } => vec![Frame {
-                pixels: pixels.clone(),
-                width: *width,
-                height: *height,
-                left: 0,
-                top: 0,
-                delay: Duration::ZERO,
-            }],
-            FrameSource::Animated { frames, .. } => frames.clone(),
+            } => {
+                let rgba = match &item.midata {
+                    Some(MiData::INDEXED(indexed))
+                        if indexed.width == *width && indexed.height == *height =>
+                    {
+                        indexed.rgba.as_raw().clone()
+                    }
+                    _ => straight_rgba_from_color32(pixels),
+                };
+                vec![super::webp_animation::ExportFrame {
+                    rgba,
+                    width: *width,
+                    height: *height,
+                    left: 0,
+                    top: 0,
+                    delay: Duration::ZERO,
+                }]
+            }
+            FrameSource::Animated { frames, .. } => frames
+                .iter()
+                .map(|frame| super::webp_animation::ExportFrame {
+                    rgba: straight_rgba_from_color32(&frame.pixels),
+                    width: frame.width,
+                    height: frame.height,
+                    left: frame.left,
+                    top: frame.top,
+                    delay: frame.delay,
+                })
+                .collect(),
         })
         .collect()
 }
@@ -524,10 +546,7 @@ fn encoded_frame(
     height: u32,
     delay: Duration,
 ) -> Result<EncodedFrame, String> {
-    let bytes = pixels
-        .iter()
-        .flat_map(|pixel| pixel.to_array())
-        .collect::<Vec<_>>();
+    let bytes = straight_rgba_from_color32(pixels);
     let image = RgbaImage::from_raw(width, height, bytes)
         .ok_or_else(|| format!("Invalid RGBA frame dimensions: {width}x{height}"))?;
     Ok(EncodedFrame::from_parts(
@@ -571,22 +590,19 @@ pub fn convert_image(
             }
             _ => {
                 let (pixels, width, height) = image_item.current_pixels();
-                MiData::from_rgba(
-                    width,
-                    height,
-                    pixels.iter().flat_map(|pixel| pixel.to_array()).collect(),
-                )
-                .ok_or("Failed to create MiData")?
+                MiData::from_rgba(width, height, straight_rgba_from_color32(pixels))
+                    .ok_or("Failed to create MiData")?
             }
         }
     } else {
-        let (pixels, width, height) = image_item.current_pixels();
-        MiData::from_rgba(
-            width,
-            height,
-            pixels.iter().flat_map(|pixel| pixel.to_array()).collect(),
-        )
-        .ok_or("Failed to create MiData")?
+        match &image_item.midata {
+            Some(MiData::INDEXED(indexed)) => MiData::RGBA(indexed.rgba.clone()),
+            _ => {
+                let (pixels, width, height) = image_item.current_pixels();
+                MiData::from_rgba(width, height, straight_rgba_from_color32(pixels))
+                    .ok_or("Failed to create MiData")?
+            }
+        }
     };
 
     let encoder_params = EncoderParams {
@@ -785,6 +801,39 @@ mod tests {
     use super::*;
     use image::AnimationDecoder;
 
+    const SEMI_TRANSPARENT_RGBA: [u8; 8] = [255, 230, 27, 135, 41, 203, 77, 16];
+
+    fn semi_transparent_indexed_item() -> ImageItem {
+        let rgba = image::RgbaImage::from_raw(2, 1, SEMI_TRANSPARENT_RGBA.to_vec()).unwrap();
+        image_item_from_midata(
+            "semi-transparent-indexed.png".to_string(),
+            ImageInfo {
+                width: 2,
+                height: 1,
+                data_size: 0,
+                format: "indexed".to_string(),
+                other_info: serde_json::Value::Null,
+            },
+            MiData::INDEXED(icu_lib::midata::IndexedImageData {
+                rgba,
+                palette: vec![[255, 230, 27, 135], [41, 203, 77, 16]],
+                indexes: vec![0, 1],
+                bpp: 1,
+                width: 2,
+                height: 1,
+            }),
+        )
+        .unwrap()
+    }
+
+    fn rgba_bytes(data: MiData) -> Vec<u8> {
+        match data {
+            MiData::RGBA(image) => image.into_raw(),
+            MiData::INDEXED(indexed) => indexed.rgba.into_raw(),
+            _ => panic!("expected decoded RGBA pixels"),
+        }
+    }
+
     fn animation_item() -> ImageItem {
         ImageItem {
             path: "animation".to_string(),
@@ -941,6 +990,85 @@ mod tests {
                 .flags(),
             icu_lib::endecoder::lvgl::HeaderFlag::COMPRESSED,
         ));
+    }
+
+    #[test]
+    fn semi_transparent_indexed_exports_preserve_straight_rgba() {
+        let item = semi_transparent_indexed_item();
+        let mut params = ConvertParams::default();
+
+        params.output_format = ImageFormat::PNG;
+        params.png_color_mode = crate::image_viewer::model::PngColorMode::Rgba;
+        let (png, _) = convert_image(&item, &params).unwrap();
+        assert_eq!(
+            image::load_from_memory(&png).unwrap().to_rgba8().into_raw(),
+            SEMI_TRANSPARENT_RGBA
+        );
+
+        let apng = encode_apng_frames(&[item.clone()], GifExportOptions::default()).unwrap();
+        let apng = image::codecs::png::PngDecoder::new(Cursor::new(apng))
+            .unwrap()
+            .apng()
+            .unwrap()
+            .into_frames()
+            .collect_frames()
+            .unwrap();
+        assert_eq!(apng[0].buffer().as_raw(), &SEMI_TRANSPARENT_RGBA);
+
+        let webp = encode_webp_frames(&[item.clone()], GifExportOptions::default()).unwrap();
+        let webp = image::codecs::webp::WebPDecoder::new(Cursor::new(webp))
+            .unwrap()
+            .into_frames()
+            .collect_frames()
+            .unwrap();
+        assert_eq!(webp[0].buffer().as_raw(), &SEMI_TRANSPARENT_RGBA);
+
+        params.output_format = ImageFormat::LVGL;
+        params.lvgl_version = crate::image_viewer::model::LvglVersion::V9;
+        params.color_format = crate::image_viewer::model::LvglColorFormat::ARGB8888;
+        let (lvgl, _) = convert_image(&item, &params).unwrap();
+        assert_eq!(
+            rgba_bytes(icu_lib::endecoder::lvgl::LVGL {}.decode(lvgl)),
+            SEMI_TRANSPARENT_RGBA
+        );
+
+        params.output_format = ImageFormat::MIRX;
+        params.color_format = crate::image_viewer::model::LvglColorFormat::RGBA8888;
+        let (mirx, _) = convert_image(&item, &params).unwrap();
+        assert_eq!(
+            rgba_bytes(icu_lib::endecoder::mirui::Mirx {}.decode(mirx)),
+            SEMI_TRANSPARENT_RGBA
+        );
+
+        let jpeg_rgba = image::RgbaImage::from_pixel(8, 8, image::Rgba([255, 230, 27, 135]));
+        let jpeg_item = image_item_from_midata(
+            "semi-transparent-indexed-jpeg.png".to_string(),
+            ImageInfo {
+                width: 8,
+                height: 8,
+                data_size: 0,
+                format: "indexed".to_string(),
+                other_info: serde_json::Value::Null,
+            },
+            MiData::INDEXED(icu_lib::midata::IndexedImageData {
+                rgba: jpeg_rgba,
+                palette: vec![[255, 230, 27, 135]],
+                indexes: vec![0; 64],
+                bpp: 1,
+                width: 8,
+                height: 8,
+            }),
+        )
+        .unwrap();
+        params.output_format = ImageFormat::JPEG;
+        params.jpeg_quality = 100;
+        params.jpeg_background = [0, 0, 0];
+        let (jpeg, _) = convert_image(&jpeg_item, &params).unwrap();
+        let jpeg = image::load_from_memory(&jpeg).unwrap().to_rgb8();
+        let pixel = jpeg.get_pixel(4, 4);
+        for (actual, expected) in pixel.0.into_iter().zip([135, 122, 14]) {
+            assert!((i16::from(actual) - expected).abs() <= 8);
+        }
     }
 
     #[test]

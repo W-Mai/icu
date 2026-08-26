@@ -1530,7 +1530,7 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                             icu_lib::image::RgbaImage::from_raw(
                                 *cw,
                                 *ch,
-                                cached_data.iter().flat_map(|c| c.to_array()).collect(),
+                                crate::image_viewer::utils::straight_rgba_from_color32(cached_data),
                             )
                             .unwrap_or_default(),
                             None,
