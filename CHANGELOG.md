@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [v0.8.1] - 2026-08-26
 
 - ✨ Add PNG color mode/compression and JPEG quality/background controls to the CLI and viewer.
 - ✨ Import and export lossless animated WebP in the Viewer on native and WebAssembly.
