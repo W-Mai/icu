@@ -567,6 +567,9 @@ pub fn convert_image(
     params: &ConvertParams,
 ) -> Result<(Vec<u8>, String), String> {
     let output_format = params.output_format;
+    if output_format == ImageFormat::APNG {
+        return Err("APNG output requires an animated export target".to_string());
+    }
     if output_format == ImageFormat::LVGL && !params.color_format.supports_lvgl() {
         return Err(format!(
             "{:?} is not supported by LVGL output",
@@ -834,6 +837,20 @@ mod tests {
         }
     }
 
+    fn png_chunks(data: &[u8]) -> Vec<&[u8]> {
+        let mut chunks = Vec::new();
+        let mut offset = 8;
+        while offset + 12 <= data.len() {
+            let length = u32::from_be_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
+            let chunk_end = offset + 12 + length;
+            assert!(chunk_end <= data.len());
+            chunks.push(&data[offset + 4..offset + 8]);
+            offset = chunk_end;
+        }
+        assert_eq!(offset, data.len());
+        chunks
+    }
+
     fn animation_item() -> ImageItem {
         ImageItem {
             path: "animation".to_string(),
@@ -1081,7 +1098,13 @@ mod tests {
     #[test]
     fn apng_animation_round_trip_preserves_frame_count() {
         let data = encode_apng_frames(&[animation_item()], GifExportOptions::default()).unwrap();
-        let decoder = image::codecs::png::PngDecoder::new(Cursor::new(data)).unwrap();
+        assert_eq!(&data[..8], b"\x89PNG\r\n\x1a\n");
+        let chunks = png_chunks(&data);
+        assert!(chunks.iter().any(|chunk| *chunk == b"acTL"));
+        assert_eq!(chunks.iter().filter(|chunk| **chunk == *b"fcTL").count(), 2);
+        assert!(chunks.iter().any(|chunk| *chunk == b"fdAT"));
+
+        let decoder = image::codecs::png::PngDecoder::new(Cursor::new(data.clone())).unwrap();
         assert!(decoder.is_apng().unwrap());
         assert_eq!(
             decoder
@@ -1093,6 +1116,26 @@ mod tests {
                 .len(),
             2
         );
+
+        let dropped = DroppedFile {
+            name: "animation.apng".to_string(),
+            bytes: Some(data.into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            decode_dropped_file(&dropped, ImageFormatCategory::Auto)
+                .unwrap()
+                .frame_count(),
+            2
+        );
+    }
+
+    #[test]
+    fn static_apng_conversion_is_rejected_instead_of_writing_fake_apng() {
+        let mut params = ConvertParams::default();
+        params.output_format = ImageFormat::APNG;
+        let error = convert_image(&semi_transparent_indexed_item(), &params).unwrap_err();
+        assert_eq!(error, "APNG output requires an animated export target");
     }
 
     #[test]
