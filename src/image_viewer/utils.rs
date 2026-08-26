@@ -13,8 +13,6 @@ use image::codecs::webp::WebPDecoder;
 use image::{Delay, Frame as EncodedFrame, RgbaImage};
 #[cfg(not(target_arch = "wasm32"))]
 use std::collections::HashSet;
-#[cfg(not(target_arch = "wasm32"))]
-use std::fs::OpenOptions;
 use std::io::{Cursor, Write};
 use std::path::Path;
 #[cfg(not(target_arch = "wasm32"))]
@@ -1591,6 +1589,38 @@ mod tests {
         );
         assert_eq!(std::fs::read(nested.join("icon.png")).unwrap(), b"existing");
         assert!(outputs.iter().all(|path| image::open(path).is_ok()));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(all(not(target_arch = "wasm32"), unix))]
+    #[test]
+    fn native_batch_export_does_not_follow_existing_symlink() {
+        let mut state = ViewerState::default();
+        let id = state.insert_and_select_first([SidebarItem::Image(image_item("source.png"))])[0];
+        let params = ConvertParams::default();
+        let request = ExportRequest {
+            mode: ExportMode::AllFiles,
+            targets: vec![ExportSource {
+                id,
+                frame_index: None,
+                input_name: "source.png".to_string(),
+                relative_path: None,
+                image: image_item("source.png"),
+            }],
+            output_format: params.output_format,
+            params,
+        };
+        let root = std::env::temp_dir().join(format!("icu-native-symlink-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let protected = root.join("protected.png");
+        std::fs::write(&protected, b"protected").unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&protected, root.join("source.png")).unwrap();
+
+        let outputs = save_export_request_to_directory(&request, &root).unwrap();
+
+        assert_eq!(std::fs::read(&protected).unwrap(), b"protected");
+        assert_ne!(outputs[0], root.join("source.png"));
         std::fs::remove_dir_all(root).unwrap();
     }
 
