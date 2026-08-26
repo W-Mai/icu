@@ -13,7 +13,9 @@ use image::codecs::webp::WebPDecoder;
 use image::{Delay, Frame as EncodedFrame, RgbaImage};
 #[cfg(not(target_arch = "wasm32"))]
 use std::collections::HashSet;
-use std::io::{Cursor, Write};
+use std::io::Cursor;
+#[cfg(not(target_arch = "wasm32"))]
+use std::io::Write;
 use std::path::Path;
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::{Component, PathBuf};
@@ -857,6 +859,22 @@ fn save_export_bytes(label: &str, extension: &str, data: Vec<u8>) {
     anchor.click();
     let _ = body.remove_child(&anchor);
     let _ = web_sys::Url::revoke_object_url(&url);
+}
+
+#[cfg(target_arch = "wasm32")]
+#[allow(dead_code)]
+pub fn save_export_request(request: &ExportRequest) -> Result<(), String> {
+    if request.mode != ExportMode::SingleFile || request.targets.len() != 1 {
+        return Err("Web single-file export requires exactly one export source".to_string());
+    }
+    let source = &request.targets[0];
+    let (data, extension) = encode_export_source_with_params(source, &request.params)?;
+    let label = Path::new(&source.input_name)
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy();
+    save_export_bytes(&label, &extension, data);
+    Ok(())
 }
 
 pub fn encode_gif_frames(
