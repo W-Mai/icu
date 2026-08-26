@@ -52,13 +52,7 @@ pub fn draw_path_export_section(
 
         ui.add_space(12.0);
 
-        if ui
-            .add_sized(
-                [ui.available_width(), 32.0],
-                egui::Button::new(egui::RichText::new(t!("btn_export")).heading()),
-            )
-            .clicked()
-        {
+        if crate::image_viewer::ui::widgets::primary_action_button(ui, t!("convert")).clicked() {
             match state.path_export_format.as_str() {
                 "SVG" => {
                     let svg =

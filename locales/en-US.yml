@@ -157,7 +157,6 @@ approximate_contour_warning: "⚠ Approximate contour from atlas — no Bezier d
 no_outline_data: "No outline data"
 section_glyph_metrics: "Glyph Metrics"
 section_export: "Export"
-btn_export: "Export"
 btn_render_atlas: "Render Atlas"
 mirx_kind_scene: "Scene"
 mirx_kind_img_flat: "Img Flat"

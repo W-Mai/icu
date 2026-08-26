@@ -390,13 +390,7 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
             } else {
                 t!("convert")
             };
-            if ui
-                .add_sized(
-                    [ui.available_width(), 32.0],
-                    egui::Button::new(egui::RichText::new(btn_text).heading()),
-                )
-                .clicked()
-            {
+            if crate::image_viewer::ui::widgets::primary_action_button(ui, btn_text).clicked() {
                 state.is_converting = true;
                 let target = crate::image_viewer::utils::export_target_from_selection(state);
                 let is_group_or_frame = target.as_ref().is_some_and(|target| {

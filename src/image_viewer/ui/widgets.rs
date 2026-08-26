@@ -124,6 +124,13 @@ pub fn button(ui: &mut Ui, label: impl Into<egui::RichText>) -> Response {
     button_opts(ui, label, ButtonOpts::default())
 }
 
+pub fn primary_action_button(ui: &mut Ui, label: impl Into<egui::RichText>) -> Response {
+    ui.add_sized(
+        [ui.available_width(), 32.0],
+        egui::Button::new(label.into().heading()),
+    )
+}
+
 #[derive(Default)]
 pub struct ButtonOpts {
     pub active: bool,

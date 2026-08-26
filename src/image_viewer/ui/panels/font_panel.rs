@@ -265,12 +265,7 @@ pub fn draw_glyph_convert_section(
         ui.add_space(12.0);
 
         if !glyph.outline.is_empty() {
-            if ui
-                .add_sized(
-                    [ui.available_width(), 32.0],
-                    egui::Button::new(egui::RichText::new(t!("btn_export")).heading()),
-                )
-                .clicked()
+            if crate::image_viewer::ui::widgets::primary_action_button(ui, t!("convert")).clicked()
             {
                 match state.glyph_convert_format.as_str() {
                     "SVG" => {
@@ -953,7 +948,10 @@ fn draw_merge_fonts_section(
                 }
             });
         }
-        if state.merge_font_paths.len() >= 2 && ui.button(t!("btn_merge_save")).clicked() {
+        if state.merge_font_paths.len() >= 2
+            && crate::image_viewer::ui::widgets::primary_action_button(ui, t!("btn_merge_save"))
+                .clicked()
+        {
             let inputs: Vec<Vec<u8>> = state
                 .merge_font_paths
                 .iter()
@@ -1041,7 +1039,9 @@ fn draw_font_bake_section(
             }
         }
 
-        if ui.button(t!("btn_bake_save")).clicked() {
+        if crate::image_viewer::ui::widgets::primary_action_button(ui, t!("btn_bake_save"))
+            .clicked()
+        {
             let kind = if state.font_bake_format == "gray" {
                 icu_lib::mirx::FontChunkKind::Grayscale
             } else {

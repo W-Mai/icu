@@ -132,17 +132,16 @@ pub fn draw_indexed_convert_section(
     crate::image_viewer::ui::convert_panel::draw_output_format_selector(ui, state);
     crate::image_viewer::ui::convert_panel::draw_lvgl_options(ui, state);
     crate::image_viewer::ui::convert_panel::draw_mirx_options(ui, state);
-    crate::image_viewer::ui::widgets::section_card(ui, t!("section_export").as_ref(), |ui| {
-        if ui.button(t!("ctx_export")).clicked() {
-            if let Some(target) = crate::image_viewer::utils::export_target_from_selection(state)
-                && let Some(plan) = crate::image_viewer::utils::export_plan(state, target)
-            {
-                crate::image_viewer::utils::save_export_plan(&plan, &state.context.convert_params);
-            } else if let Some(item) = state.current_image().cloned() {
-                crate::image_viewer::utils::save_images(&[item], &state.context.convert_params);
-            }
+    ui.add_space(16.0);
+    if crate::image_viewer::ui::widgets::primary_action_button(ui, t!("convert")).clicked() {
+        if let Some(target) = crate::image_viewer::utils::export_target_from_selection(state)
+            && let Some(plan) = crate::image_viewer::utils::export_plan(state, target)
+        {
+            crate::image_viewer::utils::save_export_plan(&plan, &state.context.convert_params);
+        } else if let Some(item) = state.current_image().cloned() {
+            crate::image_viewer::utils::save_images(&[item], &state.context.convert_params);
         }
-    });
+    }
 }
 
 pub fn draw_indexed_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
