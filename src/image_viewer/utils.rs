@@ -31,6 +31,45 @@ pub fn process_images_with_format(
         .collect()
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+pub fn expand_native_input_paths(paths: &[PathBuf]) -> Vec<DroppedFile> {
+    fn visit(path: &Path, files: &mut Vec<PathBuf>) {
+        let Ok(metadata) = std::fs::symlink_metadata(path) else {
+            return;
+        };
+        if metadata.file_type().is_symlink() {
+            return;
+        }
+        if metadata.is_file() {
+            files.push(path.to_path_buf());
+            return;
+        }
+        if !metadata.is_dir() {
+            return;
+        }
+        let Ok(entries) = std::fs::read_dir(path) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            visit(&entry.path(), files);
+        }
+    }
+
+    let mut files = Vec::new();
+    for path in paths {
+        visit(path, &mut files);
+    }
+    files.sort_by(|left, right| left.to_string_lossy().cmp(&right.to_string_lossy()));
+    files.dedup();
+    files
+        .into_iter()
+        .map(|path| DroppedFile {
+            path: Some(path),
+            ..Default::default()
+        })
+        .collect()
+}
+
 fn decode_dropped_file(file: &DroppedFile, input_format: ImageFormatCategory) -> Option<ImageItem> {
     let file_path_info = if let Some(path) = &file.path {
         path.display().to_string()
@@ -365,7 +404,7 @@ fn single_export_source(state: &ViewerState, target: ExportTarget) -> Option<Exp
             {
                 return Some(frame_source(id, index, name, image));
             }
-            let (name, image) = state.frame_snapshots(collection)?.into_iter().nth(index)?;
+            let (_, image) = state.frame_snapshots(collection)?.into_iter().nth(index)?;
             let frame_count = state.item(collection)?.as_image()?.frame_count();
             Some(animation_frame_source(
                 collection,
@@ -454,102 +493,12 @@ pub fn resolve_export_request(
     })
 }
 
-#[derive(Clone)]
-pub struct ExportPlan {
-    pub label: String,
-    pub items: Vec<ImageItem>,
-}
-
-pub fn export_plan(state: &ViewerState, target: ExportTarget) -> Option<ExportPlan> {
-    match target {
-        ExportTarget::Frame { collection, index } => {
-            if let Some((_, _, item)) = state
-                .group_members(collection)
-                .and_then(|members| members.into_iter().nth(index))
-            {
-                return Some(ExportPlan {
-                    label: state.group_label(collection)?.to_string(),
-                    items: vec![item],
-                });
-            }
-            let image = state.item(collection)?.as_image()?.clone();
-            let FrameSource::Animated { frames, .. } = image.frames else {
-                return None;
-            };
-            let frame = frames.get(index)?.clone();
-            Some(ExportPlan {
-                label: format!("{}-{}", image.path, index + 1),
-                items: vec![ImageItem {
-                    path: format!("{}-{}", image.path, index + 1),
-                    info: image.info,
-                    width: frame.width,
-                    height: frame.height,
-                    frames: FrameSource::single(frame.pixels, frame.width, frame.height),
-                    midata: None,
-                    expanded: false,
-                }],
-            })
-        }
-        ExportTarget::Entry(id) => {
-            if let Some(members) = state.group_members(id) {
-                return Some(ExportPlan {
-                    label: state.group_label(id)?.to_string(),
-                    items: members.into_iter().map(|(_, _, item)| item).collect(),
-                });
-            }
-            let item = state.item(id)?.as_image()?.clone();
-            Some(ExportPlan {
-                label: Path::new(&item.path)
-                    .file_stem()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .into_owned(),
-                items: vec![item],
-            })
-        }
-    }
-}
-
 pub fn export_target_from_selection(state: &ViewerState) -> Option<ExportTarget> {
     match state.primary_target? {
         SelectionTarget::Entry(id) => Some(ExportTarget::Entry(id)),
         SelectionTarget::Frame { collection, index } => {
             Some(ExportTarget::Frame { collection, index })
         }
-    }
-}
-
-pub fn save_export_plan(plan: &ExportPlan, params: &ConvertParams) {
-    let has_animation =
-        plan.items.len() > 1 || plan.items.iter().any(|item| item.frame_count() > 1);
-    if has_animation
-        && matches!(
-            params.output_format,
-            ImageFormat::GIF | ImageFormat::APNG | ImageFormat::WEBP
-        )
-    {
-        let options = GifExportOptions {
-            interval: Duration::from_millis(params.gif_interval_ms.max(1) as u64),
-            repeat: params
-                .gif_repeat
-                .map_or(GifRepeat::Infinite, GifRepeat::Finite),
-        };
-        let encoded = match params.output_format {
-            ImageFormat::GIF => encode_gif_frames(&plan.items, options).map(|data| ("gif", data)),
-            ImageFormat::APNG => {
-                encode_apng_frames(&plan.items, options).map(|data| ("apng", data))
-            }
-            ImageFormat::WEBP => {
-                encode_webp_frames(&plan.items, options).map(|data| ("webp", data))
-            }
-            _ => unreachable!("animation export format was checked above"),
-        };
-        match encoded {
-            Ok((extension, data)) => save_export_bytes(&plan.label, extension, data),
-            Err(error) => log::error!("Failed to encode animation {}: {error}", plan.label),
-        }
-    } else {
-        save_images(&plan.items, params);
     }
 }
 
@@ -1019,6 +968,23 @@ pub fn save_export_request(request: &ExportRequest) {
         .unwrap_or_default()
         .to_string_lossy();
     save_export_bytes(&label, &extension, data);
+}
+
+pub fn save_resolved_export_request(request: &ExportRequest) {
+    #[cfg(not(target_arch = "wasm32"))]
+    match request.mode {
+        ExportMode::SingleFile => save_export_request(request),
+        ExportMode::AllFiles => save_all_export_request(request),
+    }
+    #[cfg(target_arch = "wasm32")]
+    match request.mode {
+        ExportMode::SingleFile => save_export_request(request),
+        ExportMode::AllFiles => {
+            if let Err(error) = save_all_export_request(request) {
+                log::error!("Failed to save web batch export: {error}");
+            }
+        }
+    }
 }
 
 pub fn encode_gif_frames(
@@ -1656,6 +1622,28 @@ mod tests {
             .unwrap(),
             "Single-file export requires exactly one selected source"
         );
+    }
+
+    #[cfg(all(not(target_arch = "wasm32"), unix))]
+    #[test]
+    fn native_input_expansion_is_sorted_deduplicated_and_does_not_follow_symlinks() {
+        let root = std::env::temp_dir().join(format!("icu-native-input-{}", std::process::id()));
+        let nested = root.join("nested");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(root.join("z.png"), b"z").unwrap();
+        std::fs::write(nested.join("a.png"), b"a").unwrap();
+        let linked = root.join("linked");
+        std::os::unix::fs::symlink(&nested, &linked).unwrap();
+
+        let files = expand_native_input_paths(&[root.clone(), root.clone()]);
+        let paths = files
+            .iter()
+            .map(|file| file.path.as_ref().unwrap())
+            .collect::<Vec<_>>();
+        let expected_nested = nested.join("a.png");
+        let expected_root = root.join("z.png");
+        assert_eq!(paths, vec![&expected_nested, &expected_root]);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[cfg(not(target_arch = "wasm32"))]
