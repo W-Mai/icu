@@ -16,9 +16,9 @@ use std::collections::HashSet;
 use std::io::Cursor;
 #[cfg(not(target_arch = "wasm32"))]
 use std::io::Write;
-use std::path::Path;
 #[cfg(not(target_arch = "wasm32"))]
-use std::path::{Component, PathBuf};
+use std::path::PathBuf;
+use std::path::{Component, Path};
 use std::time::Duration;
 
 pub fn process_images_with_format(
@@ -862,19 +862,163 @@ fn save_export_bytes(label: &str, extension: &str, data: Vec<u8>) {
 }
 
 #[cfg(target_arch = "wasm32")]
+fn zip_source_path(
+    source: &ExportSource,
+    extension: &str,
+    used: &mut std::collections::HashSet<String>,
+) -> Result<String, String> {
+    let name = Path::new(&source.input_name);
+    if source.input_name.is_empty()
+        || name.is_absolute()
+        || name.components().count() != 1
+        || !matches!(name.components().next(), Some(Component::Normal(_)))
+    {
+        return Err(format!("Invalid export file name: {}", source.input_name));
+    }
+    let mut directory = String::new();
+    if let Some(relative) = &source.relative_path {
+        let path = Path::new(relative);
+        if path.is_absolute()
+            || path
+                .components()
+                .any(|part| !matches!(part, Component::Normal(_)))
+        {
+            return Err(format!("Invalid export directory: {relative}"));
+        }
+        directory = path.to_string_lossy().replace('\\', "/");
+    }
+    let stem = name.file_stem().unwrap().to_string_lossy();
+    for index in 1.. {
+        let file = if index == 1 {
+            format!("{stem}.{extension}")
+        } else {
+            format!("{stem}-{index}.{extension}")
+        };
+        let candidate = if directory.is_empty() {
+            file
+        } else {
+            format!("{directory}/{file}")
+        };
+        if used.insert(candidate.clone()) {
+            return Ok(candidate);
+        }
+    }
+    unreachable!()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn crc32(data: &[u8]) -> u32 {
+    let mut crc = u32::MAX;
+    for byte in data {
+        crc ^= u32::from(*byte);
+        for _ in 0..8 {
+            crc = (crc >> 1) ^ (0xedb88320 & (!((crc & 1).wrapping_sub(1))));
+        }
+    }
+    !crc
+}
+
+#[cfg(target_arch = "wasm32")]
+fn build_stored_zip(entries: &[(String, Vec<u8>)]) -> Result<Vec<u8>, String> {
+    let mut archive = Vec::new();
+    let mut central = Vec::new();
+    for (name, data) in entries {
+        let name = name.as_bytes();
+        let offset = u32::try_from(archive.len()).map_err(|_| "ZIP is too large".to_string())?;
+        let size = u32::try_from(data.len()).map_err(|_| "ZIP entry is too large".to_string())?;
+        let checksum = crc32(data);
+        archive.extend_from_slice(&0x04034b50u32.to_le_bytes());
+        archive.extend_from_slice(&20u16.to_le_bytes());
+        archive.extend_from_slice(&0x0800u16.to_le_bytes());
+        archive.extend_from_slice(&0u16.to_le_bytes());
+        archive.extend_from_slice(&0u16.to_le_bytes());
+        archive.extend_from_slice(&0u16.to_le_bytes());
+        archive.extend_from_slice(&checksum.to_le_bytes());
+        archive.extend_from_slice(&size.to_le_bytes());
+        archive.extend_from_slice(&size.to_le_bytes());
+        archive.extend_from_slice(
+            &(u16::try_from(name.len()).map_err(|_| "ZIP name is too long".to_string())?)
+                .to_le_bytes(),
+        );
+        archive.extend_from_slice(&0u16.to_le_bytes());
+        archive.extend_from_slice(name);
+        archive.extend_from_slice(data);
+
+        central.extend_from_slice(&0x02014b50u32.to_le_bytes());
+        central.extend_from_slice(&20u16.to_le_bytes());
+        central.extend_from_slice(&20u16.to_le_bytes());
+        central.extend_from_slice(&0x0800u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&checksum.to_le_bytes());
+        central.extend_from_slice(&size.to_le_bytes());
+        central.extend_from_slice(&size.to_le_bytes());
+        central.extend_from_slice(
+            &(u16::try_from(name.len()).map_err(|_| "ZIP name is too long".to_string())?)
+                .to_le_bytes(),
+        );
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u32.to_le_bytes());
+        central.extend_from_slice(&offset.to_le_bytes());
+        central.extend_from_slice(name);
+    }
+    let central_offset =
+        u32::try_from(archive.len()).map_err(|_| "ZIP is too large".to_string())?;
+    let central_size = u32::try_from(central.len()).map_err(|_| "ZIP is too large".to_string())?;
+    archive.extend_from_slice(&central);
+    archive.extend_from_slice(&0x06054b50u32.to_le_bytes());
+    archive.extend_from_slice(&0u16.to_le_bytes());
+    archive.extend_from_slice(&0u16.to_le_bytes());
+    let count = u16::try_from(entries.len()).map_err(|_| "Too many ZIP entries".to_string())?;
+    archive.extend_from_slice(&count.to_le_bytes());
+    archive.extend_from_slice(&count.to_le_bytes());
+    archive.extend_from_slice(&central_size.to_le_bytes());
+    archive.extend_from_slice(&central_offset.to_le_bytes());
+    archive.extend_from_slice(&0u16.to_le_bytes());
+    Ok(archive)
+}
+
+#[cfg(target_arch = "wasm32")]
 #[allow(dead_code)]
-pub fn save_export_request(request: &ExportRequest) -> Result<(), String> {
+pub fn save_all_export_request(request: &ExportRequest) -> Result<(), String> {
+    if request.mode != ExportMode::AllFiles || request.targets.is_empty() {
+        return Err("Web batch export requires all-files mode with sources".to_string());
+    }
+    let mut used = std::collections::HashSet::new();
+    let mut entries = Vec::with_capacity(request.targets.len());
+    for source in &request.targets {
+        let (data, extension) = encode_export_source_with_params(source, &request.params)?;
+        let relative = zip_source_path(source, &extension, &mut used)?;
+        entries.push((relative, data));
+    }
+    save_export_bytes("export", "zip", build_stored_zip(&entries)?);
+    Ok(())
+}
+
+#[cfg(target_arch = "wasm32")]
+#[allow(dead_code)]
+pub fn save_export_request(request: &ExportRequest) {
     if request.mode != ExportMode::SingleFile || request.targets.len() != 1 {
-        return Err("Web single-file export requires exactly one export source".to_string());
+        log::error!("Web single-file export requires exactly one export source");
+        return;
     }
     let source = &request.targets[0];
-    let (data, extension) = encode_export_source_with_params(source, &request.params)?;
+    let (data, extension) = match encode_export_source_with_params(source, &request.params) {
+        Ok(encoded) => encoded,
+        Err(error) => {
+            log::error!("Failed to encode {}: {error}", source.input_name);
+            return;
+        }
+    };
     let label = Path::new(&source.input_name)
         .file_stem()
         .unwrap_or_default()
         .to_string_lossy();
     save_export_bytes(&label, &extension, data);
-    Ok(())
 }
 
 pub fn encode_gif_frames(
