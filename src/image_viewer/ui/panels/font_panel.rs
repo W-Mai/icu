@@ -1332,7 +1332,9 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                                 glyph_codepoint(font_data, state.font_bundle_index, i)
                                     == Some(og.codepoint)
                             });
-                            let cache = state.font_grid_cached.as_ref().expect("glyph cache");
+                            let Some(cache) = state.font_grid_cached.as_ref() else {
+                                continue;
+                            };
                             let Some(tex) = cache.map.get(&i) else {
                                 continue;
                             };
