@@ -11,8 +11,14 @@ use icu_lib::midata::MiData;
 use image::codecs::gif::{GifEncoder, Repeat};
 use image::codecs::webp::WebPDecoder;
 use image::{Delay, Frame as EncodedFrame, RgbaImage};
-use std::io::Cursor;
+#[cfg(not(target_arch = "wasm32"))]
+use std::collections::HashSet;
+#[cfg(not(target_arch = "wasm32"))]
+use std::fs::OpenOptions;
+use std::io::{Cursor, Write};
 use std::path::Path;
+#[cfg(not(target_arch = "wasm32"))]
+use std::path::{Component, PathBuf};
 use std::time::Duration;
 
 pub fn process_images_with_format(
@@ -590,6 +596,183 @@ pub fn save_export_request_to_path(
     let source = &request.targets[0];
     let (data, extension) = encode_export_source_with_params(source, &request.params)?;
     write_native_export(path, data, &extension)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug, PartialEq, Eq)]
+pub enum NativeBatchExportError {
+    InvalidRequest(String),
+    InvalidSourcePath { source: String, reason: String },
+    Encode { source: String, error: String },
+    CreateDirectory { path: PathBuf, error: String },
+    Write { path: PathBuf, error: String },
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl std::fmt::Display for NativeBatchExportError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidRequest(error) => formatter.write_str(error),
+            Self::InvalidSourcePath { source, reason } => {
+                write!(formatter, "Invalid export path for {source}: {reason}")
+            }
+            Self::Encode { source, error } => {
+                write!(formatter, "Failed to encode {source}: {error}")
+            }
+            Self::CreateDirectory { path, error } => {
+                write!(formatter, "Failed to create {}: {error}", path.display())
+            }
+            Self::Write { path, error } => {
+                write!(formatter, "Failed to write {}: {error}", path.display())
+            }
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl std::error::Error for NativeBatchExportError {}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[allow(dead_code)]
+pub fn save_all_export_request(request: &ExportRequest) {
+    let Some(directory) = rfd::FileDialog::new().pick_folder() else {
+        return;
+    };
+    if let Err(error) = save_export_request_to_directory(request, &directory) {
+        log::error!("Failed to save native batch export: {error}");
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn save_export_request_to_directory(
+    request: &ExportRequest,
+    directory: &Path,
+) -> Result<Vec<PathBuf>, NativeBatchExportError> {
+    if request.mode != ExportMode::AllFiles {
+        return Err(NativeBatchExportError::InvalidRequest(
+            "Native batch export requires all-files mode".to_string(),
+        ));
+    }
+    if request.targets.is_empty() {
+        return Err(NativeBatchExportError::InvalidRequest(
+            "Native batch export requires at least one export source".to_string(),
+        ));
+    }
+
+    let mut used_paths = HashSet::new();
+    let mut encoded = Vec::with_capacity(request.targets.len());
+    for source in &request.targets {
+        let relative_directory = safe_relative_directory(source)?;
+        let (data, extension) =
+            encode_export_source_with_params(source, &request.params).map_err(|error| {
+                NativeBatchExportError::Encode {
+                    source: source.input_name.clone(),
+                    error,
+                }
+            })?;
+        let stem = Path::new(&source.input_name)
+            .file_stem()
+            .ok_or_else(|| NativeBatchExportError::InvalidSourcePath {
+                source: source.input_name.clone(),
+                reason: "file name has no stem".to_string(),
+            })?
+            .to_string_lossy();
+        let base_name = format!("{stem}.{extension}");
+        let relative_path = unique_batch_path(
+            directory,
+            &relative_directory,
+            &base_name,
+            &extension,
+            &mut used_paths,
+        );
+        encoded.push((relative_path, data));
+    }
+
+    let mut outputs = Vec::with_capacity(encoded.len());
+    for (relative_path, data) in encoded {
+        let output_path = directory.join(relative_path);
+        let parent = output_path.parent().unwrap_or(directory);
+        std::fs::create_dir_all(parent).map_err(|error| {
+            NativeBatchExportError::CreateDirectory {
+                path: parent.to_path_buf(),
+                error: error.to_string(),
+            }
+        })?;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&output_path)
+            .map_err(|error| NativeBatchExportError::Write {
+                path: output_path.clone(),
+                error: error.to_string(),
+            })?;
+        file.write_all(&data)
+            .map_err(|error| NativeBatchExportError::Write {
+                path: output_path.clone(),
+                error: error.to_string(),
+            })?;
+        outputs.push(output_path);
+    }
+    Ok(outputs)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn safe_relative_directory(source: &ExportSource) -> Result<PathBuf, NativeBatchExportError> {
+    let input_path = Path::new(&source.input_name);
+    if source.input_name.is_empty()
+        || input_path.is_absolute()
+        || input_path.components().count() != 1
+        || !matches!(input_path.components().next(), Some(Component::Normal(_)))
+    {
+        return Err(NativeBatchExportError::InvalidSourcePath {
+            source: source.input_name.clone(),
+            reason: "input name must be one relative file name".to_string(),
+        });
+    }
+
+    let mut safe = PathBuf::new();
+    if let Some(relative_path) = &source.relative_path {
+        let path = Path::new(relative_path);
+        if path.is_absolute()
+            || path
+                .components()
+                .any(|part| !matches!(part, Component::Normal(_)))
+        {
+            return Err(NativeBatchExportError::InvalidSourcePath {
+                source: source.input_name.clone(),
+                reason: format!("relative directory escapes export root: {relative_path}"),
+            });
+        }
+        safe.push(path);
+    }
+    Ok(safe)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn unique_batch_path(
+    root: &Path,
+    relative_directory: &Path,
+    base_name: &str,
+    extension: &str,
+    used_paths: &mut HashSet<PathBuf>,
+) -> PathBuf {
+    let stem = Path::new(base_name)
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy();
+    for index in 1.. {
+        let file_name = if index == 1 {
+            base_name.to_string()
+        } else {
+            format!("{stem}-{index}.{extension}")
+        };
+        let candidate = relative_directory.join(file_name);
+        if !used_paths.contains(&candidate) && !root.join(&candidate).exists() {
+            used_paths.insert(candidate.clone());
+            return candidate;
+        }
+    }
+    unreachable!("an unused numeric file suffix always exists")
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -1368,6 +1551,118 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(error, "APNG output requires an animated export target");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn native_batch_export_preserves_paths_collisions_and_existing_files() {
+        let mut state = ViewerState::default();
+        let ids = state.insert_and_select_first([
+            SidebarItem::Image(image_item("first.png")),
+            SidebarItem::Image(image_item("second.png")),
+        ]);
+        let mut params = ConvertParams::default();
+        params.output_format = ImageFormat::PNG;
+        let request = ExportRequest {
+            mode: ExportMode::AllFiles,
+            targets: ids
+                .into_iter()
+                .map(|id| ExportSource {
+                    id,
+                    frame_index: None,
+                    input_name: "icon.input".to_string(),
+                    relative_path: Some("themes/dark".to_string()),
+                    image: image_item("icon.input"),
+                })
+                .collect(),
+            output_format: params.output_format,
+            params,
+        };
+        let root = std::env::temp_dir().join(format!("icu-native-batch-{}", std::process::id()));
+        let nested = root.join("themes/dark");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(nested.join("icon.png"), b"existing").unwrap();
+
+        let outputs = save_export_request_to_directory(&request, &root).unwrap();
+
+        assert_eq!(
+            outputs,
+            vec![nested.join("icon-2.png"), nested.join("icon-3.png")]
+        );
+        assert_eq!(std::fs::read(nested.join("icon.png")).unwrap(), b"existing");
+        assert!(outputs.iter().all(|path| image::open(path).is_ok()));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn native_batch_export_rejects_escape_before_writing() {
+        let mut state = ViewerState::default();
+        let id = state.insert_and_select_first([SidebarItem::Image(image_item("source.png"))])[0];
+        let params = ConvertParams::default();
+        let request = ExportRequest {
+            mode: ExportMode::AllFiles,
+            targets: vec![ExportSource {
+                id,
+                frame_index: None,
+                input_name: "source.png".to_string(),
+                relative_path: Some("../outside".to_string()),
+                image: image_item("source.png"),
+            }],
+            output_format: params.output_format,
+            params,
+        };
+        let root = std::env::temp_dir().join(format!("icu-native-escape-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+
+        assert!(matches!(
+            save_export_request_to_directory(&request, &root).unwrap_err(),
+            NativeBatchExportError::InvalidSourcePath { .. }
+        ));
+        assert_eq!(std::fs::read_dir(&root).unwrap().count(), 0);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn native_batch_export_encodes_all_sources_before_writing() {
+        let mut state = ViewerState::default();
+        let ids = state.insert_and_select_first([
+            SidebarItem::Image(animation_item()),
+            SidebarItem::Image(image_item("static.png")),
+        ]);
+        let mut params = ConvertParams::default();
+        params.output_format = ImageFormat::APNG;
+        let request = ExportRequest {
+            mode: ExportMode::AllFiles,
+            targets: vec![
+                ExportSource {
+                    id: ids[0],
+                    frame_index: None,
+                    input_name: "animation.gif".to_string(),
+                    relative_path: None,
+                    image: animation_item(),
+                },
+                ExportSource {
+                    id: ids[1],
+                    frame_index: None,
+                    input_name: "static.png".to_string(),
+                    relative_path: None,
+                    image: image_item("static.png"),
+                },
+            ],
+            output_format: params.output_format,
+            params,
+        };
+        let root = std::env::temp_dir().join(format!("icu-native-atomic-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+
+        assert!(matches!(
+            save_export_request_to_directory(&request, &root).unwrap_err(),
+            NativeBatchExportError::Encode { .. }
+        ));
+        assert_eq!(std::fs::read_dir(&root).unwrap().count(), 0);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
