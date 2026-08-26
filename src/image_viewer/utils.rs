@@ -1374,6 +1374,131 @@ pub fn save_images(items: &[ImageItem], params: &ConvertParams) {
 }
 
 #[cfg(target_arch = "wasm32")]
+pub fn install_web_directory_drop(
+    pending: std::rc::Rc<std::cell::RefCell<Vec<DroppedFile>>>,
+    ctx: eframe::egui::Context,
+) {
+    use eframe::wasm_bindgen::{JsCast, JsValue, closure::Closure};
+    use std::rc::Rc;
+
+    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+        return;
+    };
+    let pending = Rc::new(pending);
+    let ctx = Rc::new(ctx);
+    let on_drag_over = Closure::<dyn FnMut(_)>::new(move |event: web_sys::Event| {
+        event.prevent_default();
+    });
+    let _ = document
+        .add_event_listener_with_callback("dragover", on_drag_over.as_ref().unchecked_ref());
+    on_drag_over.forget();
+
+    let on_drop = Closure::<dyn FnMut(_)>::new(move |event: web_sys::Event| {
+        event.prevent_default();
+        event.stop_propagation();
+        let Some(data_transfer) =
+            js_sys::Reflect::get(event.as_ref(), &JsValue::from_str("dataTransfer")).ok()
+        else {
+            return;
+        };
+        let script = js_sys::Function::new_with_args(
+            "dt",
+            r#"return (async () => {
+                const readEntries = reader => new Promise(resolve => {
+                    const all = [];
+                    const read = () => reader.readEntries(entries => {
+                        if (!entries.length) return resolve(all);
+                        all.push(...entries);
+                        read();
+                    }, () => resolve(all));
+                    read();
+                });
+                const readEntry = (entry, prefix) => new Promise(resolve => {
+                    if (entry.isFile) {
+                        entry.file(file => file.arrayBuffer().then(buffer => resolve([{
+                            name: prefix + file.name,
+                            bytes: new Uint8Array(buffer)
+                        }])).catch(() => resolve([])), () => resolve([]));
+                        return;
+                    }
+                    if (!entry.isDirectory) return resolve([]);
+                    readEntries(entry.createReader()).then(async entries => {
+                        const result = [];
+                        for (const child of entries)
+                            result.push(...await readEntry(child, prefix + entry.name + '/'));
+                        resolve(result);
+                    });
+                });
+                const readHandle = async (handle, prefix) => {
+                    if (handle.kind === 'file') {
+                        const file = await handle.getFile();
+                        return [{ name: prefix + file.name, bytes: new Uint8Array(await file.arrayBuffer()) }];
+                    }
+                    const result = [];
+                    for await (const child of handle.values())
+                        result.push(...await readHandle(child, prefix + handle.name + '/'));
+                    return result;
+                };
+                const result = [];
+                for (const item of dt.items) {
+                    let handle = null;
+                    try { handle = await item.getAsFileSystemHandle?.(); } catch (_) {}
+                    if (handle) result.push(...await readHandle(handle, ''));
+                    else {
+                        const entry = item.webkitGetAsEntry?.();
+                        if (entry) result.push(...await readEntry(entry, ''));
+                        else {
+                            const file = item.getAsFile?.();
+                            if (file) result.push({ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) });
+                        }
+                    }
+                }
+                return result;
+            })()"#,
+        );
+        let Ok(promise) = script.call1(&JsValue::NULL, &data_transfer) else {
+            return;
+        };
+        let pending = pending.clone();
+        let ctx = ctx.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let Ok(value) =
+                wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise)).await
+            else {
+                return;
+            };
+            let Some(files) = value.dyn_ref::<js_sys::Array>() else {
+                return;
+            };
+            let mut output = Vec::new();
+            for value in files.iter() {
+                let Ok(name) = js_sys::Reflect::get(&value, &JsValue::from_str("name"))
+                    .and_then(|value| value.as_string().ok_or(JsValue::UNDEFINED))
+                else {
+                    continue;
+                };
+                let Ok(bytes) = js_sys::Reflect::get(&value, &JsValue::from_str("bytes")) else {
+                    continue;
+                };
+                output.push(DroppedFile {
+                    name,
+                    bytes: Some(std::sync::Arc::from(
+                        js_sys::Uint8Array::new(&bytes).to_vec(),
+                    )),
+                    ..Default::default()
+                });
+            }
+            if !output.is_empty() {
+                pending.borrow_mut().extend(output);
+                ctx.request_repaint();
+            }
+        });
+    });
+    let _ = document.add_event_listener_with_callback("drop", on_drop.as_ref().unchecked_ref());
+    on_drop.forget();
+}
+
+#[cfg(target_arch = "wasm32")]
 pub fn pick_files_web(
     pending: std::rc::Rc<std::cell::RefCell<Vec<DroppedFile>>>,
     ctx: eframe::egui::Context,

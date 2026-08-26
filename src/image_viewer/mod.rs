@@ -70,7 +70,9 @@ pub fn show_image(files: Vec<DroppedFile>, input_format: crate::converter::Image
                 web_options,
                 Box::new(move |cc| {
                     setup_custom_fonts(&cc.egui_ctx);
-                    Ok(Box::new(MyEguiApp::new(cc, files, input_format)))
+                    let app = MyEguiApp::new(cc, files, input_format);
+                    app.install_web_directory_drop(&cc.egui_ctx);
+                    Ok(Box::new(app))
                 }),
             )
             .await;

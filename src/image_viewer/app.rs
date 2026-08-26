@@ -16,6 +16,14 @@ pub struct MyEguiApp {
 }
 
 impl MyEguiApp {
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn install_web_directory_drop(&self, ctx: &egui::Context) {
+        crate::image_viewer::utils::install_web_directory_drop(
+            self.state.pending_dropped.clone(),
+            ctx.clone(),
+        );
+    }
+
     pub fn new(
         cc: &eframe::CreationContext<'_>,
         files: Vec<DroppedFile>,
