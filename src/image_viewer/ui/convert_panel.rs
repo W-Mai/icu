@@ -5,6 +5,25 @@ use crate::image_viewer::model::{
 use clap::ValueEnum;
 use eframe::egui;
 
+pub(crate) fn export_request(
+    state: &mut ViewerState,
+    mode: crate::image_viewer::utils::ExportMode,
+    target: Option<crate::image_viewer::utils::ExportTarget>,
+) {
+    state.is_converting = true;
+    let result = crate::image_viewer::utils::resolve_export_request(
+        state,
+        mode,
+        target,
+        &state.context.convert_params,
+    );
+    match result {
+        Ok(request) => crate::image_viewer::utils::save_resolved_export_request(&request),
+        Err(error) => log::error!("Failed to resolve export request: {error}"),
+    }
+    state.is_converting = false;
+}
+
 fn param_row(ui: &mut egui::Ui, label: &str, add: impl FnOnce(&mut egui::Ui)) {
     let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
     ui.horizontal(|ui| {
@@ -189,8 +208,22 @@ fn draw_png_options(ui: &mut egui::Ui, state: &mut ViewerState) {
         return;
     }
     let targets = crate::image_viewer::utils::export_target_from_selection(state)
-        .and_then(|target| crate::image_viewer::utils::export_plan(state, target))
-        .map(|plan| plan.items)
+        .and_then(|target| {
+            crate::image_viewer::utils::resolve_export_request(
+                state,
+                crate::image_viewer::utils::ExportMode::SingleFile,
+                Some(target),
+                &state.context.convert_params,
+            )
+            .ok()
+        })
+        .map(|request| {
+            request
+                .targets
+                .into_iter()
+                .map(|source| source.image)
+                .collect::<Vec<_>>()
+        })
         .unwrap_or_default();
     let preserve_supported = !targets.is_empty()
         && targets.iter().all(|image| {
@@ -301,11 +334,23 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
     draw_mirx_options(ui, state);
     draw_png_options(ui, state);
     draw_jpeg_options(ui, state);
-    let export_plan = crate::image_viewer::utils::export_target_from_selection(state)
-        .and_then(|target| crate::image_viewer::utils::export_plan(state, target));
-    let has_animation = export_plan.as_ref().is_some_and(|plan| {
-        plan.items.len() > 1 || plan.items.iter().any(|item| item.frame_count() > 1)
-    });
+    let has_animation = crate::image_viewer::utils::export_target_from_selection(state)
+        .and_then(|target| {
+            crate::image_viewer::utils::resolve_export_request(
+                state,
+                crate::image_viewer::utils::ExportMode::SingleFile,
+                Some(target),
+                &state.context.convert_params,
+            )
+            .ok()
+        })
+        .is_some_and(|request| {
+            request.targets.len() > 1
+                || request
+                    .targets
+                    .iter()
+                    .any(|source| source.image.frame_count() > 1)
+        });
     if matches!(
         state.context.convert_params.output_format,
         ImageFormat::GIF | ImageFormat::APNG | ImageFormat::WEBP
@@ -317,15 +362,15 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                     egui::DragValue::new(&mut state.context.convert_params.gif_interval_ms)
                         .range(1..=60_000),
                 );
-                if response.changed() {
-                    if let Some(id) = state.selected_id {
-                        state.set_animation_interval(
-                            id,
-                            std::time::Duration::from_millis(
-                                state.context.convert_params.gif_interval_ms.max(1) as u64,
-                            ),
-                        );
-                    }
+                if response.changed()
+                    && let Some(id) = state.selected_id
+                {
+                    state.set_animation_interval(
+                        id,
+                        std::time::Duration::from_millis(
+                            state.context.convert_params.gif_interval_ms.max(1) as u64,
+                        ),
+                    );
                 }
             });
             param_row(ui, t!("collection_repeat").as_ref(), |ui| {
@@ -354,28 +399,6 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
     }
     ui.add_space(16.0);
 
-    let image_items = if state.primary_target.is_some_and(|target| {
-        matches!(
-            target,
-            crate::image_viewer::model::SelectionTarget::Frame { .. }
-        )
-    }) {
-        state
-            .selected_frame()
-            .map(|(_, _, image)| vec![image.clone()])
-            .unwrap_or_default()
-    } else if state.selected_ids.len() > 1 {
-        state.selected_image_snapshots()
-    } else {
-        state
-            .selected_image_snapshots()
-            .into_iter()
-            .next()
-            .or_else(|| state.current_image().cloned())
-            .into_iter()
-            .collect()
-    };
-
     ui.vertical_centered(|ui| {
         if state.is_converting {
             ui.spinner();
@@ -385,45 +408,47 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                     .color(p.overlay0),
             );
         } else {
-            let btn_text = if image_items.len() > 1 {
-                t!("convert_all")
-            } else {
-                t!("convert")
-            };
-            if crate::image_viewer::ui::widgets::primary_action_button(ui, btn_text).clicked() {
-                state.is_converting = true;
-                let target = crate::image_viewer::utils::export_target_from_selection(state);
-                let is_group_or_frame = target.as_ref().is_some_and(|target| {
-                    matches!(
+            let target = crate::image_viewer::utils::export_target_from_selection(state);
+            let single_available = target.as_ref().is_some_and(|target| {
+                crate::image_viewer::utils::resolve_export_request(
+                    state,
+                    crate::image_viewer::utils::ExportMode::SingleFile,
+                    Some(target.clone()),
+                    &state.context.convert_params,
+                )
+                .is_ok()
+            });
+            let all_count = crate::image_viewer::utils::resolve_export_request(
+                state,
+                crate::image_viewer::utils::ExportMode::AllFiles,
+                None,
+                &state.context.convert_params,
+            )
+            .map(|request| request.targets.len())
+            .unwrap_or_default();
+            ui.label(format!("{all_count} export source(s)"));
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(single_available, egui::Button::new(t!("convert")))
+                    .clicked()
+                {
+                    export_request(
+                        state,
+                        crate::image_viewer::utils::ExportMode::SingleFile,
                         target,
-                        crate::image_viewer::utils::ExportTarget::Frame { .. }
-                    ) || matches!(
-                        target,
-                        crate::image_viewer::utils::ExportTarget::Entry(id)
-                            if state.group_members(*id).is_some()
-                                || state
-                                    .item(*id)
-                                    .and_then(|item| item.as_image())
-                                    .is_some_and(|image| image.frame_count() > 1)
-                    )
-                });
-                if is_group_or_frame {
-                    if let Some(plan) = target
-                        .and_then(|target| crate::image_viewer::utils::export_plan(state, target))
-                    {
-                        crate::image_viewer::utils::save_export_plan(
-                            &plan,
-                            &state.context.convert_params,
-                        );
-                    }
-                } else {
-                    crate::image_viewer::utils::save_images(
-                        &image_items,
-                        &state.context.convert_params,
                     );
                 }
-                state.is_converting = false;
-            }
+                if ui
+                    .add_enabled(all_count > 0, egui::Button::new(t!("convert_all")))
+                    .clicked()
+                {
+                    export_request(
+                        state,
+                        crate::image_viewer::utils::ExportMode::AllFiles,
+                        None,
+                    );
+                }
+            });
         }
     });
 }

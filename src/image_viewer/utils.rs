@@ -25,7 +25,20 @@ pub fn process_images_with_format(
     files: &[DroppedFile],
     input_format: ImageFormatCategory,
 ) -> Vec<ImageItem> {
-    files
+    #[cfg(not(target_arch = "wasm32"))]
+    let expanded_files = {
+        let paths = files
+            .iter()
+            .filter_map(|file| file.path.clone())
+            .collect::<Vec<_>>();
+        let mut expanded = expand_native_input_paths(&paths);
+        expanded.extend(files.iter().filter(|file| file.path.is_none()).cloned());
+        expanded
+    };
+    #[cfg(target_arch = "wasm32")]
+    let expanded_files = files.to_vec();
+
+    expanded_files
         .iter()
         .filter_map(|file| decode_dropped_file(file, input_format))
         .collect()
@@ -311,8 +324,6 @@ pub enum ExportTarget {
 
 #[derive(Clone)]
 pub struct ExportSource {
-    pub id: WorkspaceId,
-    pub frame_index: Option<usize>,
     pub input_name: String,
     pub relative_path: Option<String>,
     pub image: ImageItem,
@@ -322,7 +333,6 @@ pub struct ExportSource {
 pub struct ExportRequest {
     pub mode: ExportMode,
     pub targets: Vec<ExportSource>,
-    pub output_format: ImageFormat,
     pub params: ConvertParams,
 }
 
@@ -341,11 +351,9 @@ fn export_name_and_relative_path(path: &str) -> (String, Option<String>) {
     (input_name, relative_path)
 }
 
-fn frame_source(id: WorkspaceId, index: usize, name: String, image: ImageItem) -> ExportSource {
+fn frame_source(name: String, image: ImageItem) -> ExportSource {
     let (input_name, relative_path) = export_name_and_relative_path(&name);
     ExportSource {
-        id,
-        frame_index: Some(index),
         input_name,
         relative_path,
         image,
@@ -353,18 +361,12 @@ fn frame_source(id: WorkspaceId, index: usize, name: String, image: ImageItem) -
 }
 
 fn animation_frame_source(
-    id: WorkspaceId,
-    index: usize,
     source_path: &str,
+    index: usize,
     frame_count: usize,
     image: ImageItem,
 ) -> ExportSource {
-    frame_source(
-        id,
-        index,
-        animation_frame_name(source_path, index, frame_count),
-        image,
-    )
+    frame_source(animation_frame_name(source_path, index, frame_count), image)
 }
 
 fn animation_frame_name(path: &str, index: usize, frame_count: usize) -> String {
@@ -390,26 +392,23 @@ fn single_export_source(state: &ViewerState, target: ExportTarget) -> Option<Exp
             let name = state.group_label(id).unwrap_or(&image.path);
             let (input_name, relative_path) = export_name_and_relative_path(name);
             Some(ExportSource {
-                id,
-                frame_index: None,
                 input_name,
                 relative_path,
                 image,
             })
         }
         ExportTarget::Frame { collection, index } => {
-            if let Some((id, name, image)) = state
+            if let Some((_, name, image)) = state
                 .group_members(collection)
                 .and_then(|members| members.into_iter().nth(index))
             {
-                return Some(frame_source(id, index, name, image));
+                return Some(frame_source(name, image));
             }
             let (_, image) = state.frame_snapshots(collection)?.into_iter().nth(index)?;
             let frame_count = state.item(collection)?.as_image()?.frame_count();
             Some(animation_frame_source(
-                collection,
-                index,
                 &state.item(collection)?.as_image()?.path,
+                index,
                 frame_count,
                 image,
             ))
@@ -426,17 +425,21 @@ fn all_export_sources(state: &ViewerState) -> Vec<ExportSource> {
             if let Some(members) = state.group_members(id) {
                 return members
                     .into_iter()
-                    .enumerate()
-                    .map(|(index, (member_id, name, image))| {
-                        frame_source(member_id, index, name, image)
-                    })
+                    .map(|(_, name, image)| frame_source(name, image))
                     .collect::<Vec<_>>();
             }
             if let Some(frames) = state.frame_snapshots(id) {
+                let Some(source) = state.item(id).and_then(|item| item.as_image()) else {
+                    return Vec::new();
+                };
+                let source_path = source.path.clone();
+                let frame_count = source.frame_count();
                 return frames
                     .into_iter()
                     .enumerate()
-                    .map(|(index, (name, image))| frame_source(id, index, name, image))
+                    .map(|(index, (_, image))| {
+                        animation_frame_source(&source_path, index, frame_count, image)
+                    })
                     .collect();
             }
             state
@@ -446,8 +449,6 @@ fn all_export_sources(state: &ViewerState) -> Vec<ExportSource> {
                 .map(|image| {
                     let (input_name, relative_path) = export_name_and_relative_path(&image.path);
                     vec![ExportSource {
-                        id,
-                        frame_index: None,
                         input_name,
                         relative_path,
                         image,
@@ -488,7 +489,6 @@ pub fn resolve_export_request(
     Ok(ExportRequest {
         mode,
         targets,
-        output_format: params.output_format,
         params: params.clone(),
     })
 }
@@ -534,7 +534,7 @@ pub fn save_export_request(request: &ExportRequest) {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 pub fn save_export_request_to_path(
     request: &ExportRequest,
     path: &Path,
@@ -634,35 +634,109 @@ pub fn save_export_request_to_directory(
             &extension,
             &mut used_paths,
         );
-        encoded.push((relative_path, data));
+        encoded.push((relative_path, data, base_name, extension));
     }
 
     let mut outputs = Vec::with_capacity(encoded.len());
-    for (relative_path, data) in encoded {
-        let output_path = directory.join(relative_path);
-        let parent = output_path.parent().unwrap_or(directory);
-        std::fs::create_dir_all(parent).map_err(|error| {
-            NativeBatchExportError::CreateDirectory {
-                path: parent.to_path_buf(),
-                error: error.to_string(),
+    for (mut relative_path, data, base_name, extension) in encoded {
+        let relative_parent = relative_path.parent().unwrap_or(Path::new(""));
+        ensure_native_export_directory(directory, relative_parent)?;
+        let mut data = Some(data);
+        let output_path = loop {
+            let candidate = directory.join(&relative_path);
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&candidate)
+            {
+                Ok(mut file) => {
+                    file.write_all(&data.take().expect("encoded bytes are written once"))
+                        .map_err(|error| NativeBatchExportError::Write {
+                            path: candidate.clone(),
+                            error: error.to_string(),
+                        })?;
+                    break candidate;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    relative_path = unique_batch_path(
+                        directory,
+                        relative_path.parent().unwrap_or(Path::new("")),
+                        &base_name,
+                        &extension,
+                        &mut used_paths,
+                    );
+                }
+                Err(error) => {
+                    return Err(NativeBatchExportError::Write {
+                        path: candidate,
+                        error: error.to_string(),
+                    });
+                }
             }
-        })?;
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&output_path)
-            .map_err(|error| NativeBatchExportError::Write {
-                path: output_path.clone(),
-                error: error.to_string(),
-            })?;
-        file.write_all(&data)
-            .map_err(|error| NativeBatchExportError::Write {
-                path: output_path.clone(),
-                error: error.to_string(),
-            })?;
+        };
         outputs.push(output_path);
     }
     Ok(outputs)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn ensure_native_export_directory(
+    root: &Path,
+    relative: &Path,
+) -> Result<(), NativeBatchExportError> {
+    let root_metadata = std::fs::symlink_metadata(root).map_err(|error| {
+        NativeBatchExportError::CreateDirectory {
+            path: root.to_path_buf(),
+            error: error.to_string(),
+        }
+    })?;
+    if !root_metadata.file_type().is_dir() {
+        return Err(NativeBatchExportError::CreateDirectory {
+            path: root.to_path_buf(),
+            error: "export root is not a directory or is a symlink".to_string(),
+        });
+    }
+
+    let mut current = root.to_path_buf();
+    for component in relative.components() {
+        let Component::Normal(name) = component else {
+            return Err(NativeBatchExportError::InvalidSourcePath {
+                source: relative.display().to_string(),
+                reason: "relative directory contains an unsafe component".to_string(),
+            });
+        };
+        current.push(name);
+        match std::fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(NativeBatchExportError::CreateDirectory {
+                    path: current,
+                    error: "export directory contains a symlink".to_string(),
+                });
+            }
+            Ok(metadata) if metadata.file_type().is_dir() => {}
+            Ok(_) => {
+                return Err(NativeBatchExportError::CreateDirectory {
+                    path: current,
+                    error: "export path component is not a directory".to_string(),
+                });
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                std::fs::create_dir(&current).map_err(|error| {
+                    NativeBatchExportError::CreateDirectory {
+                        path: current.clone(),
+                        error: error.to_string(),
+                    }
+                })?;
+            }
+            Err(error) => {
+                return Err(NativeBatchExportError::CreateDirectory {
+                    path: current,
+                    error: error.to_string(),
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -764,18 +838,6 @@ fn encode_export_source_with_params(
         };
     }
     convert_image(&source.image, params)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn save_export_bytes(label: &str, extension: &str, data: Vec<u8>) {
-    if let Some(path) = rfd::FileDialog::new()
-        .set_file_name(format!("{label}.{extension}"))
-        .save_file()
-    {
-        if let Err(error) = std::fs::write(path, data) {
-            log::error!("Failed to save animation: {error}");
-        }
-    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -1337,6 +1399,8 @@ pub fn pick_files_web(
     };
     input.set_type("file");
     input.set_multiple(true);
+    let _ = input.set_attribute("webkitdirectory", "");
+    let _ = input.set_attribute("directory", "");
 
     let pending = Rc::new(pending);
     let ctx = Rc::new(ctx);
@@ -1353,7 +1417,14 @@ pub fn pick_files_web(
             let mut out = Vec::new();
             for i in 0..files.length() {
                 if let Some(file) = files.get(i) {
-                    let name = file.name();
+                    let name = js_sys::Reflect::get(
+                        file.as_ref(),
+                        &eframe::wasm_bindgen::JsValue::from_str("webkitRelativePath"),
+                    )
+                    .ok()
+                    .and_then(|path| path.as_string())
+                    .filter(|path| !path.is_empty())
+                    .unwrap_or_else(|| file.name());
                     let buf = wasm_bindgen_futures::JsFuture::from(file.array_buffer())
                         .await
                         .ok()
@@ -1508,12 +1579,9 @@ mod tests {
 
         assert_eq!(request.mode, ExportMode::SingleFile);
         assert_eq!(request.targets.len(), 1);
-        assert_eq!(request.targets[0].id, ids[0]);
-        assert_eq!(request.targets[0].frame_index, None);
         assert_eq!(request.targets[0].input_name, "icon.png");
         assert_eq!(request.targets[0].relative_path.as_deref(), Some("assets"));
         assert_eq!(request.targets[0].image.path, "assets/icon.png");
-        assert_eq!(request.output_format, params.output_format);
         assert_eq!(request.params.output_format, params.output_format);
     }
 
@@ -1536,24 +1604,15 @@ mod tests {
         )
         .unwrap();
         assert_eq!(single.targets.len(), 1);
-        assert_eq!(single.targets[0].id, group_id);
-        assert_eq!(single.targets[0].frame_index, None);
         assert_eq!(single.targets[0].image.frame_count(), 2);
 
         let all = resolve_export_request(&state, ExportMode::AllFiles, None, &params).unwrap();
         assert_eq!(
             all.targets
                 .iter()
-                .map(|source| source.id)
+                .map(|source| source.input_name.as_str())
                 .collect::<Vec<_>>(),
-            member_ids
-        );
-        assert_eq!(
-            all.targets
-                .iter()
-                .map(|source| (source.frame_index, source.input_name.as_str()))
-                .collect::<Vec<_>>(),
-            vec![(Some(0), "walk-left.png"), (Some(1), "walk-right.png")]
+            vec!["walk-left.png", "walk-right.png"]
         );
     }
 
@@ -1568,9 +1627,9 @@ mod tests {
         assert_eq!(
             all.targets
                 .iter()
-                .map(|source| (source.id, source.frame_index, source.image.frame_count()))
+                .map(|source| (source.input_name.as_str(), source.image.frame_count()))
                 .collect::<Vec<_>>(),
-            vec![(id, Some(0), 1), (id, Some(1), 1)]
+            vec![("animation-01", 1), ("animation-02", 1)]
         );
 
         assert!(state.select_frame(id, 1));
@@ -1585,8 +1644,6 @@ mod tests {
         )
         .unwrap();
         assert_eq!(single.targets.len(), 1);
-        assert_eq!(single.targets[0].id, id);
-        assert_eq!(single.targets[0].frame_index, Some(1));
         assert_eq!(single.targets[0].input_name, "animation-02");
         assert_eq!(single.targets[0].image.frame_count(), 1);
     }
@@ -1606,9 +1663,9 @@ mod tests {
         assert_eq!(
             all.targets
                 .iter()
-                .map(|source| (source.id, source.frame_index))
+                .map(|source| source.input_name.as_str())
                 .collect::<Vec<_>>(),
-            vec![(ids[0], None), (ids[1], Some(0)), (ids[1], Some(1))]
+            vec!["static.png", "animation-01", "animation-02"]
         );
 
         assert_eq!(
@@ -1648,6 +1705,34 @@ mod tests {
 
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
+    fn process_images_decodes_files_from_native_directories() {
+        let root = std::env::temp_dir().join(format!(
+            "icu-native-directory-decode-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("pixel.png");
+        image::RgbaImage::from_pixel(1, 1, image::Rgba([12, 34, 56, 255]))
+            .save(&path)
+            .unwrap();
+
+        let items = process_images_with_format(
+            &[DroppedFile {
+                path: Some(root.clone()),
+                ..Default::default()
+            }],
+            ImageFormatCategory::Auto,
+        );
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].path, path.display().to_string());
+        assert_eq!(items[0].width, 1);
+        assert_eq!(items[0].height, 1);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
     fn native_single_file_export_writes_encoded_bytes_with_format_extension() {
         let mut state = ViewerState::default();
         let id = state.insert_and_select_first([SidebarItem::Image(image_item("source.input"))])[0];
@@ -1678,9 +1763,6 @@ mod tests {
     #[test]
     fn native_single_file_export_returns_encoding_errors_before_writing() {
         let source = ExportSource {
-            id: ViewerState::default()
-                .insert_and_select_first([SidebarItem::Image(image_item("source.png"))])[0],
-            frame_index: None,
             input_name: "source.png".to_string(),
             relative_path: None,
             image: image_item("source.png"),
@@ -1690,7 +1772,6 @@ mod tests {
         let request = ExportRequest {
             mode: ExportMode::SingleFile,
             targets: vec![source],
-            output_format: params.output_format,
             params,
         };
         let error = save_export_request_to_path(
@@ -1715,15 +1796,12 @@ mod tests {
             mode: ExportMode::AllFiles,
             targets: ids
                 .into_iter()
-                .map(|id| ExportSource {
-                    id,
-                    frame_index: None,
+                .map(|_| ExportSource {
                     input_name: "icon.input".to_string(),
                     relative_path: Some("themes/dark".to_string()),
                     image: image_item("icon.input"),
                 })
                 .collect(),
-            output_format: params.output_format,
             params,
         };
         let root = std::env::temp_dir().join(format!("icu-native-batch-{}", std::process::id()));
@@ -1746,18 +1824,15 @@ mod tests {
     #[test]
     fn native_batch_export_does_not_follow_existing_symlink() {
         let mut state = ViewerState::default();
-        let id = state.insert_and_select_first([SidebarItem::Image(image_item("source.png"))])[0];
+        let _id = state.insert_and_select_first([SidebarItem::Image(image_item("source.png"))])[0];
         let params = ConvertParams::default();
         let request = ExportRequest {
             mode: ExportMode::AllFiles,
             targets: vec![ExportSource {
-                id,
-                frame_index: None,
                 input_name: "source.png".to_string(),
                 relative_path: None,
                 image: image_item("source.png"),
             }],
-            output_format: params.output_format,
             params,
         };
         let root = std::env::temp_dir().join(format!("icu-native-symlink-{}", std::process::id()));
@@ -1774,22 +1849,49 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(all(not(target_arch = "wasm32"), unix))]
     #[test]
-    fn native_batch_export_rejects_escape_before_writing() {
-        let mut state = ViewerState::default();
-        let id = state.insert_and_select_first([SidebarItem::Image(image_item("source.png"))])[0];
+    fn native_batch_export_rejects_symlinked_output_directory() {
         let params = ConvertParams::default();
         let request = ExportRequest {
             mode: ExportMode::AllFiles,
             targets: vec![ExportSource {
-                id,
-                frame_index: None,
+                input_name: "source.png".to_string(),
+                relative_path: Some("linked".to_string()),
+                image: image_item("source.png"),
+            }],
+            params,
+        };
+        let root =
+            std::env::temp_dir().join(format!("icu-native-dir-symlink-{}", std::process::id()));
+        let outside =
+            std::env::temp_dir().join(format!("icu-native-dir-outside-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("linked")).unwrap();
+
+        assert!(matches!(
+            save_export_request_to_directory(&request, &root).unwrap_err(),
+            NativeBatchExportError::CreateDirectory { .. }
+        ));
+        assert_eq!(std::fs::read_dir(&outside).unwrap().count(), 0);
+        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(outside).unwrap();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn native_batch_export_rejects_escape_before_writing() {
+        let mut state = ViewerState::default();
+        let _id = state.insert_and_select_first([SidebarItem::Image(image_item("source.png"))])[0];
+        let params = ConvertParams::default();
+        let request = ExportRequest {
+            mode: ExportMode::AllFiles,
+            targets: vec![ExportSource {
                 input_name: "source.png".to_string(),
                 relative_path: Some("../outside".to_string()),
                 image: image_item("source.png"),
             }],
-            output_format: params.output_format,
             params,
         };
         let root = std::env::temp_dir().join(format!("icu-native-escape-{}", std::process::id()));
@@ -1806,32 +1908,22 @@ mod tests {
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn native_batch_export_encodes_all_sources_before_writing() {
-        let mut state = ViewerState::default();
-        let ids = state.insert_and_select_first([
-            SidebarItem::Image(animation_item()),
-            SidebarItem::Image(image_item("static.png")),
-        ]);
         let mut params = ConvertParams::default();
         params.output_format = ImageFormat::APNG;
         let request = ExportRequest {
             mode: ExportMode::AllFiles,
             targets: vec![
                 ExportSource {
-                    id: ids[0],
-                    frame_index: None,
                     input_name: "animation.gif".to_string(),
                     relative_path: None,
                     image: animation_item(),
                 },
                 ExportSource {
-                    id: ids[1],
-                    frame_index: None,
                     input_name: "static.png".to_string(),
                     relative_path: None,
                     image: image_item("static.png"),
                 },
             ],
-            output_format: params.output_format,
             params,
         };
         let root = std::env::temp_dir().join(format!("icu-native-atomic-{}", std::process::id()));

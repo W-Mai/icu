@@ -134,13 +134,12 @@ pub fn draw_indexed_convert_section(
     crate::image_viewer::ui::convert_panel::draw_mirx_options(ui, state);
     ui.add_space(16.0);
     if crate::image_viewer::ui::widgets::primary_action_button(ui, t!("convert")).clicked() {
-        if let Some(target) = crate::image_viewer::utils::export_target_from_selection(state)
-            && let Some(plan) = crate::image_viewer::utils::export_plan(state, target)
-        {
-            crate::image_viewer::utils::save_export_plan(&plan, &state.context.convert_params);
-        } else if let Some(item) = state.current_image().cloned() {
-            crate::image_viewer::utils::save_images(&[item], &state.context.convert_params);
-        }
+        let target = crate::image_viewer::utils::export_target_from_selection(state);
+        crate::image_viewer::ui::convert_panel::export_request(
+            state,
+            crate::image_viewer::utils::ExportMode::SingleFile,
+            target,
+        );
     }
 }
 
