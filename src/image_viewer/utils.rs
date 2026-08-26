@@ -548,6 +548,93 @@ pub fn save_export_plan(plan: &ExportPlan, params: &ConvertParams) {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+#[allow(dead_code)]
+pub fn save_export_request(request: &ExportRequest) {
+    if request.mode != ExportMode::SingleFile || request.targets.len() != 1 {
+        log::error!("Native single-file export requires exactly one export source");
+        return;
+    }
+    let source = &request.targets[0];
+    let (data, extension) = match encode_export_source_with_params(source, &request.params) {
+        Ok(encoded) => encoded,
+        Err(error) => {
+            log::error!("Failed to encode {}: {error}", source.input_name);
+            return;
+        }
+    };
+    let default_name = format!(
+        "{}.{}",
+        Path::new(&source.input_name)
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy(),
+        extension
+    );
+    if let Some(path) = rfd::FileDialog::new()
+        .set_file_name(default_name)
+        .save_file()
+        && let Err(error) = write_native_export(&path, data, &extension)
+    {
+        log::error!("Failed to save native export: {error}");
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn save_export_request_to_path(
+    request: &ExportRequest,
+    path: &Path,
+) -> Result<std::path::PathBuf, String> {
+    if request.mode != ExportMode::SingleFile || request.targets.len() != 1 {
+        return Err("Native single-file export requires exactly one export source".to_string());
+    }
+    let source = &request.targets[0];
+    let (data, extension) = encode_export_source_with_params(source, &request.params)?;
+    write_native_export(path, data, &extension)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn write_native_export(
+    path: &Path,
+    data: Vec<u8>,
+    extension: &str,
+) -> Result<std::path::PathBuf, String> {
+    let output_path = path.with_extension(extension);
+    std::fs::write(&output_path, data)
+        .map_err(|error| format!("{}: {error}", output_path.display()))?;
+    Ok(output_path)
+}
+
+fn encode_export_source_with_params(
+    source: &ExportSource,
+    params: &ConvertParams,
+) -> Result<(Vec<u8>, String), String> {
+    let has_animation = source.image.frame_count() > 1;
+    if has_animation
+        && matches!(
+            params.output_format,
+            ImageFormat::GIF | ImageFormat::APNG | ImageFormat::WEBP
+        )
+    {
+        let options = GifExportOptions {
+            interval: Duration::from_millis(params.gif_interval_ms.max(1) as u64),
+            repeat: params
+                .gif_repeat
+                .map_or(GifRepeat::Infinite, GifRepeat::Finite),
+        };
+        return match params.output_format {
+            ImageFormat::GIF => encode_gif_frames(std::slice::from_ref(&source.image), options)
+                .map(|data| (data, "gif".to_string())),
+            ImageFormat::APNG => encode_apng_frames(std::slice::from_ref(&source.image), options)
+                .map(|data| (data, "apng".to_string())),
+            ImageFormat::WEBP => encode_webp_frames(std::slice::from_ref(&source.image), options)
+                .map(|data| (data, "webp".to_string())),
+            _ => unreachable!("animation export format was checked above"),
+        };
+    }
+    convert_image(&source.image, params)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn save_export_bytes(label: &str, extension: &str, data: Vec<u8>) {
     if let Some(path) = rfd::FileDialog::new()
         .set_file_name(format!("{label}.{extension}"))
@@ -1226,6 +1313,61 @@ mod tests {
             .unwrap(),
             "Single-file export requires exactly one selected source"
         );
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn native_single_file_export_writes_encoded_bytes_with_format_extension() {
+        let mut state = ViewerState::default();
+        let id = state.insert_and_select_first([SidebarItem::Image(image_item("source.input"))])[0];
+        let mut params = ConvertParams::default();
+        params.output_format = ImageFormat::PNG;
+        let request = resolve_export_request(
+            &state,
+            ExportMode::SingleFile,
+            Some(ExportTarget::Entry(id)),
+            &params,
+        )
+        .unwrap();
+
+        let root = std::env::temp_dir().join(format!("icu-native-export-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let requested_path = root.join("chosen-name.wrong");
+        let output_path = save_export_request_to_path(&request, &requested_path).unwrap();
+
+        assert_eq!(output_path, root.join("chosen-name.png"));
+        let bytes = std::fs::read(&output_path).unwrap();
+        assert_eq!(bytes[..8], [137, 80, 78, 71, 13, 10, 26, 10]);
+        assert!(image::load_from_memory(&bytes).is_ok());
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn native_single_file_export_returns_encoding_errors_before_writing() {
+        let source = ExportSource {
+            id: ViewerState::default()
+                .insert_and_select_first([SidebarItem::Image(image_item("source.png"))])[0],
+            frame_index: None,
+            input_name: "source.png".to_string(),
+            relative_path: None,
+            image: image_item("source.png"),
+        };
+        let mut params = ConvertParams::default();
+        params.output_format = ImageFormat::APNG;
+        let request = ExportRequest {
+            mode: ExportMode::SingleFile,
+            targets: vec![source],
+            output_format: params.output_format,
+            params,
+        };
+        let error = save_export_request_to_path(
+            &request,
+            &std::env::temp_dir().join("icu-native-export-error.png"),
+        )
+        .unwrap_err();
+        assert_eq!(error, "APNG output requires an animated export target");
     }
 
     #[test]
