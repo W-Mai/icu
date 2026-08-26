@@ -9,6 +9,7 @@ use icu_lib::endecoder::{EnDecoder, ImageInfo};
 use icu_lib::image::AnimationDecoder;
 use icu_lib::midata::MiData;
 use image::codecs::gif::{GifEncoder, Repeat};
+use image::codecs::webp::WebPDecoder;
 use image::{Delay, Frame as EncodedFrame, RgbaImage};
 use std::io::Cursor;
 use std::path::Path;
@@ -53,6 +54,10 @@ fn decode_dropped_file(file: &DroppedFile, input_format: ImageFormatCategory) ->
     image_item_from_midata(file_path_info, coder.info(&data), mi_data)
 }
 
+fn is_webp(data: &[u8]) -> bool {
+    data.get(..4) == Some(b"RIFF") && data.get(8..12) == Some(b"WEBP")
+}
+
 fn decode_animation(path: &str, data: &[u8]) -> Option<ImageItem> {
     let frames = if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
         let decoder =
@@ -65,6 +70,12 @@ fn decode_animation(path: &str, data: &[u8]) -> Option<ImageItem> {
             return None;
         }
         decoder.apng().ok()?.into_frames().collect_frames().ok()?
+    } else if is_webp(data) {
+        let decoder = WebPDecoder::new(Cursor::new(data)).ok()?;
+        if !decoder.has_animation() {
+            return None;
+        }
+        decoder.into_frames().collect_frames().ok()?
     } else {
         return None;
     };
@@ -308,17 +319,27 @@ pub fn export_target_from_selection(state: &ViewerState) -> Option<ExportTarget>
 pub fn save_export_plan(plan: &ExportPlan, params: &ConvertParams) {
     let has_animation =
         plan.items.len() > 1 || plan.items.iter().any(|item| item.frame_count() > 1);
-    if has_animation && matches!(params.output_format, ImageFormat::GIF | ImageFormat::APNG) {
+    if has_animation
+        && matches!(
+            params.output_format,
+            ImageFormat::GIF | ImageFormat::APNG | ImageFormat::WEBP
+        )
+    {
         let options = GifExportOptions {
             interval: Duration::from_millis(params.gif_interval_ms.max(1) as u64),
             repeat: params
                 .gif_repeat
                 .map_or(GifRepeat::Infinite, GifRepeat::Finite),
         };
-        let encoded = if params.output_format == ImageFormat::GIF {
-            encode_gif_frames(&plan.items, options).map(|data| ("gif", data))
-        } else {
-            encode_apng_frames(&plan.items, options).map(|data| ("apng", data))
+        let encoded = match params.output_format {
+            ImageFormat::GIF => encode_gif_frames(&plan.items, options).map(|data| ("gif", data)),
+            ImageFormat::APNG => {
+                encode_apng_frames(&plan.items, options).map(|data| ("apng", data))
+            }
+            ImageFormat::WEBP => {
+                encode_webp_frames(&plan.items, options).map(|data| ("webp", data))
+            }
+            _ => unreachable!("animation export format was checked above"),
         };
         match encoded {
             Ok((extension, data)) => save_export_bytes(&plan.label, extension, data),
@@ -336,7 +357,7 @@ fn save_export_bytes(label: &str, extension: &str, data: Vec<u8>) {
         .save_file()
     {
         if let Err(error) = std::fs::write(path, data) {
-            log::error!("Failed to save GIF: {error}");
+            log::error!("Failed to save animation: {error}");
         }
     }
 }
@@ -465,6 +486,17 @@ fn encode_apng_frames(items: &[ImageItem], options: GifExportOptions) -> Result<
     Ok(output.into_inner())
 }
 
+pub fn encode_webp_frames(
+    items: &[ImageItem],
+    options: GifExportOptions,
+) -> Result<Vec<u8>, String> {
+    let loop_count = match options.repeat {
+        GifRepeat::Infinite => 0,
+        GifRepeat::Finite(count) => count,
+    };
+    super::webp_animation::encode(&animation_frames(items), options.interval, loop_count)
+}
+
 fn animation_frames(items: &[ImageItem]) -> Vec<Frame> {
     items
         .iter()
@@ -516,9 +548,15 @@ pub fn convert_image(
     params: &ConvertParams,
 ) -> Result<(Vec<u8>, String), String> {
     let output_format = params.output_format;
-    let midata = if output_format == ImageFormat::LVGL {
+    let preserve_indexed = output_format == ImageFormat::LVGL
+        || (output_format == ImageFormat::PNG
+            && params.png_color_mode == crate::image_viewer::model::PngColorMode::Preserve);
+    let midata = if preserve_indexed {
         match &image_item.midata {
             Some(MiData::INDEXED(indexed)) => MiData::INDEXED(indexed.clone()),
+            _ if output_format == ImageFormat::PNG => {
+                return Err("PNG preserve mode requires indexed image data".to_string());
+            }
             _ => {
                 let (pixels, width, height) = image_item.current_pixels();
                 MiData::from_rgba(
@@ -549,6 +587,24 @@ pub fn convert_image(
             None
         },
         compress: params.compression.into(),
+        png_color_mode: match params.png_color_mode {
+            crate::image_viewer::model::PngColorMode::Rgba => icu_lib::PngColorMode::Rgba,
+            crate::image_viewer::model::PngColorMode::Rgb => icu_lib::PngColorMode::Rgb,
+            crate::image_viewer::model::PngColorMode::Preserve => icu_lib::PngColorMode::Preserve,
+            crate::image_viewer::model::PngColorMode::Indexed1 => icu_lib::PngColorMode::Indexed(1),
+            crate::image_viewer::model::PngColorMode::Indexed2 => icu_lib::PngColorMode::Indexed(2),
+            crate::image_viewer::model::PngColorMode::Indexed4 => icu_lib::PngColorMode::Indexed(4),
+            crate::image_viewer::model::PngColorMode::Indexed8 => icu_lib::PngColorMode::Indexed(8),
+        },
+        png_compression: match params.png_compression {
+            crate::image_viewer::model::PngCompression::Fast => icu_lib::PngCompression::Fast,
+            crate::image_viewer::model::PngCompression::Balanced => {
+                icu_lib::PngCompression::Balanced
+            }
+            crate::image_viewer::model::PngCompression::Best => icu_lib::PngCompression::Best,
+        },
+        jpeg_quality: params.jpeg_quality,
+        jpeg_background: params.jpeg_background,
         ..Default::default()
     };
 
@@ -753,6 +809,77 @@ mod tests {
     }
 
     #[test]
+    fn viewer_convert_maps_png_and_jpeg_parameters() {
+        let source = image::RgbaImage::from_pixel(8, 8, image::Rgba([255, 0, 0, 0]));
+        let item = single_image_item(
+            "source.png".to_string(),
+            ImageInfo {
+                width: 8,
+                height: 8,
+                data_size: 0,
+                format: "image/png".to_string(),
+                other_info: serde_json::Value::Null,
+            },
+            source.clone(),
+            Some(MiData::RGBA(source)),
+        );
+
+        let mut params = ConvertParams::default();
+        params.output_format = ImageFormat::PNG;
+        params.png_color_mode = crate::image_viewer::model::PngColorMode::Rgb;
+        let (png, _) = convert_image(&item, &params).unwrap();
+        let png = png::Decoder::new(Cursor::new(png)).read_info().unwrap();
+        assert_eq!(png.info().color_type, png::ColorType::Rgb);
+
+        params.output_format = ImageFormat::JPEG;
+        params.jpeg_quality = 100;
+        params.jpeg_background = [10, 120, 240];
+        let (jpeg, _) = convert_image(&item, &params).unwrap();
+        let pixel = *image::load_from_memory(&jpeg)
+            .unwrap()
+            .to_rgb8()
+            .get_pixel(0, 0);
+        assert!((i16::from(pixel[0]) - 10).abs() <= 8);
+        assert!((i16::from(pixel[1]) - 120).abs() <= 8);
+        assert!((i16::from(pixel[2]) - 240).abs() <= 8);
+    }
+
+    #[test]
+    fn viewer_png_preserve_keeps_indexed_source() {
+        let indexed = icu_lib::midata::IndexedImageData {
+            rgba: image::RgbaImage::from_vec(2, 1, vec![1, 2, 3, 255, 9, 8, 7, 64]).unwrap(),
+            palette: vec![[1, 2, 3, 255], [9, 8, 7, 64]],
+            indexes: vec![0, 1],
+            bpp: 1,
+            width: 2,
+            height: 1,
+        };
+        let item = image_item_from_midata(
+            "indexed.bin".to_string(),
+            ImageInfo {
+                width: 2,
+                height: 1,
+                data_size: 0,
+                format: "indexed".to_string(),
+                other_info: serde_json::Value::Null,
+            },
+            MiData::INDEXED(indexed),
+        )
+        .unwrap();
+        let mut params = ConvertParams::default();
+        params.output_format = ImageFormat::PNG;
+        params.png_color_mode = crate::image_viewer::model::PngColorMode::Preserve;
+
+        let (encoded, _) = convert_image(&item, &params).unwrap();
+        let decoder = png::Decoder::new(Cursor::new(encoded)).read_info().unwrap();
+        assert_eq!(
+            decoder.info().palette.as_deref(),
+            Some(&[1, 2, 3, 9, 8, 7][..])
+        );
+        assert_eq!(decoder.info().trns.as_deref(), Some(&[255, 64][..]));
+    }
+
+    #[test]
     fn gif_animation_round_trip_preserves_frame_count() {
         let data = encode_gif_frames(&[animation_item()], GifExportOptions::default()).unwrap();
         let decoder = image::codecs::gif::GifDecoder::new(Cursor::new(data)).unwrap();
@@ -774,5 +901,31 @@ mod tests {
                 .len(),
             2
         );
+    }
+
+    #[test]
+    fn webp_animation_round_trip_uses_animated_frame_source() {
+        let data = encode_webp_frames(&[animation_item()], GifExportOptions::default()).unwrap();
+        let item = decode_animation("animation.webp", &data).unwrap();
+        assert_eq!(item.frame_count(), 2);
+        let FrameSource::Animated { frames, .. } = item.frames else {
+            panic!("animated WebP must use an animated frame source");
+        };
+        assert_eq!(frames[0].pixels, vec![Color32::RED, Color32::RED]);
+        assert_eq!(frames[1].pixels, vec![Color32::BLUE, Color32::BLUE]);
+        assert_eq!(frames[0].delay, Duration::from_millis(80));
+        assert_eq!(frames[1].delay, Duration::from_millis(120));
+    }
+
+    #[test]
+    fn static_webp_does_not_enter_animation_path() {
+        use image::ImageEncoder;
+
+        let pixels = [255, 0, 0, 255];
+        let mut data = Vec::new();
+        image::codecs::webp::WebPEncoder::new_lossless(&mut data)
+            .write_image(&pixels, 1, 1, image::ExtendedColorType::Rgba8)
+            .unwrap();
+        assert!(decode_animation("static.webp", &data).is_none());
     }
 }

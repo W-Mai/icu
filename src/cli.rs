@@ -1,4 +1,4 @@
-use crate::arguments::{SubCommands, parse_args};
+use crate::arguments::{PngCompressionMode, PngMode, SubCommands, parse_args};
 use crate::converter::{ImageFormatCategory, ImageFormats, OutputFileFormatCategory};
 use crate::image_viewer::show_image;
 use eframe::egui::DroppedFile;
@@ -66,6 +66,10 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
             stdout,
             dither,
             lvgl_version,
+            png_mode,
+            png_compression,
+            quality,
+            background,
         } => {
             // calculate converting time
             let total_start_time = std::time::Instant::now();
@@ -130,12 +134,34 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
                                     .map(|t| t.into())
                                     .unwrap_or_default(),
                             )
-                            .with_lvgl_version((*lvgl_version).into());
+                            .with_lvgl_version((*lvgl_version).into())
+                            .with_png_color_mode(match png_mode.unwrap_or(PngMode::Rgba) {
+                                PngMode::Rgba => icu_lib::PngColorMode::Rgba,
+                                PngMode::Rgb => icu_lib::PngColorMode::Rgb,
+                                PngMode::Preserve => icu_lib::PngColorMode::Preserve,
+                                PngMode::Indexed1 => icu_lib::PngColorMode::Indexed(1),
+                                PngMode::Indexed2 => icu_lib::PngColorMode::Indexed(2),
+                                PngMode::Indexed4 => icu_lib::PngColorMode::Indexed(4),
+                                PngMode::Indexed8 => icu_lib::PngColorMode::Indexed(8),
+                            })
+                            .with_png_compression(
+                                match png_compression.unwrap_or(PngCompressionMode::Balanced) {
+                                    PngCompressionMode::Fast => icu_lib::PngCompression::Fast,
+                                    PngCompressionMode::Balanced => {
+                                        icu_lib::PngCompression::Balanced
+                                    }
+                                    PngCompressionMode::Best => icu_lib::PngCompression::Best,
+                                },
+                            )
+                            .with_jpeg_quality(quality.unwrap_or(85))
+                            .with_jpeg_background(background.unwrap_or([255, 255, 255]));
 
                         let data = fs::read(file_path)?;
                         let ed = output_format.get_endecoder();
                         let mid = decode_with(data, *input_format)?;
-                        let mid = if output_format != &ImageFormats::LVGL {
+                        let preserve_indexed_png = output_format == &ImageFormats::PNG
+                            && matches!(png_mode, Some(PngMode::Preserve));
+                        let mid = if output_format != &ImageFormats::LVGL && !preserve_indexed_png {
                             match mid {
                                 MiData::INDEXED(indexed) => MiData::RGBA(indexed.rgba),
                                 mid => mid,
@@ -143,6 +169,9 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
                         } else {
                             mid
                         };
+                        if preserve_indexed_png && !matches!(mid, MiData::INDEXED(_)) {
+                            return Err("--png-mode preserve requires indexed input".into());
+                        }
                         let data = mid.encode_into(ed, params);
 
                         match output_category {

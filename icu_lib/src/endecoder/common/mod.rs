@@ -1,8 +1,8 @@
-use crate::EncoderParams;
+use crate::{EncoderParams, PngColorMode, PngCompression};
 use png;
 use std::io::Cursor;
 
-use crate::endecoder::{lvgl, EnDecoder, ImageInfo};
+use crate::endecoder::{EnDecoder, ImageInfo};
 use crate::midata::MiData;
 use serde_json::json;
 
@@ -120,6 +120,204 @@ impl EnDecoder for AutoDetect {
     }
 }
 
+fn png_compression(compression: PngCompression) -> png::Compression {
+    match compression {
+        PngCompression::Fast => png::Compression::Fast,
+        PngCompression::Balanced => png::Compression::Balanced,
+        PngCompression::Best => png::Compression::High,
+    }
+}
+
+fn png_bit_depth(bpp: u8) -> Result<png::BitDepth, String> {
+    match bpp {
+        1 => Ok(png::BitDepth::One),
+        2 => Ok(png::BitDepth::Two),
+        4 => Ok(png::BitDepth::Four),
+        8 => Ok(png::BitDepth::Eight),
+        _ => Err(format!("unsupported indexed PNG bit depth: {bpp}")),
+    }
+}
+
+fn pack_png_indexes(indexes: &[u8], width: u32, height: u32, bpp: u8) -> Result<Vec<u8>, String> {
+    let width = usize::try_from(width).map_err(|_| "PNG width does not fit usize")?;
+    let height = usize::try_from(height).map_err(|_| "PNG height does not fit usize")?;
+    let pixel_count = width
+        .checked_mul(height)
+        .ok_or("indexed PNG dimensions overflow")?;
+    if indexes.len() != pixel_count {
+        return Err(format!(
+            "indexed PNG has {} indexes, expected {pixel_count}",
+            indexes.len()
+        ));
+    }
+    let pixels_per_byte = 8usize / usize::from(bpp);
+    let row_bytes = width
+        .checked_add(pixels_per_byte - 1)
+        .ok_or("indexed PNG row size overflow")?
+        / pixels_per_byte;
+    let mut packed = vec![
+        0;
+        row_bytes
+            .checked_mul(height)
+            .ok_or("indexed PNG size overflow")?
+    ];
+    for (row, source) in indexes.chunks_exact(width).enumerate() {
+        for (column, index) in source.iter().copied().enumerate() {
+            let shift = (pixels_per_byte - 1 - column % pixels_per_byte) * usize::from(bpp);
+            packed[row * row_bytes + column / pixels_per_byte] |= index << shift;
+        }
+    }
+    Ok(packed)
+}
+
+fn write_indexed_png(
+    width: u32,
+    height: u32,
+    palette: &[[u8; 4]],
+    indexes: &[u8],
+    bpp: u8,
+    compression: PngCompression,
+) -> Result<Vec<u8>, String> {
+    png_bit_depth(bpp)?;
+    if width == 0 || height == 0 {
+        return Err("indexed PNG dimensions must be non-zero".to_string());
+    }
+    let max_colors = 1usize << bpp;
+    if palette.is_empty() || palette.len() > max_colors {
+        return Err(format!(
+            "indexed PNG palette has {} colors, expected 1..={max_colors}",
+            palette.len()
+        ));
+    }
+    if indexes
+        .iter()
+        .any(|index| usize::from(*index) >= palette.len())
+    {
+        return Err("indexed PNG contains an out-of-range palette index".to_string());
+    }
+    let packed = pack_png_indexes(indexes, width, height, bpp)?;
+    let rgb = palette
+        .iter()
+        .flat_map(|color| [color[0], color[1], color[2]])
+        .collect::<Vec<_>>();
+    let alpha = palette.iter().map(|color| color[3]).collect::<Vec<_>>();
+    let mut output = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut output, width, height);
+        encoder.set_compression(png_compression(compression));
+        encoder.set_filter(png::Filter::NoFilter);
+        encoder.set_color(png::ColorType::Indexed);
+        encoder.set_depth(png_bit_depth(bpp)?);
+        encoder.set_palette(rgb);
+        encoder.set_trns(alpha);
+        let mut writer = encoder.write_header().map_err(|error| error.to_string())?;
+        writer
+            .write_image_data(&packed)
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(output)
+}
+
+fn quantized_png(
+    image: &image::RgbaImage,
+    bpp: u8,
+    dither: Option<u32>,
+    compression: PngCompression,
+) -> Result<Vec<u8>, String> {
+    png_bit_depth(bpp)?;
+    if image.width() == 0 || image.height() == 0 {
+        return Err("PNG dimensions must be non-zero".to_string());
+    }
+    let quantizer = color_quant::NeuQuant::new(
+        dither.unwrap_or(30).clamp(1, 30) as i32,
+        1usize << bpp,
+        image.as_raw(),
+    );
+    let palette = quantizer
+        .color_map_rgba()
+        .chunks_exact(4)
+        .map(|c| [c[0], c[1], c[2], c[3]])
+        .collect::<Vec<_>>();
+    let mut indexed_image = image.clone();
+    if dither.is_some() {
+        image::imageops::dither(&mut indexed_image, &quantizer);
+    }
+    let indexes = indexed_image
+        .pixels()
+        .map(|pixel| quantizer.index_of(&pixel.0) as u8)
+        .collect::<Vec<_>>();
+    write_indexed_png(
+        image.width(),
+        image.height(),
+        &palette,
+        &indexes,
+        bpp,
+        compression,
+    )
+}
+
+fn encode_png(data: &MiData, params: &EncoderParams) -> Result<Vec<u8>, String> {
+    match (data, params.png_color_mode) {
+        (MiData::INDEXED(indexed), PngColorMode::Preserve) => write_indexed_png(
+            indexed.width,
+            indexed.height,
+            &indexed.palette,
+            &indexed.indexes,
+            indexed.bpp,
+            params.png_compression,
+        ),
+        (_, PngColorMode::Preserve) => {
+            Err("PNG preserve mode requires indexed image data".to_string())
+        }
+        (MiData::RGBA(image), PngColorMode::Indexed(bpp)) => {
+            quantized_png(image, bpp, params.dither, params.png_compression)
+        }
+        (MiData::INDEXED(indexed), PngColorMode::Indexed(bpp)) => {
+            quantized_png(&indexed.rgba, bpp, params.dither, params.png_compression)
+        }
+        (MiData::RGBA(image), mode @ (PngColorMode::Rgb | PngColorMode::Rgba)) => {
+            encode_direct_png(image, mode, params.png_compression)
+        }
+        (MiData::INDEXED(indexed), mode @ (PngColorMode::Rgb | PngColorMode::Rgba)) => {
+            encode_direct_png(&indexed.rgba, mode, params.png_compression)
+        }
+        _ => Err("PNG encoding requires RGBA or indexed image data".to_string()),
+    }
+}
+
+fn encode_direct_png(
+    image: &image::RgbaImage,
+    mode: PngColorMode,
+    compression: PngCompression,
+) -> Result<Vec<u8>, String> {
+    if image.width() == 0 || image.height() == 0 {
+        return Err("PNG dimensions must be non-zero".to_string());
+    }
+    let (color_type, bytes) = match mode {
+        PngColorMode::Rgb => (
+            png::ColorType::Rgb,
+            image
+                .pixels()
+                .flat_map(|pixel| [pixel[0], pixel[1], pixel[2]])
+                .collect::<Vec<_>>(),
+        ),
+        PngColorMode::Rgba => (png::ColorType::Rgba, image.as_raw().clone()),
+        _ => return Err("direct PNG mode must be RGB or RGBA".to_string()),
+    };
+    let mut output = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut output, image.width(), image.height());
+        encoder.set_compression(png_compression(compression));
+        encoder.set_color(color_type);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().map_err(|error| error.to_string())?;
+        writer
+            .write_image_data(&bytes)
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(output)
+}
+
 impl EnDecoder for PNG {
     fn can_decode(&self, data: &[u8]) -> bool {
         if let Ok(format) = image::guess_format(data) {
@@ -130,103 +328,12 @@ impl EnDecoder for PNG {
     }
 
     fn encode(&self, data: &MiData, encoder_params: EncoderParams) -> Vec<u8> {
-        let color_format: lvgl::ColorFormat = encoder_params.color_format.into();
-        match data {
-            MiData::RGBA(img) => {
-                let mut buf = Cursor::new(Vec::new());
-
-                let mut encoder = png::Encoder::new(&mut buf, img.width(), img.height());
-                encoder.set_compression(png::Compression::Balanced);
-                encoder.set_filter(png::Filter::NoFilter);
-
-                match color_format {
-                    lvgl::ColorFormat::I1
-                    | lvgl::ColorFormat::I2
-                    | lvgl::ColorFormat::I4
-                    | lvgl::ColorFormat::I8 => {
-                        let bpp = color_format.get_bpp();
-                        let color_map_size = 1 << bpp;
-
-                        let data = img.to_vec();
-                        let nq = color_quant::NeuQuant::new(
-                            encoder_params.dither.unwrap_or(1) as i32,
-                            color_map_size,
-                            &data,
-                        );
-                        let mut indexes_iter = data.chunks(4).map(|pix| nq.index_of(pix) as u8);
-                        let palette = nq.color_map_rgb();
-                        let trns = nq
-                            .color_map_rgba()
-                            .iter()
-                            .skip(3)
-                            .step_by(4)
-                            .copied()
-                            .collect::<Vec<_>>();
-
-                        encoder.set_color(png::ColorType::Indexed);
-                        encoder.set_depth(png::BitDepth::from_u8(bpp as u8).unwrap());
-
-                        encoder.set_palette(palette);
-                        encoder.set_trns(trns);
-
-                        let width = img.width();
-                        let stride_bytes = color_format.get_stride_size(width, 1) as usize;
-                        let mut indexes = vec![0; stride_bytes * img.height() as usize];
-                        indexes.chunks_exact_mut(stride_bytes).for_each(|row| {
-                            let mut iter = row.iter_mut();
-                            let mut byte = &mut 0u8;
-
-                            for i in 0..width as u16 {
-                                let alpha = indexes_iter.next().unwrap();
-                                if i % (8 / bpp) == 0 {
-                                    if let Some(next_byte) = iter.next() {
-                                        byte = next_byte;
-                                    } else {
-                                        break;
-                                    }
-                                }
-                                *byte |= (alpha) << ((8 / bpp - 1 - i % (8 / bpp)) * bpp);
-                            }
-                        });
-
-                        let mut writer = encoder.write_header().unwrap();
-                        writer.write_image_data(&indexes).unwrap();
-                    }
-                    lvgl::ColorFormat::RGB888 => {
-                        let data = img
-                            .to_vec()
-                            .chunks_exact(4)
-                            .flat_map(|pix| [pix[0], pix[1], pix[2]])
-                            .collect::<Vec<_>>();
-
-                        encoder.set_color(png::ColorType::Rgb);
-                        encoder.set_depth(png::BitDepth::Eight);
-
-                        let mut writer = encoder.write_header().unwrap();
-                        writer.write_image_data(&data).unwrap();
-                    }
-                    lvgl::ColorFormat::ARGB8888 => {
-                        let data = img.to_vec();
-                        encoder.set_color(png::ColorType::Rgba);
-                        encoder.set_depth(png::BitDepth::Eight);
-
-                        let mut writer = encoder.write_header().unwrap();
-                        writer.write_image_data(&data).unwrap();
-                    }
-                    _ => {
-                        let data = img.to_vec();
-                        encoder.set_color(png::ColorType::Rgba);
-                        encoder.set_depth(png::BitDepth::Eight);
-
-                        let mut writer = encoder.write_header().unwrap();
-                        writer.write_image_data(&data).unwrap();
-                    }
-                }
-                {}
-
-                buf.into_inner()
+        match encode_png(data, &encoder_params) {
+            Ok(output) => output,
+            Err(error) => {
+                log::error!("Failed to encode PNG: {error}");
+                Vec::new()
             }
-            _ => Vec::new(),
         }
     }
 
@@ -275,19 +382,44 @@ impl EnDecoder for JPEG {
         }
     }
 
-    fn encode(&self, data: &MiData, _encoder_params: EncoderParams) -> Vec<u8> {
-        match data {
-            MiData::RGBA(img) => {
-                let mut buf = Cursor::new(Vec::new());
-                let rgb = image::DynamicImage::ImageRgba8(img.clone()).to_rgb8();
-                if let Err(error) = rgb.write_to(&mut buf, image::ImageFormat::Jpeg) {
-                    log::error!("Failed to encode JPEG: {error}");
-                    return Vec::new();
-                }
-                buf.into_inner()
-            }
-            _ => Vec::new(),
+    fn encode(&self, data: &MiData, encoder_params: EncoderParams) -> Vec<u8> {
+        let image = match data {
+            MiData::RGBA(image) => image,
+            MiData::INDEXED(indexed) => &indexed.rgba,
+            _ => return Vec::new(),
+        };
+        if !(1..=100).contains(&encoder_params.jpeg_quality) {
+            log::error!("Failed to encode JPEG: quality must be between 1 and 100");
+            return Vec::new();
         }
+        let background = encoder_params.jpeg_background;
+        let rgb = image
+            .pixels()
+            .flat_map(|pixel| {
+                let alpha = u32::from(pixel[3]);
+                std::array::from_fn::<_, 3, _>(|channel| {
+                    let source = u32::from(pixel[channel]);
+                    let background = u32::from(background[channel]);
+                    ((source * alpha + background * (255 - alpha) + 127) / 255) as u8
+                })
+            })
+            .collect::<Vec<_>>();
+        let mut output = Vec::new();
+        let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(
+            &mut output,
+            encoder_params.jpeg_quality,
+        );
+        if let Err(error) = image::ImageEncoder::write_image(
+            encoder,
+            &rgb,
+            image.width(),
+            image.height(),
+            image::ExtendedColorType::Rgb8,
+        ) {
+            log::error!("Failed to encode JPEG: {error}");
+            return Vec::new();
+        }
+        output
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {

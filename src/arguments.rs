@@ -100,6 +100,22 @@ pub(crate) enum SubCommands {
         /// LVGL Version, needed if [`ImageFormats`] is [`ImageFormats::LVGL`]
         #[arg(long, value_enum, default_value = "v9")]
         lvgl_version: LVGL_Version,
+
+        /// PNG output color mode
+        #[arg(long, value_enum)]
+        png_mode: Option<PngMode>,
+
+        /// PNG compression level
+        #[arg(long, value_enum)]
+        png_compression: Option<PngCompressionMode>,
+
+        /// JPEG quality from 1 to 100
+        #[arg(long, value_parser = clap::value_parser!(u8).range(1..=100))]
+        quality: Option<u8>,
+
+        /// JPEG background color used when flattening alpha, as #RRGGBB
+        #[arg(long, value_parser = parse_hex_color)]
+        background: Option<[u8; 3]>,
     },
 
     /// Bake a TTF/OTF font into a mirx FONT chunk (SDF or grayscale atlas)
@@ -143,9 +159,39 @@ pub(crate) enum SubCommands {
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PngMode {
+    Rgba,
+    Rgb,
+    Preserve,
+    Indexed1,
+    Indexed2,
+    Indexed4,
+    Indexed8,
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PngCompressionMode {
+    Fast,
+    Balanced,
+    Best,
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum BakeFormat {
     Sdf,
     Gray,
+}
+
+fn parse_hex_color(value: &str) -> Result<[u8; 3], String> {
+    let hex = value.strip_prefix('#').unwrap_or(value);
+    if hex.len() != 6 {
+        return Err("background must use the #RRGGBB format".to_string());
+    }
+    let parse = |range| {
+        u8::from_str_radix(&hex[range], 16)
+            .map_err(|_| "background must use the #RRGGBB format".to_string())
+    };
+    Ok([parse(0..2)?, parse(2..4)?, parse(4..6)?])
 }
 
 pub fn parse_args() -> Args {
@@ -168,6 +214,10 @@ pub fn parse_args() -> Args {
                 output_format,
                 output_color_format,
                 dither,
+                png_mode,
+                png_compression,
+                quality,
+                background,
                 ..
             } => {
                 if output_format == &ImageFormats::LVGL && output_color_format.is_none() {
@@ -187,6 +237,26 @@ pub fn parse_args() -> Args {
                         );
                         error.exit();
                     }
+                }
+                if output_format != &ImageFormats::PNG
+                    && (png_mode.is_some() || png_compression.is_some())
+                {
+                    command
+                        .error(
+                            ErrorKind::InvalidValue,
+                            "--png-mode and --png-compression require PNG output.",
+                        )
+                        .exit();
+                }
+                if output_format != &ImageFormats::JPEG
+                    && (quality.is_some() || background.is_some())
+                {
+                    command
+                        .error(
+                            ErrorKind::InvalidValue,
+                            "--quality and --background require JPEG output.",
+                        )
+                        .exit();
                 }
             }
             SubCommands::BakeFont { .. } | SubCommands::MergeFonts { .. } => {}

@@ -1,5 +1,7 @@
 use crate::image_viewer::model::ViewerState;
-use crate::image_viewer::model::{ImageFormat, LvglColorFormat, LvglCompression, LvglVersion};
+use crate::image_viewer::model::{
+    ImageFormat, LvglColorFormat, LvglCompression, LvglVersion, PngColorMode, PngCompression,
+};
 use clap::ValueEnum;
 use eframe::egui;
 
@@ -162,6 +164,113 @@ pub(crate) fn draw_mirx_options(ui: &mut egui::Ui, state: &mut ViewerState) {
     }
 }
 
+fn draw_png_options(ui: &mut egui::Ui, state: &mut ViewerState) {
+    if state.context.convert_params.output_format != ImageFormat::PNG {
+        return;
+    }
+    let targets = crate::image_viewer::utils::export_target_from_selection(state)
+        .and_then(|target| crate::image_viewer::utils::export_plan(state, target))
+        .map(|plan| plan.items)
+        .unwrap_or_default();
+    let preserve_supported = !targets.is_empty()
+        && targets.iter().all(|image| {
+            matches!(
+                image.midata.as_ref(),
+                Some(icu_lib::midata::MiData::INDEXED(_))
+            )
+        });
+    if state.context.convert_params.png_color_mode == PngColorMode::Preserve && !preserve_supported
+    {
+        state.context.convert_params.png_color_mode = PngColorMode::Rgba;
+    }
+    crate::image_viewer::ui::widgets::section_card(ui, t!("section_png_settings").as_ref(), |ui| {
+        param_row(ui, t!("png_color_mode").as_ref(), |ui| {
+            egui::ComboBox::from_id_salt("png_color_mode")
+                .selected_text(format!("{:?}", state.context.convert_params.png_color_mode))
+                .show_ui(ui, |ui| {
+                    for &mode in PngColorMode::value_variants() {
+                        if mode == PngColorMode::Preserve && !preserve_supported {
+                            ui.add_enabled(
+                                false,
+                                egui::Button::selectable(false, format!("{mode:?}")),
+                            );
+                        } else {
+                            ui.selectable_value(
+                                &mut state.context.convert_params.png_color_mode,
+                                mode,
+                                format!("{mode:?}"),
+                            );
+                        }
+                    }
+                });
+        });
+        param_row(ui, t!("png_compression").as_ref(), |ui| {
+            egui::ComboBox::from_id_salt("png_compression")
+                .selected_text(format!(
+                    "{:?}",
+                    state.context.convert_params.png_compression
+                ))
+                .show_ui(ui, |ui| {
+                    for &compression in PngCompression::value_variants() {
+                        ui.selectable_value(
+                            &mut state.context.convert_params.png_compression,
+                            compression,
+                            format!("{compression:?}"),
+                        );
+                    }
+                });
+        });
+        if matches!(
+            state.context.convert_params.png_color_mode,
+            PngColorMode::Indexed1
+                | PngColorMode::Indexed2
+                | PngColorMode::Indexed4
+                | PngColorMode::Indexed8
+        ) {
+            param_row(ui, t!("dither").as_ref(), |ui| {
+                crate::image_viewer::ui::widgets::toggle(
+                    ui,
+                    &mut state.context.convert_params.dither,
+                );
+            });
+            if state.context.convert_params.dither {
+                param_row(ui, t!("dither_level").as_ref(), |ui| {
+                    ui.add(
+                        egui::Slider::new(&mut state.context.convert_params.dither_level, 1..=30)
+                            .text(""),
+                    );
+                });
+            }
+        }
+    });
+}
+
+fn draw_jpeg_options(ui: &mut egui::Ui, state: &mut ViewerState) {
+    if state.context.convert_params.output_format != ImageFormat::JPEG {
+        return;
+    }
+    crate::image_viewer::ui::widgets::section_card(
+        ui,
+        t!("section_jpeg_settings").as_ref(),
+        |ui| {
+            param_row(ui, t!("jpeg_quality").as_ref(), |ui| {
+                ui.add(
+                    egui::DragValue::new(&mut state.context.convert_params.jpeg_quality)
+                        .range(1..=100),
+                );
+            });
+            param_row(ui, t!("jpeg_background").as_ref(), |ui| {
+                let [r, g, b] = state.context.convert_params.jpeg_background;
+                let mut color = egui::Color32::from_rgb(r, g, b);
+                if ui.color_edit_button_srgba(&mut color).changed() {
+                    state.context.convert_params.jpeg_background =
+                        [color.r(), color.g(), color.b()];
+                }
+            });
+        },
+    );
+}
+
 #[allow(unused_assignments)]
 pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
     let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
@@ -170,16 +279,18 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
     ui.add_space(12.0);
     draw_lvgl_options(ui, state);
     draw_mirx_options(ui, state);
+    draw_png_options(ui, state);
+    draw_jpeg_options(ui, state);
+    let export_plan = crate::image_viewer::utils::export_target_from_selection(state)
+        .and_then(|target| crate::image_viewer::utils::export_plan(state, target));
+    let has_animation = export_plan.as_ref().is_some_and(|plan| {
+        plan.items.len() > 1 || plan.items.iter().any(|item| item.frame_count() > 1)
+    });
     if matches!(
         state.context.convert_params.output_format,
-        ImageFormat::GIF | ImageFormat::APNG
-    ) && state.selected_id.is_some_and(|id| {
-        state.group_members(id).is_some()
-            || state
-                .item(id)
-                .and_then(|item| item.as_image())
-                .is_some_and(|image| image.frame_count() > 1)
-    }) {
+        ImageFormat::GIF | ImageFormat::APNG | ImageFormat::WEBP
+    ) && has_animation
+    {
         crate::image_viewer::ui::widgets::section_card(ui, &t!("section_export"), |ui| {
             param_row(ui, t!("collection_interval").as_ref(), |ui| {
                 let response = ui.add(
@@ -212,6 +323,13 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                     ui.add(egui::DragValue::new(repeat).range(1..=u16::MAX));
                 }
             });
+            if state.context.convert_params.output_format == ImageFormat::WEBP {
+                ui.label(
+                    egui::RichText::new(t!("webp_lossless_hint"))
+                        .size(9.0)
+                        .color(p.overlay0),
+                );
+            }
         });
     }
     ui.add_space(16.0);

@@ -134,6 +134,10 @@ Important conversion options include:
 - `--dither`: set indexed-color quantization from `1` to `30`.
 - `--output-compressed-method`: select `none`, `rle`, or LVGL v9 raw-block `lz4` compression.
 - `--lvgl-version`: select LVGL `v8` or `v9`; the default is `v9`.
+- `--png-mode`: select `rgba`, `rgb`, `preserve`, `indexed1`, `indexed2`, `indexed4`, or `indexed8`; the default is `rgba`.
+- `--png-compression`: select `fast`, `balanced`, or `best`; the default is `balanced`.
+- `--quality`: set JPEG quality from `1` to `100`; the default is `85`.
+- `--background`: set the JPEG alpha-flattening color as `#RRGGBB`; the default is white.
 - `--stdout`: write one converted result to standard output.
 
 LVGL output requires an explicit color format:
@@ -156,6 +160,8 @@ MIRX flat-image output accepts `rgb565`, `rgb565-swapped`, `rgb888`, `rgba8888`,
 ```shell
 icu convert res/img_0.png -O output -F mirx -C rgba8888
 ```
+
+The Viewer imports animated WebP and exports multi-frame sources or workspace groups as lossless animated WebP. The same pure-Rust path is used on native and WebAssembly builds. CLI `convert` continues to process WebP inputs independently as static files.
 
 `--output-category c-array` is reserved by the CLI but is not implemented.
 

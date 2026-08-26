@@ -6,6 +6,7 @@ pub mod model;
 pub mod plotter;
 pub mod ui;
 pub mod utils;
+mod webp_animation;
 
 fn setup_custom_fonts(ctx: &eframe::egui::Context) {
     let mut fonts = eframe::egui::FontDefinitions::default();

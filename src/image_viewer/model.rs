@@ -514,6 +514,26 @@ pub enum DiffSorting {
     DiffDesc,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Copy, Clone, Debug, ValueEnum, Default)]
+pub enum PngColorMode {
+    #[default]
+    Rgba,
+    Rgb,
+    Preserve,
+    Indexed1,
+    Indexed2,
+    Indexed4,
+    Indexed8,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Copy, Clone, Debug, ValueEnum, Default)]
+pub enum PngCompression {
+    Fast,
+    #[default]
+    Balanced,
+    Best,
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ConvertParams {
     pub output_format: ImageFormat,
@@ -523,6 +543,14 @@ pub struct ConvertParams {
     pub stride_align: u8,
     pub dither: bool,
     pub dither_level: u32,
+    #[serde(default)]
+    pub png_color_mode: PngColorMode,
+    #[serde(default)]
+    pub png_compression: PngCompression,
+    #[serde(default = "default_jpeg_quality")]
+    pub jpeg_quality: u8,
+    #[serde(default = "default_jpeg_background")]
+    pub jpeg_background: [u8; 3],
     #[serde(default = "default_gif_interval_ms")]
     pub gif_interval_ms: u32,
     #[serde(default)]
@@ -539,10 +567,22 @@ impl Default for ConvertParams {
             stride_align: 1,
             dither: false,
             dither_level: 10,
+            png_color_mode: PngColorMode::default(),
+            png_compression: PngCompression::default(),
+            jpeg_quality: default_jpeg_quality(),
+            jpeg_background: default_jpeg_background(),
             gif_interval_ms: 100,
             gif_repeat: None,
         }
     }
+}
+
+fn default_jpeg_quality() -> u8 {
+    85
+}
+
+fn default_jpeg_background() -> [u8; 3] {
+    [255, 255, 255]
 }
 
 impl Default for AppContext {
