@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 🐛 Convert RGBA images to RGB inside the JPEG encoder instead of panicking on unsupported color data.
+
 ## [v0.8.0] - 2026-08-25
 
 ### 🚀 New Features

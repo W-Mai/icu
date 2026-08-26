@@ -279,7 +279,11 @@ impl EnDecoder for JPEG {
         match data {
             MiData::RGBA(img) => {
                 let mut buf = Cursor::new(Vec::new());
-                img.write_to(&mut buf, image::ImageFormat::Jpeg).unwrap();
+                let rgb = image::DynamicImage::ImageRgba8(img.clone()).to_rgb8();
+                if let Err(error) = rgb.write_to(&mut buf, image::ImageFormat::Jpeg) {
+                    log::error!("Failed to encode JPEG: {error}");
+                    return Vec::new();
+                }
                 buf.into_inner()
             }
             _ => Vec::new(),
@@ -585,6 +589,25 @@ mod tests {
     use super::{AutoDetect, BMP, JPEG, PNG};
     use crate::endecoder::EnDecoder;
     use crate::midata::MiData;
+    use crate::EncoderParams;
+    use image::GenericImageView;
+
+    #[test]
+    fn jpeg_encode_accepts_rgba_input() {
+        let image = image::RgbaImage::from_vec(2, 1, vec![255, 0, 0, 0, 0, 128, 255, 255]).unwrap();
+
+        let encoded = JPEG {}.encode(&MiData::RGBA(image), EncoderParams::default());
+
+        assert!(!encoded.is_empty());
+        assert_eq!(
+            image::guess_format(&encoded).unwrap(),
+            image::ImageFormat::Jpeg
+        );
+        assert_eq!(
+            image::load_from_memory(&encoded).unwrap().dimensions(),
+            (2, 1)
+        );
+    }
 
     #[test]
     fn format_probes_reject_non_raster_data_without_panicking() {
