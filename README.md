@@ -216,6 +216,13 @@ icu show
 
 The WebAssembly build starts the same viewer without the native CLI layer.
 
+Viewer export uses two explicit actions:
+
+- `Convert` exports the selected logical source to one file. Native builds show an editable save-file dialog; WebAssembly starts one browser download.
+- `Convert All` expands selected entries, Groups, and animation frames. Native builds write into a selected output directory; WebAssembly downloads one ZIP archive while preserving relative paths.
+
+Native file and folder inputs are recursively enumerated in stable path order. WebAssembly supports multi-file and directory selection, preserves browser-provided relative paths, and recursively reads dropped directories when the browser exposes a directory-entry or file-system-handle API. APNG output is available only for multi-frame sources; a static source is rejected instead of producing a still PNG with an `.apng` suffix.
+
 ## Build from source
 
 The repository pins its Rust toolchain in [`rust-toolchain.toml`](rust-toolchain.toml).

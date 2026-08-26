@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+- ✨ Add explicit single-file and all-files Viewer export actions for static images, Groups, and animation frames.
+- ✨ Recursively import native folders and WebAssembly-selected or dropped directories while preserving stable relative paths.
+- ✨ Download WebAssembly batch exports as a ZIP archive and protect native batch output from overwrites and symlink traversal.
+- 🐛 Reject static APNG conversion instead of writing ordinary PNG bytes with an `.apng` suffix.
+
 ## [v0.8.1] - 2026-08-26
 
 - ✨ Add PNG color mode/compression and JPEG quality/background controls to the CLI and viewer.
