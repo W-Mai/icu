@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use icu_lib::endecoder::{common, lvgl, ColorFormat, EnDecoder};
-    use icu_lib::midata::MiData;
+    use icu_lib::midata::{IndexedImageData, MiData};
     use icu_lib::EncoderParams;
     use std::fs;
     use std::mem::size_of;
@@ -58,6 +58,37 @@ mod tests {
             }
             other => panic!("expected indexed output, got {}", other.variant_name()),
         }
+    }
+
+    #[test]
+    fn indexed_source_converts_to_argb8888_lz4() {
+        let rgba =
+            image::RgbaImage::from_vec(2, 1, vec![10, 20, 30, 255, 200, 150, 100, 128]).unwrap();
+        let indexed = MiData::INDEXED(IndexedImageData {
+            rgba: rgba.clone(),
+            palette: vec![[10, 20, 30, 255], [200, 150, 100, 128]],
+            indexes: vec![0, 1],
+            bpp: 1,
+            width: 2,
+            height: 1,
+        });
+
+        let encoded = indexed.encode_into(
+            &lvgl::LVGL {},
+            EncoderParams {
+                color_format: ColorFormat::ARGB8888,
+                lvgl_version: lvgl::LVGLVersion::V9,
+                compress: lvgl::Compress::LZ4,
+                ..Default::default()
+            },
+        );
+        assert!(!encoded.is_empty());
+
+        let decoded = lvgl::LVGL {}.decode(encoded);
+        let MiData::RGBA(decoded) = decoded else {
+            panic!("expected RGBA output");
+        };
+        assert_eq!(decoded, rgba);
     }
 
     #[test]

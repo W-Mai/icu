@@ -34,6 +34,9 @@ pub(crate) fn draw_output_format_selector(ui: &mut egui::Ui, state: &mut ViewerS
 
 pub(crate) fn draw_lvgl_options(ui: &mut egui::Ui, state: &mut ViewerState) {
     if state.context.convert_params.output_format == ImageFormat::LVGL {
+        if !state.context.convert_params.color_format.supports_lvgl() {
+            state.context.convert_params.color_format = LvglColorFormat::RGB565;
+        }
         crate::image_viewer::ui::widgets::section_card(
             ui,
             t!("section_lvgl_settings").as_ref(),
@@ -43,11 +46,20 @@ pub(crate) fn draw_lvgl_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                         .selected_text(format!("{:?}", state.context.convert_params.lvgl_version))
                         .show_ui(ui, |ui| {
                             for &version in LvglVersion::value_variants() {
-                                ui.selectable_value(
-                                    &mut state.context.convert_params.lvgl_version,
-                                    version,
-                                    format!("{version:?}"),
-                                );
+                                if ui
+                                    .selectable_value(
+                                        &mut state.context.convert_params.lvgl_version,
+                                        version,
+                                        format!("{version:?}"),
+                                    )
+                                    .changed()
+                                    && version == LvglVersion::V8
+                                    && state.context.convert_params.compression
+                                        == LvglCompression::LZ4
+                                {
+                                    state.context.convert_params.compression =
+                                        LvglCompression::None;
+                                }
                             }
                         });
                 });
@@ -56,11 +68,13 @@ pub(crate) fn draw_lvgl_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                         .selected_text(format!("{:?}", state.context.convert_params.color_format))
                         .show_ui(ui, |ui| {
                             for &format in LvglColorFormat::value_variants() {
-                                ui.selectable_value(
-                                    &mut state.context.convert_params.color_format,
-                                    format,
-                                    format!("{format:?}"),
-                                );
+                                if format.supports_lvgl() {
+                                    ui.selectable_value(
+                                        &mut state.context.convert_params.color_format,
+                                        format,
+                                        format!("{format:?}"),
+                                    );
+                                }
                             }
                         });
                 });
@@ -69,11 +83,17 @@ pub(crate) fn draw_lvgl_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                         .selected_text(format!("{:?}", state.context.convert_params.compression))
                         .show_ui(ui, |ui| {
                             for &compression in LvglCompression::value_variants() {
-                                ui.selectable_value(
-                                    &mut state.context.convert_params.compression,
-                                    compression,
-                                    format!("{compression:?}"),
-                                );
+                                if ui
+                                    .selectable_value(
+                                        &mut state.context.convert_params.compression,
+                                        compression,
+                                        format!("{compression:?}"),
+                                    )
+                                    .changed()
+                                    && compression == LvglCompression::LZ4
+                                {
+                                    state.context.convert_params.lvgl_version = LvglVersion::V9;
+                                }
                             }
                         });
                 });

@@ -229,6 +229,16 @@ pub fn parse_args() -> Args {
 
                     error.exit();
                 }
+                if output_format == &ImageFormats::LVGL
+                    && output_color_format.is_some_and(|format| !format.supports_lvgl())
+                {
+                    command
+                        .error(
+                            ErrorKind::InvalidValue,
+                            "The selected output color format is not supported by LVGL.",
+                        )
+                        .exit();
+                }
                 if let Some(dither) = *dither {
                     if !(1..=30).contains(&dither) {
                         let error = command.error(

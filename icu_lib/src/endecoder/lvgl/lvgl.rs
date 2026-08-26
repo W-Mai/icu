@@ -22,66 +22,67 @@ impl EnDecoder for LVGL {
             return Vec::new();
         }
 
-        match data {
-            MiData::RGBA(img) => {
-                let stride = color_format.get_stride_size(img.width(), encoder_params.stride_align);
-                let mut img_data = img.clone();
+        let img = match data {
+            MiData::RGBA(img) => img,
+            MiData::INDEXED(indexed) => &indexed.rgba,
+            _ => return Vec::new(),
+        };
 
-                if let Some(dither) = encoder_params.dither {
-                    let cmap = color_quant::NeuQuant::new(dither as i32, 256, img_data.as_mut());
-                    imageops::dither(&mut img_data, &cmap);
-                }
+        let stride = color_format.get_stride_size(img.width(), encoder_params.stride_align);
+        let mut img_data = img.clone();
 
-                let mut img_data = rgba8888_to(
-                    img_data.as_mut(),
-                    color_format,
-                    img.width(),
-                    img.height(),
-                    stride,
-                    encoder_params.dither,
-                );
-
-                let mut flags = Flags::from(0u16);
-
-                if encoder_params.compress != Compress::NONE {
-                    if encoder_params.compress == Compress::LZ4
-                        && encoder_params.lvgl_version != LVGLVersion::V9
-                    {
-                        log::error!("LVGL LZ4 compression is only supported for v9 images");
-                        return vec![];
-                    }
-                    let block_size = ((color_format.get_bpp() + 7) >> 3) as usize;
-                    let Some(compressed) =
-                        CompressedImage::encode(encoder_params.compress, &img_data, block_size)
-                    else {
-                        log::error!("Failed to compress LVGL image data");
-                        return vec![];
-                    };
-                    img_data = compressed;
-                    flags = with_flag(flags, HeaderFlag::COMPRESSED);
-                }
-
-                let mut buf = Cursor::new(Vec::new());
-                buf.write_all(
-                    &ImageDescriptor::new(
-                        ImageHeader::new(
-                            encoder_params.lvgl_version,
-                            color_format,
-                            flags,
-                            img.width() as u16,
-                            img.height() as u16,
-                            stride as u16,
-                        ),
-                        img_data,
-                    )
-                    .encode(),
-                )
-                .unwrap();
-
-                buf.into_inner()
-            }
-            _ => Vec::new(),
+        if let Some(dither) = encoder_params.dither {
+            let cmap = color_quant::NeuQuant::new(dither as i32, 256, img_data.as_mut());
+            imageops::dither(&mut img_data, &cmap);
         }
+
+        let mut img_data = rgba8888_to(
+            img_data.as_mut(),
+            color_format,
+            img.width(),
+            img.height(),
+            stride,
+            encoder_params.dither,
+        );
+
+        let mut flags = Flags::from(0u16);
+
+        if encoder_params.compress != Compress::NONE {
+            if encoder_params.compress == Compress::LZ4
+                && encoder_params.lvgl_version != LVGLVersion::V9
+            {
+                log::error!("LVGL LZ4 compression is only supported for v9 images");
+                return vec![];
+            }
+            let block_size = ((color_format.get_bpp() + 7) >> 3) as usize;
+            let Some(compressed) =
+                CompressedImage::encode(encoder_params.compress, &img_data, block_size)
+            else {
+                log::error!("Failed to compress LVGL image data");
+                return vec![];
+            };
+            img_data = compressed;
+            flags = with_flag(flags, HeaderFlag::COMPRESSED);
+        }
+
+        let mut buf = Cursor::new(Vec::new());
+        buf.write_all(
+            &ImageDescriptor::new(
+                ImageHeader::new(
+                    encoder_params.lvgl_version,
+                    color_format,
+                    flags,
+                    img.width() as u16,
+                    img.height() as u16,
+                    stride as u16,
+                ),
+                img_data,
+            )
+            .encode(),
+        )
+        .unwrap();
+
+        buf.into_inner()
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {

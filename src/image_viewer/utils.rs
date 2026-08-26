@@ -548,6 +548,18 @@ pub fn convert_image(
     params: &ConvertParams,
 ) -> Result<(Vec<u8>, String), String> {
     let output_format = params.output_format;
+    if output_format == ImageFormat::LVGL && !params.color_format.supports_lvgl() {
+        return Err(format!(
+            "{:?} is not supported by LVGL output",
+            params.color_format
+        ));
+    }
+    if output_format == ImageFormat::LVGL
+        && params.compression == crate::image_viewer::model::LvglCompression::LZ4
+        && params.lvgl_version != crate::image_viewer::model::LvglVersion::V9
+    {
+        return Err("LVGL LZ4 compression requires LVGL v9".to_string());
+    }
     let preserve_indexed = output_format == ImageFormat::LVGL
         || (output_format == ImageFormat::PNG
             && params.png_color_mode == crate::image_viewer::model::PngColorMode::Preserve);
@@ -809,6 +821,45 @@ mod tests {
     }
 
     #[test]
+    fn viewer_converts_jpeg_to_lvgl_v9_lz4() {
+        let source = image::RgbaImage::from_fn(8, 8, |x, y| {
+            image::Rgba([x as u8 * 16, y as u8 * 16, (x + y) as u8 * 8, 255])
+        });
+        let mut jpeg = Vec::new();
+        let rgb = image::DynamicImage::ImageRgba8(source).to_rgb8();
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg, 90)
+            .encode_image(&rgb)
+            .unwrap();
+        let dropped = DroppedFile {
+            name: "source.jpg".to_string(),
+            bytes: Some(std::sync::Arc::from(jpeg)),
+            ..Default::default()
+        };
+        let item = decode_dropped_file(&dropped, ImageFormatCategory::Auto).unwrap();
+        let mut params = ConvertParams::default();
+        params.output_format = ImageFormat::LVGL;
+        params.lvgl_version = crate::image_viewer::model::LvglVersion::V9;
+        params.color_format = crate::image_viewer::model::LvglColorFormat::RGB565;
+        params.compression = crate::image_viewer::model::LvglCompression::LZ4;
+
+        let (encoded, extension) = convert_image(&item, &params).unwrap();
+
+        assert_eq!(extension, "bin");
+        let header = icu_lib::endecoder::lvgl::ImageHeader::parse(&encoded).unwrap();
+        assert_eq!(header.version(), icu_lib::endecoder::lvgl::LVGLVersion::V9);
+        assert!(icu_lib::endecoder::lvgl::has_flag(
+            header.flags(),
+            icu_lib::endecoder::lvgl::HeaderFlag::COMPRESSED,
+        ));
+
+        params.lvgl_version = crate::image_viewer::model::LvglVersion::V8;
+        assert_eq!(
+            convert_image(&item, &params).unwrap_err(),
+            "LVGL LZ4 compression requires LVGL v9"
+        );
+    }
+
+    #[test]
     fn viewer_convert_maps_png_and_jpeg_parameters() {
         let source = image::RgbaImage::from_pixel(8, 8, image::Rgba([255, 0, 0, 0]));
         let item = single_image_item(
@@ -877,6 +928,19 @@ mod tests {
             Some(&[1, 2, 3, 9, 8, 7][..])
         );
         assert_eq!(decoder.info().trns.as_deref(), Some(&[255, 64][..]));
+
+        params.output_format = ImageFormat::LVGL;
+        params.lvgl_version = crate::image_viewer::model::LvglVersion::V9;
+        params.color_format = crate::image_viewer::model::LvglColorFormat::ARGB8888;
+        params.compression = crate::image_viewer::model::LvglCompression::LZ4;
+        let (encoded, extension) = convert_image(&item, &params).unwrap();
+        assert_eq!(extension, "bin");
+        assert!(icu_lib::endecoder::lvgl::has_flag(
+            icu_lib::endecoder::lvgl::ImageHeader::parse(&encoded)
+                .unwrap()
+                .flags(),
+            icu_lib::endecoder::lvgl::HeaderFlag::COMPRESSED,
+        ));
     }
 
     #[test]

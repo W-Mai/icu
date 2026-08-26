@@ -83,6 +83,12 @@ pub enum OutputColorFormats {
     BGRA8888,
 }
 
+impl OutputColorFormats {
+    pub fn supports_lvgl(self) -> bool {
+        !matches!(self, Self::RGB565Swapped | Self::RGBA8888 | Self::BGRA8888)
+    }
+}
+
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq, ValueEnum, Serialize, Deserialize)]
 pub enum OutputCompressedMethod {

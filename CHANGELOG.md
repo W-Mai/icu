@@ -6,6 +6,7 @@
 - ✨ Import and export lossless animated WebP in the Viewer on native and WebAssembly.
 - ⚠️ Extend `EncoderParams` with PNG/JPEG fields; external struct literals must add them or use `..Default::default()`.
 - 🐛 Convert RGBA images to RGB inside the JPEG encoder instead of panicking on unsupported color data.
+- 🐛 Convert indexed sources through their RGBA view for LVGL true-color and LZ4 exports, and reject invalid Viewer LVGL settings explicitly.
 
 ## [v0.8.0] - 2026-08-25
 
