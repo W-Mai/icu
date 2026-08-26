@@ -249,6 +249,12 @@ impl Default for GifExportOptions {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExportMode {
+    SingleFile,
+    AllFiles,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExportTarget {
     Entry(WorkspaceId),
@@ -256,6 +262,190 @@ pub enum ExportTarget {
         collection: WorkspaceId,
         index: usize,
     },
+}
+
+#[derive(Clone)]
+pub struct ExportSource {
+    pub id: WorkspaceId,
+    pub frame_index: Option<usize>,
+    pub input_name: String,
+    pub relative_path: Option<String>,
+    pub image: ImageItem,
+}
+
+#[derive(Clone)]
+pub struct ExportRequest {
+    pub mode: ExportMode,
+    pub targets: Vec<ExportSource>,
+    pub output_format: ImageFormat,
+    pub params: ConvertParams,
+}
+
+fn export_name_and_relative_path(path: &str) -> (String, Option<String>) {
+    let path = Path::new(path);
+    let input_name = path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
+    let relative_path = (!path.is_absolute())
+        .then(|| path.parent())
+        .flatten()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .map(|parent| parent.to_string_lossy().into_owned());
+    (input_name, relative_path)
+}
+
+fn frame_source(id: WorkspaceId, index: usize, name: String, image: ImageItem) -> ExportSource {
+    let (input_name, relative_path) = export_name_and_relative_path(&name);
+    ExportSource {
+        id,
+        frame_index: Some(index),
+        input_name,
+        relative_path,
+        image,
+    }
+}
+
+fn animation_frame_source(
+    id: WorkspaceId,
+    index: usize,
+    source_path: &str,
+    frame_count: usize,
+    image: ImageItem,
+) -> ExportSource {
+    frame_source(
+        id,
+        index,
+        animation_frame_name(source_path, index, frame_count),
+        image,
+    )
+}
+
+fn animation_frame_name(path: &str, index: usize, frame_count: usize) -> String {
+    let path = Path::new(path);
+    let width = frame_count.to_string().len().max(2);
+    let stem = path.file_stem().unwrap_or_default().to_string_lossy();
+    let suffix = format!("-{number:0width$}", number = index + 1);
+    let file_name = path.extension().map_or_else(
+        || format!("{stem}{suffix}"),
+        |extension| format!("{stem}{suffix}.{}", extension.to_string_lossy()),
+    );
+    path.parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .map_or(file_name.clone(), |parent| {
+            parent.join(file_name).to_string_lossy().into_owned()
+        })
+}
+
+fn single_export_source(state: &ViewerState, target: ExportTarget) -> Option<ExportSource> {
+    match target {
+        ExportTarget::Entry(id) => {
+            let image = state.item(id)?.as_image()?.clone();
+            let name = state.group_label(id).unwrap_or(&image.path);
+            let (input_name, relative_path) = export_name_and_relative_path(name);
+            Some(ExportSource {
+                id,
+                frame_index: None,
+                input_name,
+                relative_path,
+                image,
+            })
+        }
+        ExportTarget::Frame { collection, index } => {
+            if let Some((id, name, image)) = state
+                .group_members(collection)
+                .and_then(|members| members.into_iter().nth(index))
+            {
+                return Some(frame_source(id, index, name, image));
+            }
+            let (name, image) = state.frame_snapshots(collection)?.into_iter().nth(index)?;
+            let frame_count = state.item(collection)?.as_image()?.frame_count();
+            Some(animation_frame_source(
+                collection,
+                index,
+                &state.item(collection)?.as_image()?.path,
+                frame_count,
+                image,
+            ))
+        }
+    }
+}
+
+fn all_export_sources(state: &ViewerState) -> Vec<ExportSource> {
+    state
+        .selected_ids
+        .iter()
+        .copied()
+        .flat_map(|id| {
+            if let Some(members) = state.group_members(id) {
+                return members
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, (member_id, name, image))| {
+                        frame_source(member_id, index, name, image)
+                    })
+                    .collect::<Vec<_>>();
+            }
+            if let Some(frames) = state.frame_snapshots(id) {
+                return frames
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, (name, image))| frame_source(id, index, name, image))
+                    .collect();
+            }
+            state
+                .item(id)
+                .and_then(|item| item.as_image())
+                .cloned()
+                .map(|image| {
+                    let (input_name, relative_path) = export_name_and_relative_path(&image.path);
+                    vec![ExportSource {
+                        id,
+                        frame_index: None,
+                        input_name,
+                        relative_path,
+                        image,
+                    }]
+                })
+                .unwrap_or_default()
+        })
+        .collect()
+}
+
+pub fn resolve_export_request(
+    state: &ViewerState,
+    mode: ExportMode,
+    single_target: Option<ExportTarget>,
+    params: &ConvertParams,
+) -> Result<ExportRequest, String> {
+    let targets = match mode {
+        ExportMode::SingleFile => {
+            let target = single_target
+                .ok_or_else(|| "Single-file export requires one target".to_string())?;
+            let selected_id = match target {
+                ExportTarget::Entry(id) => id,
+                ExportTarget::Frame { collection, .. } => collection,
+            };
+            if state.selected_ids.len() != 1 || !state.selected_ids.contains(&selected_id) {
+                return Err("Single-file export requires exactly one selected source".to_string());
+            }
+            vec![
+                single_export_source(state, target)
+                    .ok_or_else(|| "Single-file export target is not available".to_string())?,
+            ]
+        }
+        ExportMode::AllFiles => all_export_sources(state),
+    };
+    if targets.is_empty() {
+        return Err("Export request has no image sources".to_string());
+    }
+    Ok(ExportRequest {
+        mode,
+        targets,
+        output_format: params.output_format,
+        params: params.clone(),
+    })
 }
 
 #[derive(Clone)]
@@ -802,6 +992,7 @@ pub fn pick_files_web(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::image_viewer::model::SidebarItem;
     use image::AnimationDecoder;
 
     const SEMI_TRANSPARENT_RGBA: [u8; 8] = [255, 230, 27, 135, 41, 203, 77, 16];
@@ -851,6 +1042,24 @@ mod tests {
         chunks
     }
 
+    fn image_item(path: &str) -> ImageItem {
+        ImageItem {
+            path: path.to_string(),
+            info: ImageInfo {
+                width: 1,
+                height: 1,
+                data_size: 4,
+                format: "rgba".to_string(),
+                other_info: serde_json::Value::Null,
+            },
+            width: 1,
+            height: 1,
+            frames: FrameSource::single(vec![Color32::BLACK], 1, 1),
+            midata: None,
+            expanded: false,
+        }
+    }
+
     fn animation_item() -> ImageItem {
         ImageItem {
             path: "animation".to_string(),
@@ -884,6 +1093,139 @@ mod tests {
             midata: None,
             expanded: false,
         }
+    }
+
+    #[test]
+    fn single_file_request_resolves_one_static_source() {
+        let mut state = ViewerState::default();
+        let ids =
+            state.insert_and_select_first([SidebarItem::Image(image_item("assets/icon.png"))]);
+        let params = ConvertParams::default();
+
+        let request = resolve_export_request(
+            &state,
+            ExportMode::SingleFile,
+            Some(ExportTarget::Entry(ids[0])),
+            &params,
+        )
+        .unwrap();
+
+        assert_eq!(request.mode, ExportMode::SingleFile);
+        assert_eq!(request.targets.len(), 1);
+        assert_eq!(request.targets[0].id, ids[0]);
+        assert_eq!(request.targets[0].frame_index, None);
+        assert_eq!(request.targets[0].input_name, "icon.png");
+        assert_eq!(request.targets[0].relative_path.as_deref(), Some("assets"));
+        assert_eq!(request.targets[0].image.path, "assets/icon.png");
+        assert_eq!(request.output_format, params.output_format);
+        assert_eq!(request.params.output_format, params.output_format);
+    }
+
+    #[test]
+    fn group_request_is_one_logical_source_or_stable_member_sources() {
+        let mut state = ViewerState::default();
+        let member_ids = state.insert_and_select_first([
+            SidebarItem::Image(image_item("walk-left.png")),
+            SidebarItem::Image(image_item("walk-right.png")),
+        ]);
+        assert!(state.toggle_selection(member_ids[1]));
+        let group_id = state.group_selected().unwrap();
+        let params = ConvertParams::default();
+
+        let single = resolve_export_request(
+            &state,
+            ExportMode::SingleFile,
+            Some(ExportTarget::Entry(group_id)),
+            &params,
+        )
+        .unwrap();
+        assert_eq!(single.targets.len(), 1);
+        assert_eq!(single.targets[0].id, group_id);
+        assert_eq!(single.targets[0].frame_index, None);
+        assert_eq!(single.targets[0].image.frame_count(), 2);
+
+        let all = resolve_export_request(&state, ExportMode::AllFiles, None, &params).unwrap();
+        assert_eq!(
+            all.targets
+                .iter()
+                .map(|source| source.id)
+                .collect::<Vec<_>>(),
+            member_ids
+        );
+        assert_eq!(
+            all.targets
+                .iter()
+                .map(|source| (source.frame_index, source.input_name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![(Some(0), "walk-left.png"), (Some(1), "walk-right.png")]
+        );
+    }
+
+    #[test]
+    fn animation_request_expands_frames_and_resolves_explicit_frame() {
+        let mut state = ViewerState::default();
+        let id = state.insert_and_select_first([SidebarItem::Image(animation_item())])[0];
+        let params = ConvertParams::default();
+
+        let all = resolve_export_request(&state, ExportMode::AllFiles, None, &params).unwrap();
+        assert_eq!(all.targets.len(), 2);
+        assert_eq!(
+            all.targets
+                .iter()
+                .map(|source| (source.id, source.frame_index, source.image.frame_count()))
+                .collect::<Vec<_>>(),
+            vec![(id, Some(0), 1), (id, Some(1), 1)]
+        );
+
+        assert!(state.select_frame(id, 1));
+        let single = resolve_export_request(
+            &state,
+            ExportMode::SingleFile,
+            Some(ExportTarget::Frame {
+                collection: id,
+                index: 1,
+            }),
+            &params,
+        )
+        .unwrap();
+        assert_eq!(single.targets.len(), 1);
+        assert_eq!(single.targets[0].id, id);
+        assert_eq!(single.targets[0].frame_index, Some(1));
+        assert_eq!(single.targets[0].input_name, "animation-02");
+        assert_eq!(single.targets[0].image.frame_count(), 1);
+    }
+
+    #[test]
+    fn mixed_all_files_uses_stable_selected_ids_not_primary_target() {
+        let mut state = ViewerState::default();
+        let ids = state.insert_and_select_first([
+            SidebarItem::Image(image_item("static.png")),
+            SidebarItem::Image(animation_item()),
+        ]);
+        assert!(state.toggle_selection(ids[1]));
+        assert_eq!(state.primary_target, Some(SelectionTarget::Entry(ids[1])));
+        let params = ConvertParams::default();
+
+        let all = resolve_export_request(&state, ExportMode::AllFiles, None, &params).unwrap();
+        assert_eq!(
+            all.targets
+                .iter()
+                .map(|source| (source.id, source.frame_index))
+                .collect::<Vec<_>>(),
+            vec![(ids[0], None), (ids[1], Some(0)), (ids[1], Some(1))]
+        );
+
+        assert_eq!(
+            resolve_export_request(
+                &state,
+                ExportMode::SingleFile,
+                Some(ExportTarget::Entry(ids[1])),
+                &params,
+            )
+            .err()
+            .unwrap(),
+            "Single-file export requires exactly one selected source"
+        );
     }
 
     #[test]
