@@ -77,7 +77,12 @@ pub fn get_diff_mode(state: &ViewerState) -> DiffMode {
     let (Some(a), Some(b)) = (item_image(item1), item_image(item2)) else {
         return DiffMode::None;
     };
-    match (is_font(a), is_font(b), is_rgba_image(a), is_rgba_image(b)) {
+    match (
+        is_font(a),
+        is_font(b),
+        supports_pixel_diff(a),
+        supports_pixel_diff(b),
+    ) {
         (true, true, _, _) => DiffMode::Glyph,
         (_, _, true, true) => DiffMode::Image,
         _ => DiffMode::Incompatible,
@@ -95,8 +100,11 @@ fn is_font(image: &ImageItem) -> bool {
     matches!(image.midata, Some(MiData::FONT(_)))
 }
 
-fn is_rgba_image(image: &ImageItem) -> bool {
-    matches!(image.midata, Some(MiData::RGBA(_)) | None)
+fn supports_pixel_diff(image: &ImageItem) -> bool {
+    matches!(
+        image.midata,
+        Some(MiData::RGBA(_)) | Some(MiData::INDEXED(_)) | None
+    )
 }
 
 fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
@@ -603,4 +611,77 @@ fn paint_dashed_rect(
         t += step;
     }
     let _ = corner;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::image_viewer::model::{FrameSource, SidebarItem};
+    use eframe::egui::Color32;
+    use icu_lib::endecoder::ImageInfo;
+
+    fn pixel_item(path: &str, color: Color32, indexed: bool) -> ImageItem {
+        let rgba = icu_lib::image::RgbaImage::from_pixel(
+            1,
+            1,
+            icu_lib::image::Rgba(color.to_srgba_unmultiplied()),
+        );
+        let midata = if indexed {
+            MiData::INDEXED(icu_lib::midata::IndexedImageData {
+                rgba,
+                palette: vec![color.to_srgba_unmultiplied()],
+                indexes: vec![0],
+                bpp: 1,
+                width: 1,
+                height: 1,
+            })
+        } else {
+            MiData::RGBA(rgba)
+        };
+        ImageItem {
+            path: path.to_string(),
+            info: ImageInfo {
+                width: 1,
+                height: 1,
+                data_size: 4,
+                format: if indexed { "indexed" } else { "rgba" }.to_string(),
+                other_info: serde_json::Value::Null,
+            },
+            width: 1,
+            height: 1,
+            frames: FrameSource::single(vec![color], 1, 1),
+            midata: Some(midata),
+            expanded: false,
+        }
+    }
+
+    fn assert_pixel_diff(left: ImageItem, right: ImageItem) {
+        let mut state = ViewerState::default();
+        let ids = state.insert_and_select_first([
+            SidebarItem::Image(left.clone()),
+            SidebarItem::Image(right.clone()),
+        ]);
+        state.diff_image1_id = Some(ids[0]);
+        state.diff_image2_id = Some(ids[1]);
+
+        assert_eq!(get_diff_mode(&state), DiffMode::Image);
+        let (_, diff) = crate::utils::diff_image(&left, &right, 0.5, 0.0, false).unwrap();
+        assert_eq!(diff.diff_filter(0.0).count(), 1);
+    }
+
+    #[test]
+    fn indexed_images_support_pixel_diff() {
+        assert_pixel_diff(
+            pixel_item("left.idx", Color32::BLACK, true),
+            pixel_item("right.idx", Color32::WHITE, true),
+        );
+    }
+
+    #[test]
+    fn indexed_and_rgba_images_support_pixel_diff() {
+        assert_pixel_diff(
+            pixel_item("left.idx", Color32::BLACK, true),
+            pixel_item("right.rgba", Color32::WHITE, false),
+        );
+    }
 }

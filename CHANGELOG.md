@@ -9,6 +9,7 @@
 - 🐛 Keep automatic sequence grouping stable when one batch contains multiple independent filename sequences.
 - 🎨 Stack the Viewer conversion actions as full-width rows and show the resolved task count on `Convert All`.
 - 🐛 Restore Web multi-file picking as a separate action from folder picking and capture recursive folder drops before the canvas consumes them.
+- 🐛 Allow indexed images to participate in pixel diff against indexed and RGBA images.
 
 ## [v0.8.1] - 2026-08-26
 
