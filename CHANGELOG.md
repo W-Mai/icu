@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [v0.9.0] - 2026-08-27
 
 - ✨ Add explicit single-file and all-files Viewer export actions for static images, Groups, and animation frames.
 - ✨ Recursively import native folders and WebAssembly-selected or dropped directories while preserving stable relative paths.
