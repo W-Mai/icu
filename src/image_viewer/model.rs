@@ -883,21 +883,6 @@ impl ViewerState {
         })
     }
 
-    pub fn selected_frame(&self) -> Option<(WorkspaceId, usize, &ImageItem)> {
-        let SelectionTarget::Frame { collection, index } = self.primary_target? else {
-            return None;
-        };
-        if let Some(group) = self.sequence_groups.get(&collection)
-            && let Some(member) = group.members.get(index)
-        {
-            return Some((collection, index, &member.image));
-        }
-        let SidebarItem::Image(image) = self.item(collection)? else {
-            return None;
-        };
-        Some((collection, index, image))
-    }
-
     pub fn frame_snapshots(&self, id: WorkspaceId) -> Option<Vec<(String, ImageItem)>> {
         if let Some(members) = self.group_members(id) {
             return Some(
@@ -1023,18 +1008,6 @@ impl ViewerState {
         }
         self.invalidate_derived_state();
         true
-    }
-
-    pub fn selected_image_snapshots(&self) -> Vec<ImageItem> {
-        self.items
-            .iter()
-            .filter_map(|item| {
-                if !self.selected_ids.contains(&item.id) {
-                    return None;
-                }
-                item.content.as_image().cloned()
-            })
-            .collect()
     }
 
     pub fn remove_selected(&mut self) {
@@ -1945,7 +1918,7 @@ mod tests {
     }
 
     #[test]
-    fn batch_remove_keeps_selection_consistent_and_export_snapshot_stable() {
+    fn batch_remove_keeps_selection_consistent() {
         let mut state = ViewerState::default();
         let ids = state.append_items([
             image("/a/one.png"),
@@ -1954,10 +1927,6 @@ mod tests {
         ]);
         state.focus_list(ids[0]);
         state.toggle_selection(ids[1]);
-        let snapshots = state.selected_image_snapshots();
-        assert_eq!(snapshots.len(), 2);
-        assert_eq!(snapshots[0].path, "/a/one.png");
-        assert_eq!(snapshots[1].path, "/a/two.png");
         state.remove_selected();
         assert_eq!(state.len(), 1);
         assert_eq!(state.selected_ids, BTreeSet::from([ids[2]]));
