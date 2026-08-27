@@ -717,6 +717,7 @@ impl EnDecoder for PAM {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::{AutoDetect, BMP, JPEG, PNG};
     use crate::endecoder::EnDecoder;

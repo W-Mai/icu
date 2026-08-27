@@ -21,12 +21,12 @@ fn color_from_usvg(c: usvg::Color) -> Color {
 
 fn transform_from_usvg(t: usvg::Transform) -> Transform {
     Transform {
-        m00: fixed_from_f32(t.sx as f32),
-        m01: fixed_from_f32(t.kx as f32),
-        tx: fixed_from_f32(t.tx as f32),
-        m10: fixed_from_f32(t.ky as f32),
-        m11: fixed_from_f32(t.sy as f32),
-        ty: fixed_from_f32(t.ty as f32),
+        m00: fixed_from_f32(t.sx),
+        m01: fixed_from_f32(t.kx),
+        tx: fixed_from_f32(t.tx),
+        m10: fixed_from_f32(t.ky),
+        m11: fixed_from_f32(t.sy),
+        ty: fixed_from_f32(t.ty),
     }
 }
 
@@ -36,27 +36,27 @@ fn convert_path(path: &SkPath) -> MirxPath {
         match seg {
             usvg::tiny_skia_path::PathSegment::MoveTo(p) => {
                 cmds.push(PathCmd::MoveTo(Point::new(
-                    fixed_from_f32(p.x as f32),
-                    fixed_from_f32(p.y as f32),
+                    fixed_from_f32(p.x),
+                    fixed_from_f32(p.y),
                 )));
             }
             usvg::tiny_skia_path::PathSegment::LineTo(p) => {
                 cmds.push(PathCmd::LineTo(Point::new(
-                    fixed_from_f32(p.x as f32),
-                    fixed_from_f32(p.y as f32),
+                    fixed_from_f32(p.x),
+                    fixed_from_f32(p.y),
                 )));
             }
             usvg::tiny_skia_path::PathSegment::QuadTo(p1, p2) => {
                 cmds.push(PathCmd::QuadTo {
-                    ctrl: Point::new(fixed_from_f32(p1.x as f32), fixed_from_f32(p1.y as f32)),
-                    end: Point::new(fixed_from_f32(p2.x as f32), fixed_from_f32(p2.y as f32)),
+                    ctrl: Point::new(fixed_from_f32(p1.x), fixed_from_f32(p1.y)),
+                    end: Point::new(fixed_from_f32(p2.x), fixed_from_f32(p2.y)),
                 });
             }
             usvg::tiny_skia_path::PathSegment::CubicTo(p1, p2, p3) => {
                 cmds.push(PathCmd::CubicTo {
-                    ctrl1: Point::new(fixed_from_f32(p1.x as f32), fixed_from_f32(p1.y as f32)),
-                    ctrl2: Point::new(fixed_from_f32(p2.x as f32), fixed_from_f32(p2.y as f32)),
-                    end: Point::new(fixed_from_f32(p3.x as f32), fixed_from_f32(p3.y as f32)),
+                    ctrl1: Point::new(fixed_from_f32(p1.x), fixed_from_f32(p1.y)),
+                    ctrl2: Point::new(fixed_from_f32(p2.x), fixed_from_f32(p2.y)),
+                    end: Point::new(fixed_from_f32(p3.x), fixed_from_f32(p3.y)),
                 });
             }
             usvg::tiny_skia_path::PathSegment::Close => {
@@ -105,7 +105,7 @@ fn paint_to_mirx(paint: &usvg::Paint, opacity: u8) -> Option<MirxPaint> {
             let stops = gradient_stops_from_usvg(g.stops());
             Some(MirxPaint::RadialGradient(RadialGradient {
                 center: point_from_usvg(g.cx(), g.cy()),
-                radius: fixed_from_f32(g.r().get() as f32),
+                radius: fixed_from_f32(g.r().get()),
                 focal: point_from_usvg(g.fx(), g.fy()),
                 focal_radius: Fixed::ZERO,
                 stops: Cow::Owned(stops),
@@ -126,7 +126,7 @@ fn gradient_stops_from_usvg(stops: &[usvg::Stop]) -> Vec<GradientStop> {
     stops
         .iter()
         .map(|s| GradientStop {
-            offset: fixed_from_f32(s.offset().get() as f32),
+            offset: fixed_from_f32(s.offset().get()),
             color: color_from_usvg(s.color()),
         })
         .collect()
@@ -195,7 +195,7 @@ fn walk_group(group: &usvg::Group, ops: &mut Vec<SceneOp>) {
 
     let clip_paths: Vec<Vec<SceneOp>> = group
         .clip_path()
-        .map(|cp| collect_clip_ops(cp))
+        .map(collect_clip_ops)
         .into_iter()
         .collect();
     for clip_ops in &clip_paths {
@@ -272,8 +272,8 @@ fn emit_image(img: &usvg::Image, ops: &mut Vec<SceneOp>) {
     let area = mirx::Rect::new(
         Fixed::ZERO,
         Fixed::ZERO,
-        fixed_from_f32(size.width() as f32),
-        fixed_from_f32(size.height() as f32),
+        fixed_from_f32(size.width()),
+        fixed_from_f32(size.height()),
     );
 
     ops.push(SceneOp::FillRect {
@@ -343,7 +343,7 @@ fn emit_path(p: &usvg::Path, ops: &mut Vec<SceneOp>) {
     }
     if let Some(stroke) = p.stroke() {
         if let Some(paint) = paint_to_mirx(stroke.paint(), stroke.opacity().to_u8()) {
-            let width = fixed_from_f32(stroke.width().get() as f32);
+            let width = fixed_from_f32(stroke.width().get());
             if width > Fixed::ZERO {
                 ops.push(SceneOp::StrokePath {
                     path,
@@ -353,7 +353,7 @@ fn emit_path(p: &usvg::Path, ops: &mut Vec<SceneOp>) {
                     opa: stroke.opacity().to_u8(),
                     line_cap: line_cap_from_usvg(stroke.linecap()),
                     line_join: line_join_from_usvg(stroke.linejoin()),
-                    miter_limit: fixed_from_f32(stroke.miterlimit().get() as f32),
+                    miter_limit: fixed_from_f32(stroke.miterlimit().get()),
                     dash: Cow::Owned(
                         stroke
                             .dasharray()

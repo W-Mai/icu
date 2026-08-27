@@ -35,7 +35,7 @@ pub fn render_font_atlas(font: &mirx::Font) -> RgbaImage {
     let gap = 1u32;
     let cols = (font.metrics.len() as f64).sqrt().ceil() as u32;
     let cols = cols.max(1);
-    let rows = (font.metrics.len() as u32 + cols - 1) / cols;
+    let rows = (font.metrics.len() as u32).div_ceil(cols);
     let grid_w = cols * cell + (cols + 1) * gap;
     let grid_h = rows * cell + (rows + 1) * gap;
     let mut buffer = vec![0u8; (grid_w * grid_h * 4) as usize];
@@ -176,6 +176,7 @@ pub fn render_freetype_glyph_at(
     Some(img)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn render_freetype_glyph_on_canvas(
     font: &crate::midata::FreeTypeFontData,
     ch: char,
@@ -238,7 +239,7 @@ pub fn render_freetype_glyphs(
     let gap: u32 = 2;
     let cols = (font.glyphs.len() as f64).sqrt().ceil() as u32;
     let cols = cols.max(1);
-    let rows = (font.glyphs.len() as u32 + cols - 1) / cols;
+    let rows = (font.glyphs.len() as u32).div_ceil(cols);
     let grid_w = cols * cell + (cols + 1) * gap;
     let grid_h = rows * cell + (rows + 1) * gap;
     let mut buffer = vec![0u8; (grid_w * grid_h * 4) as usize];

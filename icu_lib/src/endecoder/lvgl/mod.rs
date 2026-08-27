@@ -2,6 +2,7 @@ use modular_bitfield::prelude::*;
 use std::io::{Cursor, Write};
 
 pub mod color_converter;
+#[allow(clippy::module_inception)]
 mod lvgl;
 
 #[derive(Specifier)]

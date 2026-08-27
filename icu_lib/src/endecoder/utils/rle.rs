@@ -51,7 +51,7 @@ impl RleCoder {
     /// Refer to https://github.com/lvgl/lvgl/blob/8c2289f87feee210e354c8d5311a36e85e63891c/scripts/LVGLImage.py#L1070-L1148
     /// This method is really eye-catching.
     pub fn encode(&self, data: &[u8]) -> Result<Vec<u8>> {
-        if data.len() % self.block_size != 0 {
+        if !data.len().is_multiple_of(self.block_size) {
             return Err(RleError::InvalidInput);
         }
 

@@ -423,6 +423,7 @@ pub fn sdf_to_gray_font(sdf_font: &mirx::Font, target_size: u16) -> Option<mirx:
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_sdf_glyph_to_coverage(
     atlas: &[u8],
     source_size: u16,
@@ -478,8 +479,7 @@ fn sample_sdf_distance(
     };
     let max_q = if bit_depth == 4 { 15.0 } else { 255.0 };
     let zero = max_q / 2.0;
-    let signed = (q as f32 - zero) / zero * spread as f32;
-    signed
+    (q as f32 - zero) / zero * spread as f32
 }
 
 #[cfg(test)]

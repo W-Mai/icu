@@ -12,7 +12,7 @@ macro_rules! test_encode_decode {
         let data = mid.encode_into(
             &lvgl::LVGL {},
             EncoderParams {
-                color_format: lvgl::ColorFormat::$cf,
+                color_format: icu_lib::endecoder::ColorFormat::$cf,
                 stride_align: 256,
                 lvgl_version: lvgl::LVGLVersion::V9,
                 ..Default::default()
