@@ -6,6 +6,8 @@
 - ✨ Recursively import native folders and WebAssembly-selected or dropped directories while preserving stable relative paths.
 - ✨ Download WebAssembly batch exports as a ZIP archive and protect native batch output from overwrites and symlink traversal.
 - 🐛 Reject static APNG conversion instead of writing ordinary PNG bytes with an `.apng` suffix.
+- 🐛 Keep automatic sequence grouping stable when one batch contains multiple independent filename sequences.
+- 🎨 Stack the Viewer conversion actions as full-width rows and show the resolved task count on `Convert All`.
 
 ## [v0.8.1] - 2026-08-26
 

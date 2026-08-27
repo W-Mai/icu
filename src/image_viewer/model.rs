@@ -1319,7 +1319,7 @@ impl ViewerState {
     }
 
     fn auto_group_sequences(&mut self, playback: &HashMap<SequenceKey, GroupPlayback>) {
-        let mut candidates: HashMap<SequenceKey, Vec<(usize, u32)>> = HashMap::new();
+        let mut candidates: HashMap<SequenceKey, Vec<(usize, WorkspaceId, u32)>> = HashMap::new();
         for (index, item) in self.items.iter().enumerate() {
             let SidebarItem::Image(image) = &item.content else {
                 continue;
@@ -1335,47 +1335,46 @@ impl ViewerState {
             let Some((key, number)) = sequence_key(&image.path, image.width, image.height) else {
                 continue;
             };
-            candidates.entry(key).or_default().push((index, number));
+            candidates
+                .entry(key)
+                .or_default()
+                .push((index, item.id, number));
         }
 
         let mut groups = candidates
             .into_iter()
             .filter_map(|(key, mut members)| {
-                members.sort_by_key(|(_, number)| *number);
-                (members.len() >= 2 && members.windows(2).all(|pair| pair[1].1 == pair[0].1 + 1))
+                members.sort_by_key(|(_, _, number)| *number);
+                (members.len() >= 2 && members.windows(2).all(|pair| pair[1].2 == pair[0].2 + 1))
                     .then_some((key, members))
             })
             .collect::<Vec<_>>();
         groups.sort_by_key(|(_, members)| members[0].0);
 
         for (key, members) in groups.into_iter().rev() {
-            let first_index = members[0].0;
-            if first_index >= self.items.len() {
-                continue;
-            }
-            let member_ids = members
-                .iter()
-                .map(|(index, _)| self.items[*index].id)
-                .collect::<Vec<_>>();
+            let member_ids = members.iter().map(|(_, id, _)| *id).collect::<Vec<_>>();
             if member_ids
                 .iter()
                 .any(|id| self.sequence_groups.contains_key(id))
             {
                 continue;
             }
-            let originals = members
+            let Some(first_index) = self.index_of(member_ids[0]) else {
+                continue;
+            };
+            let originals = member_ids
                 .iter()
-                .filter_map(|(index, _)| match &self.items[*index].content {
-                    SidebarItem::Image(image) => Some(SequenceMember {
-                        id: self.items[*index].id,
+                .filter_map(|id| match self.item(*id) {
+                    Some(SidebarItem::Image(image)) => Some(SequenceMember {
+                        id: *id,
                         image: image.clone(),
                         sequence_number: sequence_digits(&image.path).map(|value| value.0),
                         digit_width: sequence_digits(&image.path).map_or(0, |value| value.1),
                     }),
-                    SidebarItem::Glyph(_) => None,
+                    _ => None,
                 })
                 .collect::<Vec<_>>();
-            if originals.len() < 2 {
+            if originals.len() != member_ids.len() {
                 continue;
             }
             let state = playback.get(&key).copied().unwrap_or(GroupPlayback {
@@ -1403,7 +1402,13 @@ impl ViewerState {
                 content_revision: 0,
                 content: SidebarItem::Image(group_image),
             };
-            for index in members.iter().skip(1).map(|(index, _)| *index).rev() {
+            let mut removal_indices = member_ids
+                .iter()
+                .skip(1)
+                .filter_map(|id| self.index_of(*id))
+                .collect::<Vec<_>>();
+            removal_indices.sort_unstable_by(|left, right| right.cmp(left));
+            for index in removal_indices {
                 self.items.remove(index);
             }
         }
@@ -1720,6 +1725,39 @@ mod tests {
         assert_eq!(state.len(), 1);
         assert!(state.is_sequence_group(state.items()[0].id()));
         assert_eq!(state.current_image().unwrap().frame_count(), 3);
+    }
+
+    #[test]
+    fn multiple_sequences_group_in_one_batch_without_index_drift() {
+        let mut state = ViewerState::default();
+        state.insert_and_select_first([
+            image("/tmp/walk_0001.png"),
+            image("/tmp/walk_0002.png"),
+            image("/tmp/idle_0001.png"),
+            image("/tmp/idle_0002.png"),
+            image("/tmp/jump_0001.png"),
+            image("/tmp/jump_0002.png"),
+            image("/tmp/static.png"),
+        ]);
+
+        assert_eq!(state.len(), 4);
+        assert_eq!(
+            state
+                .items()
+                .iter()
+                .filter(|item| state.is_sequence_group(item.id()))
+                .count(),
+            3
+        );
+        assert_eq!(
+            state
+                .items()
+                .iter()
+                .filter_map(|item| item.content().as_image())
+                .map(ImageItem::frame_count)
+                .collect::<Vec<_>>(),
+            vec![2, 2, 2, 1]
+        );
     }
 
     #[test]

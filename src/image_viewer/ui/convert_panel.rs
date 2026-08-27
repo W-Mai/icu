@@ -426,29 +426,36 @@ pub fn draw_convert_options(ui: &mut egui::Ui, state: &mut ViewerState) {
             )
             .map(|request| request.targets.len())
             .unwrap_or_default();
-            ui.label(format!("{all_count} export source(s)"));
-            ui.horizontal(|ui| {
-                if ui
-                    .add_enabled(single_available, egui::Button::new(t!("convert")))
-                    .clicked()
-                {
-                    export_request(
-                        state,
-                        crate::image_viewer::utils::ExportMode::SingleFile,
-                        target,
-                    );
-                }
-                if ui
-                    .add_enabled(all_count > 0, egui::Button::new(t!("convert_all")))
-                    .clicked()
-                {
-                    export_request(
-                        state,
-                        crate::image_viewer::utils::ExportMode::AllFiles,
-                        None,
-                    );
-                }
-            });
+            if ui
+                .add_enabled_ui(single_available, |ui| {
+                    crate::image_viewer::ui::widgets::primary_action_button(ui, t!("convert"))
+                })
+                .inner
+                .clicked()
+            {
+                export_request(
+                    state,
+                    crate::image_viewer::utils::ExportMode::SingleFile,
+                    target,
+                );
+            }
+            ui.add_space(6.0);
+            if ui
+                .add_enabled_ui(all_count > 0, |ui| {
+                    crate::image_viewer::ui::widgets::primary_action_button(
+                        ui,
+                        format!("{} ({all_count})", t!("convert_all")),
+                    )
+                })
+                .inner
+                .clicked()
+            {
+                export_request(
+                    state,
+                    crate::image_viewer::utils::ExportMode::AllFiles,
+                    None,
+                );
+            }
         }
     });
 }
