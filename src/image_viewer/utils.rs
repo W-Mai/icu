@@ -1388,9 +1388,13 @@ pub fn install_web_directory_drop(
     let ctx = Rc::new(ctx);
     let on_drag_over = Closure::<dyn FnMut(_)>::new(move |event: web_sys::Event| {
         event.prevent_default();
+        event.stop_propagation();
     });
-    let _ = document
-        .add_event_listener_with_callback("dragover", on_drag_over.as_ref().unchecked_ref());
+    let _ = document.add_event_listener_with_callback_and_bool(
+        "dragover",
+        on_drag_over.as_ref().unchecked_ref(),
+        true,
+    );
     on_drag_over.forget();
 
     let on_drop = Closure::<dyn FnMut(_)>::new(move |event: web_sys::Event| {
@@ -1439,19 +1443,25 @@ pub fn install_web_directory_drop(
                         result.push(...await readHandle(child, prefix + handle.name + '/'));
                     return result;
                 };
-                const result = [];
-                for (const item of dt.items) {
+                const sources = Array.from(dt.items, item => {
                     let handle = null;
-                    try { handle = await item.getAsFileSystemHandle?.(); } catch (_) {}
+                    try { handle = item.getAsFileSystemHandle?.() ?? null; } catch (_) {}
+                    return {
+                        handle,
+                        entry: item.webkitGetAsEntry?.() ?? null,
+                        file: item.getAsFile?.() ?? null
+                    };
+                });
+                const result = [];
+                for (const source of sources) {
+                    let handle = null;
+                    try { handle = await source.handle; } catch (_) {}
                     if (handle) result.push(...await readHandle(handle, ''));
-                    else {
-                        const entry = item.webkitGetAsEntry?.();
-                        if (entry) result.push(...await readEntry(entry, ''));
-                        else {
-                            const file = item.getAsFile?.();
-                            if (file) result.push({ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) });
-                        }
-                    }
+                    else if (source.entry) result.push(...await readEntry(source.entry, ''));
+                    else if (source.file) result.push({
+                        name: source.file.name,
+                        bytes: new Uint8Array(await source.file.arrayBuffer())
+                    });
                 }
                 return result;
             })()"#,
@@ -1494,7 +1504,11 @@ pub fn install_web_directory_drop(
             }
         });
     });
-    let _ = document.add_event_listener_with_callback("drop", on_drop.as_ref().unchecked_ref());
+    let _ = document.add_event_listener_with_callback_and_bool(
+        "drop",
+        on_drop.as_ref().unchecked_ref(),
+        true,
+    );
     on_drop.forget();
 }
 
@@ -1502,6 +1516,23 @@ pub fn install_web_directory_drop(
 pub fn pick_files_web(
     pending: std::rc::Rc<std::cell::RefCell<Vec<DroppedFile>>>,
     ctx: eframe::egui::Context,
+) {
+    pick_web_input(pending, ctx, false);
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn pick_directory_web(
+    pending: std::rc::Rc<std::cell::RefCell<Vec<DroppedFile>>>,
+    ctx: eframe::egui::Context,
+) {
+    pick_web_input(pending, ctx, true);
+}
+
+#[cfg(target_arch = "wasm32")]
+fn pick_web_input(
+    pending: std::rc::Rc<std::cell::RefCell<Vec<DroppedFile>>>,
+    ctx: eframe::egui::Context,
+    directory: bool,
 ) {
     use eframe::wasm_bindgen::{JsCast, JsValue, closure::Closure};
     use std::rc::Rc;
@@ -1524,8 +1555,10 @@ pub fn pick_files_web(
     };
     input.set_type("file");
     input.set_multiple(true);
-    let _ = input.set_attribute("webkitdirectory", "");
-    let _ = input.set_attribute("directory", "");
+    if directory {
+        let _ = input.set_attribute("webkitdirectory", "");
+        let _ = input.set_attribute("directory", "");
+    }
 
     let pending = Rc::new(pending);
     let ctx = Rc::new(ctx);

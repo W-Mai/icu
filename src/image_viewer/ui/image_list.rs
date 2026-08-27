@@ -36,7 +36,7 @@ pub fn draw_left_panel(
                         );
                         let btn_y = hdr_rect.center().y;
                         let add_rect = egui::Rect::from_center_size(
-                            egui::pos2(hdr_rect.right() - 40.0, btn_y),
+                            egui::pos2(hdr_rect.right() - 64.0, btn_y),
                             egui::vec2(24.0, 20.0),
                         );
                         let add_resp =
@@ -91,6 +91,57 @@ pub fn draw_left_panel(
                                     ui.ctx().clone(),
                                 );
                             }
+                        }
+                        let folder_rect = egui::Rect::from_center_size(
+                            egui::pos2(hdr_rect.right() - 40.0, btn_y),
+                            egui::vec2(24.0, 20.0),
+                        );
+                        let folder_resp = ui.interact(
+                            folder_rect,
+                            ui.id().with("sb_folder"),
+                            egui::Sense::click(),
+                        );
+                        let folder_fill = if folder_resp.hovered() {
+                            p.surface1
+                        } else {
+                            Color32::TRANSPARENT
+                        };
+                        ui.painter().rect(
+                            folder_rect,
+                            egui::CornerRadius::same(4),
+                            folder_fill,
+                            egui::Stroke::NONE,
+                            egui::StrokeKind::Inside,
+                        );
+                        ui.painter().text(
+                            folder_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "📁",
+                            egui::FontId::proportional(12.0),
+                            p.subtext0,
+                        );
+                        if folder_resp.clicked() {
+                            #[cfg(not(target_arch = "wasm32"))]
+                            if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                                let files = [eframe::egui::DroppedFile {
+                                    path: Some(path),
+                                    ..Default::default()
+                                }];
+                                let new_items =
+                                    crate::image_viewer::utils::process_images_with_format(
+                                        &files,
+                                        state.input_format,
+                                    )
+                                    .into_iter()
+                                    .map(SidebarItem::Image)
+                                    .collect::<Vec<_>>();
+                                state.insert_and_select_first(new_items);
+                            }
+                            #[cfg(target_arch = "wasm32")]
+                            crate::image_viewer::utils::pick_directory_web(
+                                state.pending_dropped.clone(),
+                                ui.ctx().clone(),
+                            );
                         }
                         let clr_rect = egui::Rect::from_center_size(
                             egui::pos2(hdr_rect.right() - 16.0, btn_y),
