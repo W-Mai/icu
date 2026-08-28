@@ -370,6 +370,252 @@ impl SidebarItem {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GlyphNodeRole {
+    Endpoint,
+    QuadControl,
+    CubicControl1,
+    CubicControl2,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GlyphNodeId {
+    pub command_index: usize,
+    pub role: GlyphNodeRole,
+}
+
+pub const GLYPH_HISTORY_LIMIT: usize = 64;
+
+#[derive(Clone, Default, PartialEq)]
+pub struct GlyphEditorState {
+    pub selected_node: Option<GlyphNodeId>,
+    undo: Vec<Vec<icu_lib::mirx::PathCmd>>,
+    redo: Vec<Vec<icu_lib::mirx::PathCmd>>,
+    pub drag_before: Option<Vec<icu_lib::mirx::PathCmd>>,
+}
+
+impl GlyphEditorState {
+    pub fn record(&mut self, before: Vec<icu_lib::mirx::PathCmd>) {
+        if self.undo.last() != Some(&before) {
+            self.undo.push(before);
+            if self.undo.len() > GLYPH_HISTORY_LIMIT {
+                self.undo.remove(0);
+            }
+        }
+        self.redo.clear();
+    }
+
+    pub fn undo(
+        &mut self,
+        current: &[icu_lib::mirx::PathCmd],
+    ) -> Option<Vec<icu_lib::mirx::PathCmd>> {
+        let previous = self.undo.pop()?;
+        self.redo.push(current.to_vec());
+        Some(previous)
+    }
+
+    pub fn redo(
+        &mut self,
+        current: &[icu_lib::mirx::PathCmd],
+    ) -> Option<Vec<icu_lib::mirx::PathCmd>> {
+        let next = self.redo.pop()?;
+        self.undo.push(current.to_vec());
+        Some(next)
+    }
+
+    pub fn can_undo(&self) -> bool {
+        !self.undo.is_empty()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        !self.redo.is_empty()
+    }
+}
+
+pub fn glyph_nodes(outline: &[icu_lib::mirx::PathCmd]) -> Vec<(GlyphNodeId, icu_lib::mirx::Point)> {
+    let mut nodes = Vec::new();
+    for (command_index, command) in outline.iter().enumerate() {
+        let endpoint = GlyphNodeId {
+            command_index,
+            role: GlyphNodeRole::Endpoint,
+        };
+        match command {
+            icu_lib::mirx::PathCmd::MoveTo(point) | icu_lib::mirx::PathCmd::LineTo(point) => {
+                nodes.push((endpoint, *point));
+            }
+            icu_lib::mirx::PathCmd::QuadTo { ctrl, end } => {
+                nodes.push((
+                    GlyphNodeId {
+                        command_index,
+                        role: GlyphNodeRole::QuadControl,
+                    },
+                    *ctrl,
+                ));
+                nodes.push((endpoint, *end));
+            }
+            icu_lib::mirx::PathCmd::CubicTo { ctrl1, ctrl2, end } => {
+                nodes.push((
+                    GlyphNodeId {
+                        command_index,
+                        role: GlyphNodeRole::CubicControl1,
+                    },
+                    *ctrl1,
+                ));
+                nodes.push((
+                    GlyphNodeId {
+                        command_index,
+                        role: GlyphNodeRole::CubicControl2,
+                    },
+                    *ctrl2,
+                ));
+                nodes.push((endpoint, *end));
+            }
+            icu_lib::mirx::PathCmd::Close => {}
+        }
+    }
+    nodes
+}
+
+pub fn glyph_node_point(
+    outline: &[icu_lib::mirx::PathCmd],
+    node: GlyphNodeId,
+) -> Option<icu_lib::mirx::Point> {
+    match outline.get(node.command_index)? {
+        icu_lib::mirx::PathCmd::MoveTo(point) | icu_lib::mirx::PathCmd::LineTo(point)
+            if node.role == GlyphNodeRole::Endpoint =>
+        {
+            Some(*point)
+        }
+        icu_lib::mirx::PathCmd::QuadTo { ctrl, .. } if node.role == GlyphNodeRole::QuadControl => {
+            Some(*ctrl)
+        }
+        icu_lib::mirx::PathCmd::QuadTo { end, .. } if node.role == GlyphNodeRole::Endpoint => {
+            Some(*end)
+        }
+        icu_lib::mirx::PathCmd::CubicTo { ctrl1, .. }
+            if node.role == GlyphNodeRole::CubicControl1 =>
+        {
+            Some(*ctrl1)
+        }
+        icu_lib::mirx::PathCmd::CubicTo { ctrl2, .. }
+            if node.role == GlyphNodeRole::CubicControl2 =>
+        {
+            Some(*ctrl2)
+        }
+        icu_lib::mirx::PathCmd::CubicTo { end, .. } if node.role == GlyphNodeRole::Endpoint => {
+            Some(*end)
+        }
+        _ => None,
+    }
+}
+
+pub fn move_glyph_node(
+    outline: &mut [icu_lib::mirx::PathCmd],
+    node: GlyphNodeId,
+    point: icu_lib::mirx::Point,
+) -> bool {
+    let Some(command) = outline.get_mut(node.command_index) else {
+        return false;
+    };
+    match (command, node.role) {
+        (icu_lib::mirx::PathCmd::MoveTo(target), GlyphNodeRole::Endpoint)
+        | (icu_lib::mirx::PathCmd::LineTo(target), GlyphNodeRole::Endpoint) => *target = point,
+        (icu_lib::mirx::PathCmd::QuadTo { ctrl, .. }, GlyphNodeRole::QuadControl) => *ctrl = point,
+        (icu_lib::mirx::PathCmd::QuadTo { end, .. }, GlyphNodeRole::Endpoint) => *end = point,
+        (icu_lib::mirx::PathCmd::CubicTo { ctrl1, .. }, GlyphNodeRole::CubicControl1) => {
+            *ctrl1 = point
+        }
+        (icu_lib::mirx::PathCmd::CubicTo { ctrl2, .. }, GlyphNodeRole::CubicControl2) => {
+            *ctrl2 = point
+        }
+        (icu_lib::mirx::PathCmd::CubicTo { end, .. }, GlyphNodeRole::Endpoint) => *end = point,
+        _ => return false,
+    }
+    true
+}
+
+pub fn delete_glyph_node(outline: &mut Vec<icu_lib::mirx::PathCmd>, node: GlyphNodeId) -> bool {
+    let Some(command) = outline.get(node.command_index) else {
+        return false;
+    };
+    match (command, node.role) {
+        (icu_lib::mirx::PathCmd::LineTo(_), GlyphNodeRole::Endpoint) => {
+            outline.remove(node.command_index);
+            true
+        }
+        (icu_lib::mirx::PathCmd::QuadTo { end, .. }, GlyphNodeRole::QuadControl) => {
+            let end = *end;
+            outline[node.command_index] = icu_lib::mirx::PathCmd::LineTo(end);
+            true
+        }
+        (icu_lib::mirx::PathCmd::CubicTo { end, .. }, GlyphNodeRole::CubicControl1)
+        | (icu_lib::mirx::PathCmd::CubicTo { end, .. }, GlyphNodeRole::CubicControl2) => {
+            let end = *end;
+            outline[node.command_index] = icu_lib::mirx::PathCmd::LineTo(end);
+            true
+        }
+        _ => false,
+    }
+}
+
+pub fn can_delete_glyph_node(outline: &[icu_lib::mirx::PathCmd], node: GlyphNodeId) -> bool {
+    matches!(
+        (outline.get(node.command_index), node.role),
+        (
+            Some(icu_lib::mirx::PathCmd::LineTo(_)),
+            GlyphNodeRole::Endpoint
+        ) | (
+            Some(icu_lib::mirx::PathCmd::QuadTo { .. }),
+            GlyphNodeRole::QuadControl
+        ) | (
+            Some(icu_lib::mirx::PathCmd::CubicTo { .. }),
+            GlyphNodeRole::CubicControl1
+        ) | (
+            Some(icu_lib::mirx::PathCmd::CubicTo { .. }),
+            GlyphNodeRole::CubicControl2
+        )
+    )
+}
+
+pub fn can_add_glyph_node(outline: &[icu_lib::mirx::PathCmd], node: GlyphNodeId) -> bool {
+    node.role == GlyphNodeRole::Endpoint
+        && glyph_node_point(outline, node).is_some()
+        && outline
+            .get(node.command_index + 1)
+            .is_some_and(|command| !matches!(command, icu_lib::mirx::PathCmd::Close))
+}
+
+pub fn add_glyph_node(outline: &mut Vec<icu_lib::mirx::PathCmd>, node: GlyphNodeId) -> bool {
+    if node.role != GlyphNodeRole::Endpoint {
+        return false;
+    }
+    let Some(current) = glyph_node_point(outline, node) else {
+        return false;
+    };
+    let Some(next) = outline
+        .get(node.command_index + 1)
+        .and_then(|command| match command {
+            icu_lib::mirx::PathCmd::LineTo(point) | icu_lib::mirx::PathCmd::MoveTo(point) => {
+                Some(*point)
+            }
+            icu_lib::mirx::PathCmd::QuadTo { end, .. }
+            | icu_lib::mirx::PathCmd::CubicTo { end, .. } => Some(*end),
+            icu_lib::mirx::PathCmd::Close => None,
+        })
+    else {
+        return false;
+    };
+    let midpoint = icu_lib::mirx::Point::new(
+        icu_lib::mirx::Fixed::from_raw((current.x.raw() + next.x.raw()) / 2),
+        icu_lib::mirx::Fixed::from_raw((current.y.raw() + next.y.raw()) / 2),
+    );
+    outline.insert(
+        node.command_index + 1,
+        icu_lib::mirx::PathCmd::LineTo(midpoint),
+    );
+    true
+}
+
 #[allow(dead_code)]
 #[derive(Clone, PartialEq)]
 pub struct OpenedGlyph {
@@ -383,6 +629,7 @@ pub struct OpenedGlyph {
     pub outline_approximate: bool,
     pub source_font: String,
     pub source_is_sdf: bool,
+    pub editor: GlyphEditorState,
 }
 
 pub struct GlyphDiffResult {
@@ -654,7 +901,6 @@ pub struct ViewerState {
     pub font_preview_text: String,
     pub font_rendered_preview: Option<icu_lib::image::RgbaImage>,
     pub selected_op: Option<usize>,
-    pub selected_node: Option<usize>,
     pub path_mode: PathMode,
     pub indexed_hover_palette: Option<u8>,
     pub indexed_edit_palette: Option<usize>,
@@ -1480,7 +1726,6 @@ impl ViewerState {
 
     fn invalidate_selection_state(&mut self) {
         self.selected_op = None;
-        self.selected_node = None;
         self.indexed_hover_palette = None;
         self.indexed_edit_palette = None;
         self.indexed_requantized = None;
@@ -1583,7 +1828,6 @@ impl Default for ViewerState {
             font_preview_text: "The quick brown fox".to_string(),
             font_rendered_preview: None,
             selected_op: None,
-            selected_node: None,
             path_mode: PathMode::default(),
             indexed_hover_palette: None,
             indexed_edit_palette: None,
@@ -1637,6 +1881,7 @@ mod tests {
             outline_approximate: false,
             source_font: String::new(),
             source_is_sdf: false,
+            editor: GlyphEditorState::default(),
         })
     }
 
@@ -1656,6 +1901,97 @@ mod tests {
             midata: None,
             expanded: false,
         })
+    }
+
+    #[test]
+    fn glyph_editor_history_round_trips_and_clears_redo() {
+        let first = vec![icu_lib::mirx::PathCmd::Close];
+        let second = vec![icu_lib::mirx::PathCmd::MoveTo(icu_lib::mirx::Point::new(
+            icu_lib::mirx::Fixed::from_int(1),
+            icu_lib::mirx::Fixed::from_int(2),
+        ))];
+        let third = vec![icu_lib::mirx::PathCmd::MoveTo(icu_lib::mirx::Point::new(
+            icu_lib::mirx::Fixed::from_int(3),
+            icu_lib::mirx::Fixed::from_int(4),
+        ))];
+        let mut editor = GlyphEditorState::default();
+        editor.record(first.clone());
+        assert_eq!(editor.undo(&second), Some(first));
+        assert_eq!(editor.redo(&second), Some(second.clone()));
+        editor.record(third);
+        assert!(!editor.can_redo());
+    }
+
+    #[test]
+    fn glyph_node_commands_preserve_path_structure() {
+        let p = |x, y| {
+            icu_lib::mirx::Point::new(
+                icu_lib::mirx::Fixed::from_int(x),
+                icu_lib::mirx::Fixed::from_int(y),
+            )
+        };
+        let mut outline = vec![
+            icu_lib::mirx::PathCmd::MoveTo(p(0, 0)),
+            icu_lib::mirx::PathCmd::LineTo(p(10, 0)),
+            icu_lib::mirx::PathCmd::QuadTo {
+                ctrl: p(12, 4),
+                end: p(10, 10),
+            },
+            icu_lib::mirx::PathCmd::Close,
+        ];
+        let first = GlyphNodeId {
+            command_index: 0,
+            role: GlyphNodeRole::Endpoint,
+        };
+        assert!(add_glyph_node(&mut outline, first));
+        assert!(matches!(outline[1], icu_lib::mirx::PathCmd::LineTo(_)));
+        assert!(!delete_glyph_node(&mut outline, first));
+
+        let line = GlyphNodeId {
+            command_index: 1,
+            role: GlyphNodeRole::Endpoint,
+        };
+        assert!(delete_glyph_node(&mut outline, line));
+        let quad = GlyphNodeId {
+            command_index: 2,
+            role: GlyphNodeRole::QuadControl,
+        };
+        assert!(delete_glyph_node(&mut outline, quad));
+        assert!(matches!(outline[2], icu_lib::mirx::PathCmd::LineTo(_)));
+
+        let endpoint = GlyphNodeId {
+            command_index: 1,
+            role: GlyphNodeRole::Endpoint,
+        };
+        assert!(move_glyph_node(&mut outline, endpoint, p(20, 20)));
+        assert_eq!(glyph_node_point(&outline, endpoint), Some(p(20, 20)));
+        assert!(matches!(
+            outline.first(),
+            Some(icu_lib::mirx::PathCmd::MoveTo(_))
+        ));
+        assert!(matches!(
+            outline.last(),
+            Some(icu_lib::mirx::PathCmd::Close)
+        ));
+    }
+
+    #[test]
+    fn glyph_editor_history_is_bounded() {
+        let mut editor = GlyphEditorState::default();
+        for index in 0..=GLYPH_HISTORY_LIMIT {
+            editor.record(vec![icu_lib::mirx::PathCmd::MoveTo(
+                icu_lib::mirx::Point::new(
+                    icu_lib::mirx::Fixed::from_int(index as i32),
+                    icu_lib::mirx::Fixed::ZERO,
+                ),
+            )]);
+        }
+        let mut count = 0;
+        while editor.can_undo() {
+            let _ = editor.undo(&[]);
+            count += 1;
+        }
+        assert_eq!(count, GLYPH_HISTORY_LIMIT);
     }
 
     #[test]
