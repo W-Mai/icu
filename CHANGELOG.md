@@ -5,6 +5,7 @@
 - 🎨 Align the Viewer resource list, canvas toolbar, checkerboard, and Inspector surfaces with the preview layout.
 - ✨ Add renderer-aware `Fit` and `1:1` controls for raster images, Indexed views, Path previews, Font Rendered/Atlas/Vector views, and standalone glyphs while hiding inapplicable actions.
 - 🎨 Refine drag feedback, resource thumbnails, glyph layout, and Indexed canvas controls.
+- ✨ Render approximate MIRX glyph contours and expose separated bearing metrics in the Vector Inspector.
 
 ## [v0.9.0] - 2026-08-27
 

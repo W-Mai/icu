@@ -1950,14 +1950,15 @@ fn glyph_metrics_card(
                     row(
                         ui,
                         t!("codepoint").as_ref(),
-                        &format!("U+{:04X}", codepoint),
+                        &format!(
+                            "U+{:04X} ({})",
+                            codepoint,
+                            char::from_u32(codepoint).unwrap_or('?')
+                        ),
                     );
-                    row(ui, t!("advance").as_ref(), &format!("{}px", advance));
-                    row(
-                        ui,
-                        t!("bearing").as_ref(),
-                        &format!("({}, {})", bearing_x, bearing_y),
-                    );
+                    row(ui, t!("advance").as_ref(), &format!("{} px", advance));
+                    row(ui, t!("bearing_x").as_ref(), &format!("{} px", bearing_x));
+                    row(ui, t!("bearing_y").as_ref(), &format!("{} px", bearing_y));
                     row(
                         ui,
                         t!("bbox").as_ref(),
