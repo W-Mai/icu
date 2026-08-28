@@ -2,7 +2,7 @@ use crate::image_viewer::model::ImageItem;
 use eframe::egui;
 use eframe::egui::load::SizedTexture;
 use eframe::egui::{Color32, ColorImage, PointerButton};
-use egui_plot::{CoordinatesFormatter, Corner, PlotImage, PlotPoint};
+use egui_plot::{PlotImage, PlotPoint};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -105,11 +105,10 @@ impl<'a> ImagePlotter<'a> {
                 let copy_image_data = Rc::new(RefCell::new(pixels.to_vec()));
 
                 let copy_image_data_1 = copy_image_data.clone();
-                let color_data_1 = color_data.clone();
                 let color_data_2 = color_data.clone();
                 let cursor_pos_2 = cursor_pos.clone();
 
-                let mut plot = egui_plot::Plot::new(format!("plot{}", self.id))
+                let plot = egui_plot::Plot::new(format!("plot{}", self.id))
                     .id(Self::plot_id(&self.id))
                     .data_aspect(1.0)
                     .y_axis_formatter(move |y, _| format!("{:.0}", -y.value))
@@ -147,29 +146,6 @@ impl<'a> ImagePlotter<'a> {
                     .show_x(!self.show_only)
                     .show_y(!self.show_only)
                     .show_background(false);
-
-                if !self.show_only {
-                    plot = plot.coordinates_formatter(
-                        Corner::LeftBottom,
-                        CoordinatesFormatter::new(move |p, _b| {
-                            let color_data = *color_data_1.borrow();
-                            match color_data {
-                                None => {
-                                    format!("Nothing {:.0} {:.0}", p.x.floor(), p.y.ceil())
-                                }
-                                Some(pixel) => {
-                                    format!(
-                                        "RGBA: #{:02X}_{:02X}_{:02X}_{:02X}",
-                                        pixel.r(),
-                                        pixel.g(),
-                                        pixel.b(),
-                                        pixel.a(),
-                                    )
-                                }
-                            }
-                        }),
-                    )
-                }
 
                 if self.background_color.a() > 0 {
                     let painter = ui.painter();

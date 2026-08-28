@@ -1616,8 +1616,10 @@ fn draw_glyph_vector_view(
     let (bx, by, bw, bh) = bbox;
     let ch = char::from_u32(codepoint).unwrap_or('?');
 
-    let size = ui.available_size_before_wrap();
-    let (response, painter) = ui.allocate_painter(size, egui::Sense::click_and_drag());
+    const DETAILS_HEIGHT: f32 = 190.0;
+    let available = ui.available_size_before_wrap();
+    let canvas_size = egui::vec2(available.x, (available.y - DETAILS_HEIGHT).max(1.0));
+    let (response, painter) = ui.allocate_painter(canvas_size, egui::Sense::click_and_drag());
     let canvas_rect = response.rect;
 
     let (min_x, min_y) = (bx.min(0) - 4, by.min(0) - 4);

@@ -60,37 +60,93 @@ impl MyEguiApp {
     }
 
     fn ui_file_drag_and_drop(&mut self, ctx: &egui::Context) {
-        use std::fmt::Write as _;
-
         if !ctx.input(|i| i.raw.hovered_files.is_empty()) {
-            let text = ctx.input(|i| {
-                let mut text = "Dropping files:\n".to_owned();
-                for file in &i.raw.hovered_files {
-                    if let Some(path) = &file.path {
-                        write!(text, "\n{}", path.display()).ok();
-                    } else if !file.mime.is_empty() {
-                        write!(text, "\n{}", file.mime).ok();
-                    } else {
-                        text += "\n???";
-                    }
-                }
-                text
+            const MAX_PREVIEW_FILES: usize = 3;
+            let (file_count, file_names) = ctx.input(|i| {
+                let names = i
+                    .raw
+                    .hovered_files
+                    .iter()
+                    .take(MAX_PREVIEW_FILES)
+                    .map(|file| {
+                        file.path
+                            .as_deref()
+                            .and_then(std::path::Path::file_name)
+                            .map(|name| name.to_string_lossy().into_owned())
+                            .filter(|name| !name.is_empty())
+                            .unwrap_or_else(|| {
+                                if file.mime.is_empty() {
+                                    "???".to_owned()
+                                } else {
+                                    file.mime.clone()
+                                }
+                            })
+                    })
+                    .collect::<Vec<_>>();
+                (i.raw.hovered_files.len(), names)
             });
 
             let painter = ctx.layer_painter(egui::LayerId::new(
                 egui::Order::Foreground,
                 egui::Id::new("file_drop_target"),
             ));
-
+            let palette = crate::image_viewer::ui::theme::tokens::palette(ctx);
             let screen_rect = ctx.viewport_rect();
-            painter.rect_filled(screen_rect, 0.0, Color32::from_black_alpha(192));
-            painter.text(
-                screen_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                text,
-                egui::TextStyle::Heading.resolve(&ctx.global_style()),
-                Color32::WHITE,
+            painter.rect_filled(screen_rect, 0.0, Color32::from_black_alpha(179));
+
+            let rows = file_names.len() + usize::from(file_count > MAX_PREVIEW_FILES);
+            let desired_height = 112.0 + rows as f32 * 18.0;
+            let content_size = egui::vec2(
+                (screen_rect.width() - 48.0).clamp(0.0, 420.0),
+                (screen_rect.height() - 48.0).clamp(0.0, desired_height),
             );
+            let content_rect = egui::Rect::from_center_size(screen_rect.center(), content_size);
+            crate::image_viewer::ui::viewer::paint_dashed_rect(
+                &painter,
+                content_rect,
+                egui::CornerRadius::same(12),
+                palette.accent(),
+                8.0,
+                6.0,
+            );
+            painter.text(
+                egui::pos2(content_rect.center().x, content_rect.top() + 32.0),
+                egui::Align2::CENTER_CENTER,
+                t!("dropping_files").trim(),
+                egui::FontId::proportional(18.0),
+                palette.accent(),
+            );
+            painter.text(
+                egui::pos2(content_rect.center().x, content_rect.top() + 58.0),
+                egui::Align2::CENTER_CENTER,
+                t!("n_files", count = file_count),
+                egui::FontId::proportional(11.0),
+                palette.subtext0,
+            );
+            for (index, name) in file_names.iter().enumerate() {
+                painter.text(
+                    egui::pos2(
+                        content_rect.center().x,
+                        content_rect.top() + 82.0 + index as f32 * 18.0,
+                    ),
+                    egui::Align2::CENTER_CENTER,
+                    name,
+                    egui::FontId::monospace(11.0),
+                    palette.text,
+                );
+            }
+            if file_count > MAX_PREVIEW_FILES {
+                painter.text(
+                    egui::pos2(
+                        content_rect.center().x,
+                        content_rect.top() + 82.0 + file_names.len() as f32 * 18.0,
+                    ),
+                    egui::Align2::CENTER_CENTER,
+                    "...",
+                    egui::FontId::monospace(11.0),
+                    palette.overlay0,
+                );
+            }
         }
 
         ctx.input(|i| {

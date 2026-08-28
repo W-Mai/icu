@@ -334,21 +334,12 @@ fn draw_sidebar_item(
         }
 
         if let SidebarItem::Glyph(_) = item {
-            let bar = egui::Rect::from_min_size(
-                egui::pos2(rect.left() + 1.0, rect.top() + 4.0),
-                egui::vec2(2.0, rect.height() - 8.0),
-            );
+            let bar = egui::Rect::from_min_size(rect.left_top(), egui::vec2(2.0, rect.height()));
             ui.painter()
                 .rect_filled(bar, egui::CornerRadius::same(0), p.peach);
         }
 
-        let indent = if matches!(item, SidebarItem::Glyph(_)) {
-            16.0
-        } else if is_animated {
-            20.0
-        } else {
-            0.0
-        };
+        let indent = if is_animated { 20.0 } else { 0.0 };
         let thumb_size = 40.0;
         let thumb_rect = egui::Rect::from_min_size(
             egui::pos2(
@@ -368,33 +359,40 @@ fn draw_sidebar_item(
                     egui::Stroke::new(1.0, p.surface1),
                     egui::StrokeKind::Inside,
                 );
-                let tex = ui.ctx().load_texture(
-                    format!("sb_thumb_{id:?}"),
-                    egui::ColorImage {
-                        size: [thumb_w as usize, thumb_h as usize],
-                        source_size: egui::vec2(thumb_w as f32, thumb_h as f32),
-                        pixels: pixels.to_vec(),
-                    },
-                    egui::TextureOptions::LINEAR,
-                );
-                let img_aspect = if thumb_h > 0 {
-                    thumb_w as f32 / thumb_h as f32
+                let pixel_count = thumb_w as usize * thumb_h as usize;
+                if pixel_count > 0 && pixels.len() == pixel_count {
+                    let tex = ui.ctx().load_texture(
+                        format!("sb_thumb_{id:?}"),
+                        egui::ColorImage {
+                            size: [thumb_w as usize, thumb_h as usize],
+                            source_size: egui::vec2(thumb_w as f32, thumb_h as f32),
+                            pixels: pixels.to_vec(),
+                        },
+                        egui::TextureOptions::LINEAR,
+                    );
+                    let img_aspect = thumb_w as f32 / thumb_h as f32;
+                    let inner = thumb_rect.shrink(2.0);
+                    let draw_size = if img_aspect >= inner.width() / inner.height() {
+                        egui::vec2(inner.width(), inner.width() / img_aspect)
+                    } else {
+                        egui::vec2(inner.height() * img_aspect, inner.height())
+                    };
+                    let img_rect = egui::Rect::from_center_size(inner.center(), draw_size);
+                    ui.painter().image(
+                        tex.id(),
+                        img_rect,
+                        egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                        egui::Color32::WHITE,
+                    );
                 } else {
-                    1.0
-                };
-                let inner = thumb_rect.shrink(2.0);
-                let draw_h = inner.height();
-                let draw_w = draw_h * img_aspect;
-                let img_rect = egui::Rect::from_center_size(
-                    inner.center(),
-                    egui::vec2(draw_w.min(inner.width()), draw_h),
-                );
-                ui.painter().image(
-                    tex.id(),
-                    img_rect,
-                    egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                    egui::Color32::WHITE,
-                );
+                    ui.painter().text(
+                        thumb_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        badge_text,
+                        egui::FontId::proportional(9.0),
+                        badge_color,
+                    );
+                }
             }
             SidebarItem::Glyph(g) => {
                 ui.painter()
@@ -426,22 +424,6 @@ fn draw_sidebar_item(
             );
         }
 
-        let text_x = thumb_rect.right() + 8.0;
-        ui.painter().text(
-            egui::pos2(text_x, rect.top() + 13.0),
-            egui::Align2::LEFT_CENTER,
-            &name,
-            egui::FontId::proportional(12.0),
-            p.text,
-        );
-        ui.painter().text(
-            egui::pos2(text_x, rect.top() + 30.0),
-            egui::Align2::LEFT_CENTER,
-            &meta,
-            egui::FontId::monospace(10.0),
-            p.overlay0,
-        );
-
         let badge_galley = ui.painter().layout_no_wrap(
             badge_text.to_string(),
             egui::FontId::proportional(9.0),
@@ -452,11 +434,32 @@ fn draw_sidebar_item(
 
         let badge_rect = egui::Rect::from_min_size(
             egui::pos2(
-                rect.right() - badge_w - 8.0 - indent,
+                rect.right() - badge_w - 8.0,
                 rect.center().y - badge_h / 2.0,
             ),
             egui::vec2(badge_w, badge_h),
         );
+        let text_x = thumb_rect.right() + 8.0;
+        let text_clip_rect = egui::Rect::from_min_max(
+            egui::pos2(text_x, rect.top()),
+            egui::pos2((badge_rect.left() - 6.0).max(text_x), rect.bottom()),
+        );
+        let text_painter = ui.painter().with_clip_rect(text_clip_rect);
+        text_painter.text(
+            egui::pos2(text_x, rect.top() + 13.0),
+            egui::Align2::LEFT_CENTER,
+            &name,
+            egui::FontId::proportional(12.0),
+            p.text,
+        );
+        text_painter.text(
+            egui::pos2(text_x, rect.top() + 30.0),
+            egui::Align2::LEFT_CENTER,
+            &meta,
+            egui::FontId::monospace(10.0),
+            p.overlay0,
+        );
+
         ui.painter()
             .rect_filled(badge_rect, egui::CornerRadius::same(3), badge_color);
         ui.painter().galley(
@@ -551,9 +554,10 @@ fn draw_sidebar_item(
                 egui::pos2(rect.left(), rect.bottom() - 16.0),
                 egui::vec2(rect.width(), 16.0),
             );
-            ui.allocate_ui_with_layout(
-                diff_rect.size(),
-                egui::Layout::left_to_right(egui::Align::Center),
+            ui.scope_builder(
+                egui::UiBuilder::new()
+                    .max_rect(diff_rect)
+                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
                 |ui| {
                     draw_diff_selection_buttons(ui, state, id);
                 },

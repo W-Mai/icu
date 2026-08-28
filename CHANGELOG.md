@@ -4,6 +4,7 @@
 
 - 🎨 Align the Viewer resource list, canvas toolbar, checkerboard, and Inspector surfaces with the preview layout.
 - ✨ Add functional `Fit` and `1:1` canvas controls and keep animation playback controls inside the canvas.
+- 🎨 Refine drag feedback, resource thumbnails, glyph layout, and Indexed canvas controls.
 
 ## [v0.9.0] - 2026-08-27
 

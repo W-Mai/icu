@@ -96,7 +96,7 @@ fn draw_central_toolbar(ui: &mut egui::Ui, state: &mut ViewerState, content_type
                         )
                         .clicked()
                     {
-                        fit_canvas(ui.ctx(), state);
+                        fit_canvas(ui.ctx(), state, content_type);
                     }
                     if matches!(content_type, ContentType::Rgba | ContentType::Indexed)
                         && crate::image_viewer::ui::widgets::button_opts(
@@ -109,7 +109,7 @@ fn draw_central_toolbar(ui: &mut egui::Ui, state: &mut ViewerState, content_type
                         )
                         .clicked()
                     {
-                        actual_size_canvas(ui.ctx(), state);
+                        actual_size_canvas(ui.ctx(), state, content_type);
                     }
                     ui.add_sized(
                         [112.0, 28.0],
@@ -130,11 +130,18 @@ fn draw_central_toolbar(ui: &mut egui::Ui, state: &mut ViewerState, content_type
         });
 }
 
-fn actual_size_canvas(ctx: &egui::Context, state: &ViewerState) {
+fn canvas_plot_id(content_type: ContentType) -> egui::Id {
+    ImagePlotter::plot_id(match content_type {
+        ContentType::Indexed => "indexed_view",
+        _ => "viewer",
+    })
+}
+
+fn actual_size_canvas(ctx: &egui::Context, state: &ViewerState, content_type: ContentType) {
     let Some(image) = state.current_image() else {
         return;
     };
-    let plot_id = ImagePlotter::plot_id("viewer");
+    let plot_id = canvas_plot_id(content_type);
     let Some(mut memory) = egui_plot::PlotMemory::load(ctx, plot_id) else {
         return;
     };
@@ -155,8 +162,8 @@ fn actual_size_canvas(ctx: &egui::Context, state: &ViewerState) {
     ctx.request_repaint();
 }
 
-fn fit_canvas(ctx: &egui::Context, state: &mut ViewerState) {
-    let plot_id = ImagePlotter::plot_id("viewer");
+fn fit_canvas(ctx: &egui::Context, state: &mut ViewerState, content_type: ContentType) {
+    let plot_id = canvas_plot_id(content_type);
     if let Some(mut memory) = egui_plot::PlotMemory::load(ctx, plot_id) {
         memory.auto_bounds = true.into();
         memory.store(ctx, plot_id);
@@ -747,7 +754,7 @@ pub fn ui_yaml_tree(ui: &mut egui::Ui, value: &serde_yaml::Value) {
     }
 }
 
-fn paint_dashed_rect(
+pub(crate) fn paint_dashed_rect(
     painter: &egui::Painter,
     rect: egui::Rect,
     corner: egui::CornerRadius,
