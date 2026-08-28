@@ -118,7 +118,7 @@ fn draw_glyph_toolbar(
     outline: &[icu_lib::mirx::PathCmd],
     editor: &GlyphEditorState,
 ) -> Option<GlyphToolbarAction> {
-    let toolbar_button = |ui: &mut egui::Ui, label: &str, enabled: bool, active: bool| {
+    let toolbar_button = |ui: &mut egui::Ui, label: String, enabled: bool, active: bool| {
         if enabled {
             crate::image_viewer::ui::widgets::button_opts(
                 ui,
@@ -144,40 +144,40 @@ fn draw_glyph_toolbar(
         crate::image_viewer::model::can_line_glyph_segments(outline, editor.selected_nodes());
     let mut action = None;
     ui.horizontal(|ui| {
-        toolbar_button(ui, "🖱 Select", true, true);
-        if toolbar_button(ui, "+ Node", can_add, false)
+        toolbar_button(ui, format!("🖱 {}", t!("toolbar_select")), true, true);
+        if toolbar_button(ui, format!("+ {}", t!("toolbar_node")), can_add, false)
             .on_hover_text(t!("add_node"))
             .clicked()
         {
             action = Some(GlyphToolbarAction::Add);
         }
-        if toolbar_button(ui, "− Delete", can_delete, false)
+        if toolbar_button(ui, format!("− {}", t!("toolbar_delete")), can_delete, false)
             .on_hover_text(t!("delete_node"))
             .clicked()
         {
             action = Some(GlyphToolbarAction::Delete);
         }
         ui.separator();
-        if toolbar_button(ui, "◐ Curve", can_curve, false)
+        if toolbar_button(ui, format!("◐ {}", t!("toolbar_curve")), can_curve, false)
             .on_hover_text(t!("curve_tool"))
             .clicked()
         {
             action = Some(GlyphToolbarAction::Curve);
         }
-        if toolbar_button(ui, "╱ Line", can_line, false)
+        if toolbar_button(ui, format!("╱ {}", t!("toolbar_line")), can_line, false)
             .on_hover_text(t!("line_tool"))
             .clicked()
         {
             action = Some(GlyphToolbarAction::Line);
         }
         ui.separator();
-        if toolbar_button(ui, "↶ Undo", editor.can_undo(), false)
+        if toolbar_button(ui, format!("↶ {}", t!("undo")), editor.can_undo(), false)
             .on_hover_text(t!("undo"))
             .clicked()
         {
             action = Some(GlyphToolbarAction::Undo);
         }
-        if toolbar_button(ui, "↷ Redo", editor.can_redo(), false)
+        if toolbar_button(ui, format!("↷ {}", t!("redo")), editor.can_redo(), false)
             .on_hover_text(t!("redo"))
             .clicked()
         {
@@ -730,7 +730,10 @@ fn draw_selected_glyph_section(
                         128,
                         text_color,
                     );
-                    let ci = egui::ColorImage::from_rgba_unmultiplied([128, 128], big.as_raw());
+                    let ci = egui::ColorImage::from_rgba_unmultiplied(
+                        [big.width() as usize, big.height() as usize],
+                        big.as_raw(),
+                    );
                     let tex = ui
                         .ctx()
                         .load_texture("glyph_big", ci, egui::TextureOptions::LINEAR);
@@ -769,7 +772,10 @@ fn draw_selected_glyph_section(
                         128,
                         text_color,
                     );
-                    let ci = egui::ColorImage::from_rgba_unmultiplied([128, 128], big.as_raw());
+                    let ci = egui::ColorImage::from_rgba_unmultiplied(
+                        [big.width() as usize, big.height() as usize],
+                        big.as_raw(),
+                    );
                     let tex =
                         ui.ctx()
                             .load_texture("glyph_big_bundle", ci, egui::TextureOptions::LINEAR);
@@ -2034,6 +2040,42 @@ fn draw_glyph_vector_view(
     let fit_scale = (fit_rect.width() / gw).min(fit_rect.height() / gh);
     apply_canvas_command(view, fit_scale);
 
+    let interaction_scale = fit_scale * view.zoom;
+    let interaction_ox =
+        canvas_rect.center().x + view.pan.x - (min_x as f32 + gw / 2.0) * interaction_scale;
+    let interaction_oy =
+        canvas_rect.center().y + view.pan.y + (min_y as f32 + gh / 2.0) * interaction_scale;
+    let mut node_drag_started = false;
+    if let Some(editor) = editor.as_deref_mut()
+        && editor.drag_start.is_none()
+        && ui.input(|input| input.pointer.primary_pressed())
+        && let Some(pointer) = ui.input(|input| input.pointer.press_origin())
+        && canvas_rect.contains(pointer)
+    {
+        let nodes = crate::image_viewer::model::glyph_nodes(outline);
+        let hit = nodes
+            .iter()
+            .filter_map(|(node, point)| {
+                let screen = egui::pos2(
+                    interaction_ox + point.x.to_f32() * interaction_scale,
+                    interaction_oy - point.y.to_f32() * interaction_scale,
+                );
+                let distance = screen.distance(pointer);
+                (distance <= 8.0).then_some((*node, distance))
+            })
+            .min_by(|(_, a), (_, b)| a.total_cmp(b))
+            .map(|(node, _)| node);
+        let toggle = ui.input(|input| input.modifiers.ctrl || input.modifiers.command);
+        if hit.is_some() {
+            editor.set_selected_node(hit, toggle);
+            editor.drag_before = Some(outline.to_vec());
+            editor.drag_start = Some(pointer);
+            node_drag_started = true;
+        } else {
+            editor.set_selected_node(None, toggle);
+        }
+    }
+
     if response.contains_pointer() {
         let (zoom_delta, scroll_delta, pointer) =
             ui.input(|i| (i.zoom_delta(), i.smooth_scroll_delta, i.pointer.hover_pos()));
@@ -2046,14 +2088,14 @@ fn draw_glyph_vector_view(
             }
             view.zoom = new_zoom;
         }
-        let dragging_node = editor
-            .as_ref()
-            .is_some_and(|editor| editor.drag_start.is_some())
-            && response.dragged();
+        let dragging_node = node_drag_started
+            || editor
+                .as_ref()
+                .is_some_and(|editor| editor.drag_start.is_some());
         if !dragging_node {
             view.pan += response.drag_delta();
+            view.pan += scroll_delta;
         }
-        view.pan += scroll_delta;
     }
 
     if response.double_clicked() {
@@ -2069,38 +2111,6 @@ fn draw_glyph_vector_view(
         |x: i32, y: i32| -> egui::Pos2 { egui::pos2(ox + x as f32 * scale, oy - y as f32 * scale) };
 
     if let Some(editor) = editor.as_deref_mut() {
-        let nodes = crate::image_viewer::model::glyph_nodes(outline);
-        if response.clicked()
-            && let Some(pointer) = response.interact_pointer_pos()
-        {
-            let hit = nodes
-                .iter()
-                .filter_map(|(node, point)| {
-                    let screen =
-                        egui::pos2(ox + point.x.to_f32() * scale, oy - point.y.to_f32() * scale);
-                    let distance = screen.distance(pointer);
-                    (distance <= 8.0).then_some((*node, distance))
-                })
-                .min_by(|(_, a), (_, b)| a.total_cmp(b))
-                .map(|(node, _)| node);
-            let toggle = ui.input(|input| input.modifiers.ctrl || input.modifiers.command);
-            editor.set_selected_node(hit, toggle);
-        }
-        if response.drag_started()
-            && let Some(pointer) = response.interact_pointer_pos()
-            && editor.selected_nodes().iter().any(|selected| {
-                nodes.iter().any(|(node, point)| {
-                    node == selected
-                        && editor.has_node(*node)
-                        && egui::pos2(ox + point.x.to_f32() * scale, oy - point.y.to_f32() * scale)
-                            .distance(pointer)
-                            <= 8.0
-                })
-            })
-        {
-            editor.drag_before = Some(outline.to_vec());
-            editor.drag_start = Some(pointer);
-        }
         if response.dragged()
             && !editor.selected_nodes.is_empty()
             && let (Some(pointer), Some(start), Some(before)) = (
@@ -2116,7 +2126,8 @@ fn draw_glyph_vector_view(
             outline.clone_from_slice(before);
             crate::image_viewer::model::move_glyph_nodes(outline, editor.selected_nodes(), delta);
         }
-        if response.drag_stopped() {
+        let pointer_released = ui.input(|input| input.pointer.any_released());
+        if response.drag_stopped() || pointer_released {
             editor.drag_start = None;
             if let Some(before) = editor.drag_before.take()
                 && before != outline

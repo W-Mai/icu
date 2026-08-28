@@ -1,4 +1,4 @@
-use image::imageops::overlay;
+use image::imageops::{flip_vertical_in_place, overlay};
 use image::RgbaImage;
 use mirui::render::backends::sw::SwRenderer;
 use mirui::render::canvas::Canvas;
@@ -66,7 +66,10 @@ pub fn render_font_atlas(font: &mirx::Font) -> RgbaImage {
         renderer.draw_label(&pos, &ch.to_string(), &mirui_font, &clip, &color, 255);
     }
     renderer.flush();
-    RgbaImage::from_raw(grid_w, grid_h, buffer).unwrap_or_else(|| RgbaImage::new(grid_w, grid_h))
+    let mut image = RgbaImage::from_raw(grid_w, grid_h, buffer)
+        .unwrap_or_else(|| RgbaImage::new(grid_w, grid_h));
+    flip_vertical_in_place(&mut image);
+    image
 }
 
 pub fn render_freetype_glyph_at(
@@ -419,7 +422,9 @@ pub fn render_font_text(
             }
         }
     };
-    render_text_with_font(&mirui_font, text, actual_width, actual_height, color)
+    let mut image = render_text_with_font(&mirui_font, text, actual_width, actual_height, color);
+    flip_vertical_in_place(&mut image);
+    image
 }
 
 fn leak_font_payload(font: &mirx::Font) -> &'static [u8] {
