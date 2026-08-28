@@ -3,7 +3,7 @@ pub use crate::converter::{
     OutputColorFormats as LvglColorFormat, OutputCompressedMethod as LvglCompression,
 };
 use clap::ValueEnum;
-use eframe::egui::{Color32, DroppedFile, TextureHandle, Vec2};
+use eframe::egui::{Color32, DroppedFile, Pos2, TextureHandle, Vec2};
 use icu_lib::endecoder::ImageInfo;
 use icu_lib::endecoder::utils::diff::ImageDiffResult;
 use icu_lib::midata::MiData;
@@ -389,9 +389,46 @@ pub const GLYPH_HISTORY_LIMIT: usize = 64;
 #[derive(Clone, Default, PartialEq)]
 pub struct GlyphEditorState {
     pub selected_node: Option<GlyphNodeId>,
+    pub selected_nodes: Vec<GlyphNodeId>,
+    pub toolbar_offset: Vec2,
+    pub drag_start: Option<Pos2>,
     undo: Vec<Vec<icu_lib::mirx::PathCmd>>,
     redo: Vec<Vec<icu_lib::mirx::PathCmd>>,
     pub drag_before: Option<Vec<icu_lib::mirx::PathCmd>>,
+}
+
+impl GlyphEditorState {
+    pub fn set_selected_node(&mut self, node: Option<GlyphNodeId>, toggle: bool) {
+        if let Some(node) = node {
+            if toggle {
+                if let Some(index) = self
+                    .selected_nodes
+                    .iter()
+                    .position(|selected| *selected == node)
+                {
+                    self.selected_nodes.remove(index);
+                } else {
+                    self.selected_nodes.push(node);
+                }
+            } else {
+                self.selected_nodes.clear();
+                self.selected_nodes.push(node);
+            }
+        } else if !toggle {
+            self.selected_nodes.clear();
+            self.drag_start = None;
+            self.drag_before = None;
+        }
+        self.selected_node = self.selected_nodes.last().copied();
+    }
+
+    pub fn has_node(&self, node: GlyphNodeId) -> bool {
+        self.selected_nodes.contains(&node)
+    }
+
+    pub fn selected_nodes(&self) -> &[GlyphNodeId] {
+        &self.selected_nodes
+    }
 }
 
 impl GlyphEditorState {
@@ -509,6 +546,25 @@ pub fn glyph_node_point(
     }
 }
 
+pub fn move_glyph_nodes(
+    outline: &mut [icu_lib::mirx::PathCmd],
+    nodes: &[GlyphNodeId],
+    delta: (i32, i32),
+) -> bool {
+    let mut moved = false;
+    for node in nodes {
+        let Some(point) = glyph_node_point(outline, *node) else {
+            continue;
+        };
+        let target = icu_lib::mirx::Point::new(
+            icu_lib::mirx::Fixed::from_raw(point.x.raw().saturating_add(delta.0)),
+            icu_lib::mirx::Fixed::from_raw(point.y.raw().saturating_add(delta.1)),
+        );
+        moved |= move_glyph_node(outline, *node, target);
+    }
+    moved
+}
+
 pub fn move_glyph_node(
     outline: &mut [icu_lib::mirx::PathCmd],
     node: GlyphNodeId,
@@ -575,6 +631,89 @@ pub fn can_delete_glyph_node(outline: &[icu_lib::mirx::PathCmd], node: GlyphNode
             GlyphNodeRole::CubicControl2
         )
     )
+}
+
+fn previous_glyph_point(
+    outline: &[icu_lib::mirx::PathCmd],
+    command_index: usize,
+) -> Option<icu_lib::mirx::Point> {
+    match outline.get(command_index.checked_sub(1)?)? {
+        icu_lib::mirx::PathCmd::MoveTo(point) | icu_lib::mirx::PathCmd::LineTo(point) => {
+            Some(*point)
+        }
+        icu_lib::mirx::PathCmd::QuadTo { end, .. }
+        | icu_lib::mirx::PathCmd::CubicTo { end, .. } => Some(*end),
+        icu_lib::mirx::PathCmd::Close => None,
+    }
+}
+
+pub fn can_curve_glyph_segments(outline: &[icu_lib::mirx::PathCmd], nodes: &[GlyphNodeId]) -> bool {
+    nodes.iter().any(|node| {
+        node.role == GlyphNodeRole::Endpoint
+            && matches!(
+                outline.get(node.command_index),
+                Some(icu_lib::mirx::PathCmd::LineTo(_))
+            )
+            && previous_glyph_point(outline, node.command_index).is_some()
+    })
+}
+
+pub fn can_line_glyph_segments(outline: &[icu_lib::mirx::PathCmd], nodes: &[GlyphNodeId]) -> bool {
+    nodes.iter().any(|node| {
+        node.role == GlyphNodeRole::Endpoint
+            && matches!(
+                outline.get(node.command_index),
+                Some(icu_lib::mirx::PathCmd::QuadTo { .. })
+                    | Some(icu_lib::mirx::PathCmd::CubicTo { .. })
+            )
+    })
+}
+
+pub fn curve_glyph_segments(outline: &mut [icu_lib::mirx::PathCmd], nodes: &[GlyphNodeId]) -> bool {
+    let mut changed = false;
+    for node in nodes {
+        if node.role != GlyphNodeRole::Endpoint {
+            continue;
+        }
+        let Some(end) = glyph_node_point(outline, *node) else {
+            continue;
+        };
+        let Some(start) = previous_glyph_point(outline, node.command_index) else {
+            continue;
+        };
+        let Some(command) = outline.get_mut(node.command_index) else {
+            continue;
+        };
+        if matches!(command, icu_lib::mirx::PathCmd::LineTo(_)) {
+            let ctrl = icu_lib::mirx::Point::new(
+                icu_lib::mirx::Fixed::from_raw((start.x.raw() + end.x.raw()) / 2),
+                icu_lib::mirx::Fixed::from_raw((start.y.raw() + end.y.raw()) / 2),
+            );
+            *command = icu_lib::mirx::PathCmd::QuadTo { ctrl, end };
+            changed = true;
+        }
+    }
+    changed
+}
+
+pub fn line_glyph_segments(outline: &mut [icu_lib::mirx::PathCmd], nodes: &[GlyphNodeId]) -> bool {
+    let mut changed = false;
+    for node in nodes {
+        if node.role != GlyphNodeRole::Endpoint {
+            continue;
+        }
+        let Some(command) = outline.get(node.command_index) else {
+            continue;
+        };
+        let end = match command {
+            icu_lib::mirx::PathCmd::QuadTo { end, .. }
+            | icu_lib::mirx::PathCmd::CubicTo { end, .. } => *end,
+            _ => continue,
+        };
+        outline[node.command_index] = icu_lib::mirx::PathCmd::LineTo(end);
+        changed = true;
+    }
+    changed
 }
 
 pub fn can_add_glyph_node(outline: &[icu_lib::mirx::PathCmd], node: GlyphNodeId) -> bool {
@@ -1973,6 +2112,65 @@ mod tests {
             outline.last(),
             Some(icu_lib::mirx::PathCmd::Close)
         ));
+    }
+
+    #[test]
+    fn glyph_editor_multi_selection_toggles_and_moves_as_a_group() {
+        let point = |x, y| {
+            icu_lib::mirx::Point::new(
+                icu_lib::mirx::Fixed::from_int(x),
+                icu_lib::mirx::Fixed::from_int(y),
+            )
+        };
+        let mut editor = GlyphEditorState::default();
+        let first = GlyphNodeId {
+            command_index: 0,
+            role: GlyphNodeRole::Endpoint,
+        };
+        let second = GlyphNodeId {
+            command_index: 1,
+            role: GlyphNodeRole::Endpoint,
+        };
+        editor.set_selected_node(Some(first), false);
+        editor.set_selected_node(Some(second), true);
+        assert_eq!(editor.selected_nodes(), &[first, second]);
+        let mut outline = vec![
+            icu_lib::mirx::PathCmd::MoveTo(point(0, 0)),
+            icu_lib::mirx::PathCmd::LineTo(point(10, 10)),
+        ];
+        assert!(move_glyph_nodes(
+            &mut outline,
+            editor.selected_nodes(),
+            (256, -512)
+        ));
+        assert_eq!(glyph_node_point(&outline, first), Some(point(1, -2)));
+        assert_eq!(glyph_node_point(&outline, second), Some(point(11, 8)));
+        editor.set_selected_node(Some(first), true);
+        assert_eq!(editor.selected_nodes(), &[second]);
+    }
+
+    #[test]
+    fn glyph_segment_tools_convert_line_and_curve() {
+        let point = |x, y| {
+            icu_lib::mirx::Point::new(
+                icu_lib::mirx::Fixed::from_int(x),
+                icu_lib::mirx::Fixed::from_int(y),
+            )
+        };
+        let endpoint = GlyphNodeId {
+            command_index: 1,
+            role: GlyphNodeRole::Endpoint,
+        };
+        let mut outline = vec![
+            icu_lib::mirx::PathCmd::MoveTo(point(0, 0)),
+            icu_lib::mirx::PathCmd::LineTo(point(10, 10)),
+        ];
+        assert!(can_curve_glyph_segments(&outline, &[endpoint]));
+        assert!(curve_glyph_segments(&mut outline, &[endpoint]));
+        assert!(matches!(outline[1], icu_lib::mirx::PathCmd::QuadTo { .. }));
+        assert!(can_line_glyph_segments(&outline, &[endpoint]));
+        assert!(line_glyph_segments(&mut outline, &[endpoint]));
+        assert!(matches!(outline[1], icu_lib::mirx::PathCmd::LineTo(_)));
     }
 
     #[test]

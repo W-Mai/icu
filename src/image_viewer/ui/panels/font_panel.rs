@@ -1,6 +1,6 @@
 use crate::image_viewer::model::{
     BakeCharsetTab, CanvasViewCommand, FontMode, GlyphCanvasView, GlyphDiffResult,
-    GlyphTextureCache,
+    GlyphEditorState, GlyphTextureCache,
 };
 use crate::image_viewer::plotter::ImagePlotter;
 use eframe::egui;
@@ -103,6 +103,90 @@ fn selected_opened_glyph(
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GlyphToolbarAction {
+    Add,
+    Delete,
+    Curve,
+    Line,
+    Undo,
+    Redo,
+}
+
+fn draw_glyph_toolbar(
+    ui: &mut egui::Ui,
+    outline: &[icu_lib::mirx::PathCmd],
+    editor: &GlyphEditorState,
+) -> Option<GlyphToolbarAction> {
+    let toolbar_button = |ui: &mut egui::Ui, label: &str, enabled: bool, active: bool| {
+        if enabled {
+            crate::image_viewer::ui::widgets::button_opts(
+                ui,
+                label,
+                crate::image_viewer::ui::widgets::ButtonOpts {
+                    active,
+                    small: true,
+                    ..Default::default()
+                },
+            )
+        } else {
+            ui.add_enabled(false, egui::Button::new(label))
+        }
+    };
+    let selected = editor.selected_node;
+    let can_add =
+        selected.is_some_and(|node| crate::image_viewer::model::can_add_glyph_node(outline, node));
+    let can_delete = selected
+        .is_some_and(|node| crate::image_viewer::model::can_delete_glyph_node(outline, node));
+    let can_curve =
+        crate::image_viewer::model::can_curve_glyph_segments(outline, editor.selected_nodes());
+    let can_line =
+        crate::image_viewer::model::can_line_glyph_segments(outline, editor.selected_nodes());
+    let mut action = None;
+    ui.horizontal(|ui| {
+        toolbar_button(ui, "🖱 Select", true, true);
+        if toolbar_button(ui, "+ Node", can_add, false)
+            .on_hover_text(t!("add_node"))
+            .clicked()
+        {
+            action = Some(GlyphToolbarAction::Add);
+        }
+        if toolbar_button(ui, "− Delete", can_delete, false)
+            .on_hover_text(t!("delete_node"))
+            .clicked()
+        {
+            action = Some(GlyphToolbarAction::Delete);
+        }
+        ui.separator();
+        if toolbar_button(ui, "◐ Curve", can_curve, false)
+            .on_hover_text(t!("curve_tool"))
+            .clicked()
+        {
+            action = Some(GlyphToolbarAction::Curve);
+        }
+        if toolbar_button(ui, "╱ Line", can_line, false)
+            .on_hover_text(t!("line_tool"))
+            .clicked()
+        {
+            action = Some(GlyphToolbarAction::Line);
+        }
+        ui.separator();
+        if toolbar_button(ui, "↶ Undo", editor.can_undo(), false)
+            .on_hover_text(t!("undo"))
+            .clicked()
+        {
+            action = Some(GlyphToolbarAction::Undo);
+        }
+        if toolbar_button(ui, "↷ Redo", editor.can_redo(), false)
+            .on_hover_text(t!("redo"))
+            .clicked()
+        {
+            action = Some(GlyphToolbarAction::Redo);
+        }
+    });
+    action
+}
+
 pub fn draw_glyph_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
     let Some(mut glyph) = selected_opened_glyph(state) else {
         return;
@@ -120,16 +204,16 @@ pub fn draw_glyph_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mod
         let before = glyph.outline.clone();
         if crate::image_viewer::model::delete_glyph_node(&mut glyph.outline, node) {
             glyph.editor.record(before);
-            glyph.editor.selected_node = None;
+            glyph.editor.set_selected_node(None, false);
         }
     }
     if undo_pressed && let Some(outline) = glyph.editor.undo(&glyph.outline) {
         glyph.outline = outline;
-        glyph.editor.selected_node = None;
+        glyph.editor.set_selected_node(None, false);
     }
     if redo_pressed && let Some(outline) = glyph.editor.redo(&glyph.outline) {
         glyph.outline = outline;
-        glyph.editor.selected_node = None;
+        glyph.editor.set_selected_node(None, false);
     }
     if let Some((min_x, min_y, max_x, max_y)) = glyph_outline_bounds(&glyph.outline) {
         glyph.bbox = (
@@ -140,103 +224,94 @@ pub fn draw_glyph_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mod
         );
     }
 
-    const EDITOR_HEIGHT: f32 = 390.0;
-    let top_space = ((ui.available_height() - EDITOR_HEIGHT) * 0.5).max(0.0);
-    ui.add_space(top_space);
-    ui.vertical_centered(|ui| {
-        let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-        egui::Frame::new()
-            .fill(p.mantle)
-            .stroke(egui::Stroke::new(1.0, p.surface1))
-            .corner_radius(crate::image_viewer::ui::theme::RADIUS)
-            .inner_margin(egui::Margin::same(4))
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    let toolbar_button =
-                        |ui: &mut egui::Ui, label: &str, enabled: bool, active: bool| {
-                            if enabled {
-                                crate::image_viewer::ui::widgets::button_opts(
-                                    ui,
-                                    label,
-                                    crate::image_viewer::ui::widgets::ButtonOpts {
-                                        active,
-                                        small: true,
-                                        ..Default::default()
-                                    },
-                                )
-                            } else {
-                                ui.add_enabled(false, egui::Button::new(label))
-                            }
-                        };
-                    let selected = glyph.editor.selected_node;
-                    let can_add = selected.is_some_and(|node| {
-                        crate::image_viewer::model::can_add_glyph_node(&glyph.outline, node)
-                    });
-                    let can_delete = selected.is_some_and(|node| {
-                        crate::image_viewer::model::can_delete_glyph_node(&glyph.outline, node)
-                    });
-                    toolbar_button(ui, "🖱 Select", true, true);
-                    if toolbar_button(ui, "+ Node", can_add, false)
-                        .on_hover_text(t!("add_node"))
-                        .clicked()
-                        && let Some(node) = selected
-                    {
-                        let before = glyph.outline.clone();
-                        if crate::image_viewer::model::add_glyph_node(&mut glyph.outline, node) {
-                            glyph.editor.record(before);
-                            glyph.editor.selected_node = None;
-                        }
+    let canvas_rect = ui.max_rect();
+    let toolbar_rect = egui::Rect::from_min_size(
+        canvas_rect.center() + egui::vec2(-205.0, -190.0),
+        egui::vec2(410.0, 30.0),
+    );
+    let action = egui::Area::new(ui.id().with("glyph-toolbar"))
+        .order(egui::Order::Foreground)
+        .movable(true)
+        .constrain_to(canvas_rect)
+        .default_pos(toolbar_rect.min)
+        .show(ui.ctx(), |ui| {
+            let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+            egui::Frame::new()
+                .fill(p.mantle)
+                .stroke(egui::Stroke::new(1.0, p.surface1))
+                .corner_radius(crate::image_viewer::ui::theme::RADIUS)
+                .inner_margin(egui::Margin::same(4))
+                .show(ui, |ui| {
+                    draw_glyph_toolbar(ui, &glyph.outline, &glyph.editor)
+                })
+                .inner
+        })
+        .inner;
+    if let Some(action) = action {
+        match action {
+            GlyphToolbarAction::Add => {
+                if let Some(node) = glyph.editor.selected_node {
+                    let before = glyph.outline.clone();
+                    if crate::image_viewer::model::add_glyph_node(&mut glyph.outline, node) {
+                        glyph.editor.record(before);
+                        glyph.editor.set_selected_node(None, false);
                     }
-                    if toolbar_button(ui, "− Delete", can_delete, false)
-                        .on_hover_text(t!("delete_node"))
-                        .clicked()
-                        && let Some(node) = selected
-                    {
-                        let before = glyph.outline.clone();
-                        if crate::image_viewer::model::delete_glyph_node(&mut glyph.outline, node) {
-                            glyph.editor.record(before);
-                            glyph.editor.selected_node = None;
-                        }
+                }
+            }
+            GlyphToolbarAction::Delete => {
+                if let Some(node) = glyph.editor.selected_node {
+                    let before = glyph.outline.clone();
+                    if crate::image_viewer::model::delete_glyph_node(&mut glyph.outline, node) {
+                        glyph.editor.record(before);
+                        glyph.editor.set_selected_node(None, false);
                     }
-                    ui.separator();
-                    toolbar_button(ui, "◐ Curve", false, false)
-                        .on_hover_text(t!("curve_tool_unavailable"));
-                    toolbar_button(ui, "╱ Line", false, false)
-                        .on_hover_text(t!("line_tool_unavailable"));
-                    ui.separator();
-                    if toolbar_button(ui, "↶ Undo", glyph.editor.can_undo(), false)
-                        .on_hover_text(t!("undo"))
-                        .clicked()
-                        && let Some(outline) = glyph.editor.undo(&glyph.outline)
-                    {
-                        glyph.outline = outline;
-                        glyph.editor.selected_node = None;
-                    }
-                    if toolbar_button(ui, "↷ Redo", glyph.editor.can_redo(), false)
-                        .on_hover_text(t!("redo"))
-                        .clicked()
-                        && let Some(outline) = glyph.editor.redo(&glyph.outline)
-                    {
-                        glyph.outline = outline;
-                        glyph.editor.selected_node = None;
-                    }
-                });
-            });
-        ui.add_space(12.0);
-        draw_glyph_vector_view(
-            ui,
-            glyph.codepoint,
-            glyph.advance,
-            glyph.bearing.0,
-            glyph.bearing.1,
-            glyph.bbox,
-            &mut glyph.outline,
-            glyph.outline_approximate,
-            &glyph.source_font,
-            &mut state.glyph_canvas_view,
-            Some(&mut glyph.editor),
-        );
-    });
+                }
+            }
+            GlyphToolbarAction::Curve => {
+                let before = glyph.outline.clone();
+                if crate::image_viewer::model::curve_glyph_segments(
+                    &mut glyph.outline,
+                    glyph.editor.selected_nodes(),
+                ) {
+                    glyph.editor.record(before);
+                }
+            }
+            GlyphToolbarAction::Line => {
+                let before = glyph.outline.clone();
+                if crate::image_viewer::model::line_glyph_segments(
+                    &mut glyph.outline,
+                    glyph.editor.selected_nodes(),
+                ) {
+                    glyph.editor.record(before);
+                }
+            }
+            GlyphToolbarAction::Undo => {
+                if let Some(outline) = glyph.editor.undo(&glyph.outline) {
+                    glyph.outline = outline;
+                    glyph.editor.set_selected_node(None, false);
+                }
+            }
+            GlyphToolbarAction::Redo => {
+                if let Some(outline) = glyph.editor.redo(&glyph.outline) {
+                    glyph.outline = outline;
+                    glyph.editor.set_selected_node(None, false);
+                }
+            }
+        }
+    }
+    draw_glyph_vector_view(
+        ui,
+        glyph.codepoint,
+        glyph.advance,
+        glyph.bearing.0,
+        glyph.bearing.1,
+        glyph.bbox,
+        &mut glyph.outline,
+        glyph.outline_approximate,
+        &glyph.source_font,
+        &mut state.glyph_canvas_view,
+        Some(&mut glyph.editor),
+    );
 
     let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
     let canvas_rect = ui.max_rect();
@@ -1947,11 +2022,8 @@ fn draw_glyph_vector_view(
 ) {
     let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
 
-    const CANVAS_SIZE: f32 = 242.0;
-    let (response, painter) = ui.allocate_painter(
-        egui::vec2(CANVAS_SIZE, CANVAS_SIZE),
-        egui::Sense::click_and_drag(),
-    );
+    let canvas_size = ui.available_size_before_wrap().max(egui::vec2(1.0, 1.0));
+    let (response, painter) = ui.allocate_painter(canvas_size, egui::Sense::click_and_drag());
     let canvas_rect = response.rect;
 
     let (min_x, min_y, max_x, max_y) = glyph_view_bounds(bbox, bearing_x, advance);
@@ -1976,7 +2048,7 @@ fn draw_glyph_vector_view(
         }
         let dragging_node = editor
             .as_ref()
-            .is_some_and(|editor| editor.selected_node.is_some())
+            .is_some_and(|editor| editor.drag_start.is_some())
             && response.dragged();
         if !dragging_node {
             view.pan += response.drag_delta();
@@ -2001,7 +2073,7 @@ fn draw_glyph_vector_view(
         if response.clicked()
             && let Some(pointer) = response.interact_pointer_pos()
         {
-            editor.selected_node = nodes
+            let hit = nodes
                 .iter()
                 .filter_map(|(node, point)| {
                     let screen =
@@ -2011,25 +2083,46 @@ fn draw_glyph_vector_view(
                 })
                 .min_by(|(_, a), (_, b)| a.total_cmp(b))
                 .map(|(node, _)| node);
+            let toggle = ui.input(|input| input.modifiers.ctrl || input.modifiers.command);
+            editor.set_selected_node(hit, toggle);
         }
-        if response.drag_started() && editor.selected_node.is_some() {
+        if response.drag_started()
+            && let Some(pointer) = response.interact_pointer_pos()
+            && editor.selected_nodes().iter().any(|selected| {
+                nodes.iter().any(|(node, point)| {
+                    node == selected
+                        && editor.has_node(*node)
+                        && egui::pos2(ox + point.x.to_f32() * scale, oy - point.y.to_f32() * scale)
+                            .distance(pointer)
+                            <= 8.0
+                })
+            })
+        {
             editor.drag_before = Some(outline.to_vec());
+            editor.drag_start = Some(pointer);
         }
         if response.dragged()
-            && let Some(node) = editor.selected_node
-            && let Some(pointer) = response.interact_pointer_pos()
+            && !editor.selected_nodes.is_empty()
+            && let (Some(pointer), Some(start), Some(before)) = (
+                response.interact_pointer_pos(),
+                editor.drag_start,
+                editor.drag_before.as_ref(),
+            )
         {
-            let point = icu_lib::mirx::Point::new(
-                icu_lib::mirx::Fixed::from_raw(((pointer.x - ox) / scale * 256.0).round() as i32),
-                icu_lib::mirx::Fixed::from_raw(((oy - pointer.y) / scale * 256.0).round() as i32),
+            let delta = (
+                ((pointer.x - start.x) / scale * 256.0).round() as i32,
+                ((start.y - pointer.y) / scale * 256.0).round() as i32,
             );
-            crate::image_viewer::model::move_glyph_node(outline, node, point);
+            outline.clone_from_slice(before);
+            crate::image_viewer::model::move_glyph_nodes(outline, editor.selected_nodes(), delta);
         }
-        if response.drag_stopped()
-            && let Some(before) = editor.drag_before.take()
-            && before != outline
-        {
-            editor.record(before);
+        if response.drag_stopped() {
+            editor.drag_start = None;
+            if let Some(before) = editor.drag_before.take()
+                && before != outline
+            {
+                editor.record(before);
+            }
         }
     }
 
@@ -2162,11 +2255,10 @@ fn draw_glyph_vector_view(
                 }
             }
 
-            let selected_node = editor.as_ref().and_then(|editor| editor.selected_node);
             for (node, point) in crate::image_viewer::model::glyph_nodes(outline) {
                 let pos = egui::pos2(ox + point.x.to_f32() * scale, oy - point.y.to_f32() * scale);
                 let is_handle = node.role != crate::image_viewer::model::GlyphNodeRole::Endpoint;
-                let selected = selected_node == Some(node);
+                let selected = editor.as_ref().is_some_and(|editor| editor.has_node(node));
                 let radius = if selected {
                     5.0
                 } else if is_handle {
