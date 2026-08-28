@@ -1571,7 +1571,10 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
             }
         }
         FontMode::Grid => {
-            let grid_key = format!("{}_{:?}_{}", image.path, fg, state.font_bundle_index);
+            let grid_key = format!(
+                "{}_{:?}_{}_mirx_y_down_v2",
+                image.path, fg, state.font_bundle_index
+            );
             let cache_changed = match &state.font_grid_cached {
                 Some(cache) => cache.key != grid_key,
                 None => true,
