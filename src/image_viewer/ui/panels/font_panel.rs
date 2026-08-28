@@ -723,12 +723,8 @@ fn draw_selected_glyph_section(
                     None => true,
                 };
                 if need_big {
-                    let big = icu_lib::endecoder::mirui::font_render::render_font_text(
-                        font,
-                        &ch.to_string(),
-                        128,
-                        128,
-                        text_color,
+                    let big = icu_lib::endecoder::mirui::font_render::render_font_glyph_on_canvas(
+                        font, ch, 128, 128, 0.0, 0.0, text_color,
                     );
                     let big = orient_mirx_grid_image(&big, 128);
                     let ci = egui::ColorImage::from_rgba_unmultiplied(
@@ -766,12 +762,8 @@ fn draw_selected_glyph_section(
                     None => true,
                 };
                 if need_big {
-                    let big = icu_lib::endecoder::mirui::font_render::render_font_text(
-                        font,
-                        &ch.to_string(),
-                        128,
-                        128,
-                        text_color,
+                    let big = icu_lib::endecoder::mirui::font_render::render_font_glyph_on_canvas(
+                        font, ch, 128, 128, 0.0, 0.0, text_color,
                     );
                     let big = orient_mirx_grid_image(&big, 128);
                     let ci = egui::ColorImage::from_rgba_unmultiplied(
@@ -934,22 +926,14 @@ fn render_source_glyph(
 ) -> Option<icu_lib::image::RgbaImage> {
     match font_data {
         FontData::Mirx(font) => {
-            let image = icu_lib::endecoder::mirui::font_render::render_font_text(
-                font,
-                &ch.to_string(),
-                cell,
-                cell,
-                text_color,
+            let image = icu_lib::endecoder::mirui::font_render::render_font_glyph_on_canvas(
+                font, ch, cell, cell, 0.0, 0.0, text_color,
             );
             Some(orient_mirx_grid_image(&image, cell))
         }
         FontData::MirxBundle(_fonts) => selected_mirx_font(font_data, bundle_index).map(|font| {
-            let image = icu_lib::endecoder::mirui::font_render::render_font_text(
-                font,
-                &ch.to_string(),
-                cell,
-                cell,
-                text_color,
+            let image = icu_lib::endecoder::mirui::font_render::render_font_glyph_on_canvas(
+                font, ch, cell, cell, 0.0, 0.0, text_color,
             );
             orient_mirx_grid_image(&image, cell)
         }),
