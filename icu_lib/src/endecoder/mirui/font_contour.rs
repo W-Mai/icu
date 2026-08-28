@@ -248,6 +248,29 @@ mod tests {
     }
 
     #[test]
+    fn maps_top_image_rows_to_high_glyph_coordinates() {
+        let f = font_with_size(
+            FontChunkKind::Grayscale,
+            8,
+            5,
+            vec![
+                0, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+        );
+        let contour = approximate_glyph_contour(&f, 0).unwrap();
+        let ys: Vec<i32> = contour
+            .iter()
+            .filter_map(|cmd| match cmd {
+                mirx::PathCmd::MoveTo(point) | mirx::PathCmd::LineTo(point) => Some(point.y.raw()),
+                mirx::PathCmd::Close => None,
+                mirx::PathCmd::QuadTo { .. } | mirx::PathCmd::CubicTo { .. } => None,
+            })
+            .collect();
+        assert!(!ys.is_empty());
+        assert!(ys.iter().all(|y| *y > 2 * 256));
+    }
+
+    #[test]
     fn extracts_rectangle_and_disconnected_regions_deterministically() {
         let f = font_with_size(
             FontChunkKind::Grayscale,
