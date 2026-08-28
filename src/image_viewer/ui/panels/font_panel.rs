@@ -1612,34 +1612,60 @@ fn build_opened_glyph(
         FontData::Mirx(font) => {
             let m = font.metrics.get(idx)?;
             let ch = char::from_u32(m.codepoint).unwrap_or('?');
+            let outline =
+                icu_lib::endecoder::mirui::font_contour::approximate_glyph_contour(font, idx)
+                    .unwrap_or_default();
+            let bbox = glyph_outline_bounds(&outline)
+                .map(|(min_x, min_y, max_x, max_y)| {
+                    (
+                        min_x.round() as i16,
+                        min_y.round() as i16,
+                        max_x.round() as i16,
+                        max_y.round() as i16,
+                    )
+                })
+                .unwrap_or((0, 0, 0, 0));
             Some(OpenedGlyph {
                 name: format!("glyph_{} (U+{:04X})", ch, m.codepoint),
                 codepoint: m.codepoint,
                 char_repr: ch.to_string(),
                 advance: m.advance,
                 bearing: (m.bearing_x as i16, m.bearing_y as i16),
-                bbox: (0, 0, 0, 0),
-                outline: Vec::new(),
+                bbox,
+                outline,
                 outline_approximate: true,
                 source_font: format!("{:?}", font.chunk_header.kind),
-                source_is_sdf: true,
+                source_is_sdf: matches!(font.chunk_header.kind, mirx::FontChunkKind::Sdf),
             })
         }
         FontData::MirxBundle(fonts) => {
             let font = fonts.get(bundle_index).or_else(|| fonts.first())?;
             let m = font.metrics.get(idx)?;
             let ch = char::from_u32(m.codepoint).unwrap_or('?');
+            let outline =
+                icu_lib::endecoder::mirui::font_contour::approximate_glyph_contour(font, idx)
+                    .unwrap_or_default();
+            let bbox = glyph_outline_bounds(&outline)
+                .map(|(min_x, min_y, max_x, max_y)| {
+                    (
+                        min_x.round() as i16,
+                        min_y.round() as i16,
+                        max_x.round() as i16,
+                        max_y.round() as i16,
+                    )
+                })
+                .unwrap_or((0, 0, 0, 0));
             Some(OpenedGlyph {
                 name: format!("glyph_{} (U+{:04X})", ch, m.codepoint),
                 codepoint: m.codepoint,
                 char_repr: ch.to_string(),
                 advance: m.advance,
                 bearing: (m.bearing_x as i16, m.bearing_y as i16),
-                bbox: (0, 0, 0, 0),
-                outline: Vec::new(),
+                bbox,
+                outline,
                 outline_approximate: true,
                 source_font: format!("{:?}", font.chunk_header.kind),
-                source_is_sdf: true,
+                source_is_sdf: matches!(font.chunk_header.kind, mirx::FontChunkKind::Sdf),
             })
         }
     }
