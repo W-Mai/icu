@@ -131,71 +131,6 @@ pub fn draw_glyph_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mod
         glyph.outline = outline;
         glyph.editor.selected_node = None;
     }
-
-    ui.horizontal(|ui| {
-        ui.label(
-            egui::RichText::new(format!(
-                "{} · U+{:04X} · {} path cmds",
-                glyph.char_repr,
-                glyph.codepoint,
-                glyph.outline.len()
-            ))
-            .size(11.0)
-            .color(ui.style().visuals.weak_text_color()),
-        );
-        ui.separator();
-        let selected = glyph.editor.selected_node;
-        let can_add = selected.is_some_and(|node| {
-            crate::image_viewer::model::can_add_glyph_node(&glyph.outline, node)
-        });
-        let can_delete = selected.is_some_and(|node| {
-            crate::image_viewer::model::can_delete_glyph_node(&glyph.outline, node)
-        });
-        if ui
-            .add_enabled(can_add, egui::Button::new("+"))
-            .on_hover_text(t!("add_node"))
-            .clicked()
-            && let Some(node) = selected
-        {
-            let before = glyph.outline.clone();
-            if crate::image_viewer::model::add_glyph_node(&mut glyph.outline, node) {
-                glyph.editor.record(before);
-                glyph.editor.selected_node = None;
-            }
-        }
-        if ui
-            .add_enabled(can_delete, egui::Button::new("−"))
-            .on_hover_text(t!("delete_node"))
-            .clicked()
-            && let Some(node) = selected
-        {
-            let before = glyph.outline.clone();
-            if crate::image_viewer::model::delete_glyph_node(&mut glyph.outline, node) {
-                glyph.editor.record(before);
-                glyph.editor.selected_node = None;
-            }
-        }
-        if ui
-            .add_enabled(glyph.editor.can_undo(), egui::Button::new("↶"))
-            .on_hover_text(t!("undo"))
-            .clicked()
-            && let Some(outline) = glyph.editor.undo(&glyph.outline)
-        {
-            glyph.outline = outline;
-            glyph.editor.selected_node = None;
-        }
-        if ui
-            .add_enabled(glyph.editor.can_redo(), egui::Button::new("↷"))
-            .on_hover_text(t!("redo"))
-            .clicked()
-            && let Some(outline) = glyph.editor.redo(&glyph.outline)
-        {
-            glyph.outline = outline;
-            glyph.editor.selected_node = None;
-        }
-    });
-    ui.separator();
-
     if let Some((min_x, min_y, max_x, max_y)) = glyph_outline_bounds(&glyph.outline) {
         glyph.bbox = (
             min_x.round() as i16,
@@ -204,18 +139,164 @@ pub fn draw_glyph_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mod
             max_y.round() as i16,
         );
     }
-    draw_glyph_vector_view(
-        ui,
-        glyph.codepoint,
-        glyph.advance,
-        glyph.bearing.0,
-        glyph.bearing.1,
-        glyph.bbox,
-        &mut glyph.outline,
-        glyph.outline_approximate,
-        &mut state.glyph_canvas_view,
-        Some(&mut glyph.editor),
+
+    const EDITOR_HEIGHT: f32 = 390.0;
+    let top_space = ((ui.available_height() - EDITOR_HEIGHT) * 0.5).max(0.0);
+    ui.add_space(top_space);
+    ui.vertical_centered(|ui| {
+        let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+        egui::Frame::new()
+            .fill(p.mantle)
+            .stroke(egui::Stroke::new(1.0, p.surface1))
+            .corner_radius(crate::image_viewer::ui::theme::RADIUS)
+            .inner_margin(egui::Margin::same(4))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    let toolbar_button =
+                        |ui: &mut egui::Ui, label: &str, enabled: bool, active: bool| {
+                            if enabled {
+                                crate::image_viewer::ui::widgets::button_opts(
+                                    ui,
+                                    label,
+                                    crate::image_viewer::ui::widgets::ButtonOpts {
+                                        active,
+                                        small: true,
+                                        ..Default::default()
+                                    },
+                                )
+                            } else {
+                                ui.add_enabled(false, egui::Button::new(label))
+                            }
+                        };
+                    let selected = glyph.editor.selected_node;
+                    let can_add = selected.is_some_and(|node| {
+                        crate::image_viewer::model::can_add_glyph_node(&glyph.outline, node)
+                    });
+                    let can_delete = selected.is_some_and(|node| {
+                        crate::image_viewer::model::can_delete_glyph_node(&glyph.outline, node)
+                    });
+                    toolbar_button(ui, "🖱 Select", true, true);
+                    if toolbar_button(ui, "+ Node", can_add, false)
+                        .on_hover_text(t!("add_node"))
+                        .clicked()
+                        && let Some(node) = selected
+                    {
+                        let before = glyph.outline.clone();
+                        if crate::image_viewer::model::add_glyph_node(&mut glyph.outline, node) {
+                            glyph.editor.record(before);
+                            glyph.editor.selected_node = None;
+                        }
+                    }
+                    if toolbar_button(ui, "− Delete", can_delete, false)
+                        .on_hover_text(t!("delete_node"))
+                        .clicked()
+                        && let Some(node) = selected
+                    {
+                        let before = glyph.outline.clone();
+                        if crate::image_viewer::model::delete_glyph_node(&mut glyph.outline, node) {
+                            glyph.editor.record(before);
+                            glyph.editor.selected_node = None;
+                        }
+                    }
+                    ui.separator();
+                    toolbar_button(ui, "◐ Curve", false, false)
+                        .on_hover_text(t!("curve_tool_unavailable"));
+                    toolbar_button(ui, "╱ Line", false, false)
+                        .on_hover_text(t!("line_tool_unavailable"));
+                    ui.separator();
+                    if toolbar_button(ui, "↶ Undo", glyph.editor.can_undo(), false)
+                        .on_hover_text(t!("undo"))
+                        .clicked()
+                        && let Some(outline) = glyph.editor.undo(&glyph.outline)
+                    {
+                        glyph.outline = outline;
+                        glyph.editor.selected_node = None;
+                    }
+                    if toolbar_button(ui, "↷ Redo", glyph.editor.can_redo(), false)
+                        .on_hover_text(t!("redo"))
+                        .clicked()
+                        && let Some(outline) = glyph.editor.redo(&glyph.outline)
+                    {
+                        glyph.outline = outline;
+                        glyph.editor.selected_node = None;
+                    }
+                });
+            });
+        ui.add_space(12.0);
+        draw_glyph_vector_view(
+            ui,
+            glyph.codepoint,
+            glyph.advance,
+            glyph.bearing.0,
+            glyph.bearing.1,
+            glyph.bbox,
+            &mut glyph.outline,
+            glyph.outline_approximate,
+            &glyph.source_font,
+            &mut state.glyph_canvas_view,
+            Some(&mut glyph.editor),
+        );
+    });
+
+    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+    let canvas_rect = ui.max_rect();
+    let badge = format!(
+        "glyph_{} · Vector · {} cmds",
+        glyph.char_repr,
+        glyph.outline.len()
     );
+    let badge_rect = egui::Rect::from_min_size(
+        canvas_rect.right_top() + egui::vec2(-172.0, 8.0),
+        egui::vec2(164.0, 22.0),
+    );
+    ui.painter().rect(
+        badge_rect,
+        crate::image_viewer::ui::theme::RADIUS,
+        p.mantle,
+        egui::Stroke::new(1.0, p.surface1),
+        egui::StrokeKind::Inside,
+    );
+    ui.painter().text(
+        badge_rect.center(),
+        egui::Align2::CENTER_CENTER,
+        badge,
+        egui::FontId::monospace(11.0),
+        p.overlay0,
+    );
+    if let Some(node) = glyph.editor.selected_node
+        && let Some(point) = crate::image_viewer::model::glyph_node_point(&glyph.outline, node)
+    {
+        let role = match node.role {
+            crate::image_viewer::model::GlyphNodeRole::Endpoint => "Endpoint",
+            crate::image_viewer::model::GlyphNodeRole::QuadControl => "Quad control",
+            crate::image_viewer::model::GlyphNodeRole::CubicControl1 => "Cubic control 1",
+            crate::image_viewer::model::GlyphNodeRole::CubicControl2 => "Cubic control 2",
+        };
+        let status = format!(
+            "Node: ({}, {}) · {role} · Selected",
+            point.x.to_int(),
+            point.y.to_int()
+        );
+        let status_rect = egui::Rect::from_min_size(
+            canvas_rect.left_bottom() + egui::vec2(8.0, -30.0),
+            egui::vec2(210.0, 22.0),
+        );
+        ui.painter().rect(
+            status_rect,
+            crate::image_viewer::ui::theme::RADIUS,
+            p.mantle,
+            egui::Stroke::new(1.0, p.surface1),
+            egui::StrokeKind::Inside,
+        );
+        ui.painter().text(
+            status_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            status,
+            egui::FontId::monospace(11.0),
+            p.overlay0,
+        );
+    }
+
     if let Some(crate::image_viewer::model::SidebarItem::Glyph(selected)) =
         state.selected_item_mut()
     {
@@ -311,7 +392,13 @@ pub fn draw_glyph_convert_section(
         return;
     };
 
-    crate::image_viewer::ui::widgets::section_card(ui, t!("section_export").as_ref(), |ui| {
+    ui.vertical(|ui| {
+        ui.label(
+            egui::RichText::new(t!("output_format").to_string().to_uppercase())
+                .size(10.0)
+                .strong()
+                .color(crate::image_viewer::ui::theme::tokens::palette(ui.ctx()).overlay0),
+        );
         egui::ComboBox::from_id_salt("glyph_output_format")
             .selected_text(state.glyph_convert_format.clone())
             .width(ui.available_width())
@@ -328,7 +415,22 @@ pub fn draw_glyph_convert_section(
             });
 
         if state.glyph_convert_format == "MIRX" {
-            ui.add_space(8.0);
+            state.context.convert_params.output_format =
+                crate::image_viewer::model::ImageFormat::MIRX;
+            ui.add_space(12.0);
+            ui.label(
+                egui::RichText::new(t!("section_mirx_settings").to_string().to_uppercase())
+                    .size(10.0)
+                    .strong()
+                    .color(crate::image_viewer::ui::theme::tokens::palette(ui.ctx()).overlay0),
+            );
+            ui.add_space(4.0);
+            ui.label(
+                egui::RichText::new(t!("layout").to_string())
+                    .size(10.0)
+                    .strong()
+                    .color(crate::image_viewer::ui::theme::tokens::palette(ui.ctx()).overlay0),
+            );
             egui::ComboBox::from_id_salt("glyph_mirx_export_kind")
                 .selected_text(match state.context.mirx_export_kind.as_str() {
                     "flat" => t!("mirx_kind_img_flat").to_string(),
@@ -349,6 +451,7 @@ pub fn draw_glyph_convert_section(
                         &flat_label,
                     );
                 });
+            super::super::convert_panel::draw_mirx_options(ui, state);
         }
 
         ui.add_space(12.0);
@@ -839,10 +942,41 @@ fn build_glyph_diff_result(
     })
 }
 
+pub fn selected_glyph_path_data(state: &crate::image_viewer::model::ViewerState) -> String {
+    selected_opened_glyph(state)
+        .map(|glyph| glyph_outline_to_path_data(&glyph.outline))
+        .unwrap_or_default()
+}
+
+pub fn export_selected_glyph_svg(state: &mut crate::image_viewer::model::ViewerState) {
+    let Some(glyph) = selected_opened_glyph(state) else {
+        return;
+    };
+    let svg = glyph_outline_to_svg(&glyph.outline);
+    if let Some(path) = super::pick_save_file(
+        &[("SVG", &["svg"])],
+        &format!("U+{:04X}.svg", glyph.codepoint),
+    ) {
+        let _ = std::fs::write(path, svg);
+    }
+}
+
 fn glyph_outline_to_svg(outline: &[icu_lib::mirx::PathCmd]) -> String {
     let Some((min_x, min_y, max_x, max_y)) = glyph_outline_bounds(outline) else {
         return "<svg viewBox=\"0 0 1 1\"><path d=\"\" fill=\"black\"/></svg>".to_string();
     };
+    let d = glyph_outline_to_path_data(outline);
+    format!(
+        "<svg viewBox=\"{} {} {} {}\"><path d=\"{}\" fill=\"black\"/></svg>",
+        min_x,
+        min_y,
+        max_x - min_x,
+        max_y - min_y,
+        d
+    )
+}
+
+fn glyph_outline_to_path_data(outline: &[icu_lib::mirx::PathCmd]) -> String {
     let mut d = String::new();
     for cmd in outline {
         match cmd {
@@ -886,14 +1020,7 @@ fn glyph_outline_to_svg(outline: &[icu_lib::mirx::PathCmd]) -> String {
             }
         }
     }
-    format!(
-        "<svg viewBox=\"{} {} {} {}\"><path d=\"{}\" fill=\"black\"/></svg>",
-        min_x,
-        min_y,
-        max_x - min_x,
-        max_y - min_y,
-        d
-    )
+    d
 }
 
 fn push_svg_cmd(d: &mut String, cmd: char, values: &[f32]) {
@@ -1530,6 +1657,7 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                             g.bbox,
                             g.outline.clone(),
                             false,
+                            f.family.clone(),
                         )
                     }),
                 FontData::Mirx(font) => state
@@ -1544,26 +1672,31 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                             (0, 0, 0, 0),
                             Vec::new(),
                             true,
+                            format!("{:?}", font.chunk_header.kind),
                         )
                     }),
                 FontData::MirxBundle(fonts) => fonts
                     .get(state.font_bundle_index)
                     .or_else(|| fonts.first())
-                    .and_then(|font| state.selected_glyph.and_then(|idx| font.metrics.get(idx)))
-                    .map(|m| {
-                        (
-                            m.codepoint,
-                            m.advance,
-                            m.bearing_x as i16,
-                            m.bearing_y as i16,
-                            (0, 0, 0, 0),
-                            Vec::new(),
-                            true,
-                        )
+                    .and_then(|font| {
+                        state.selected_glyph.and_then(|idx| {
+                            font.metrics.get(idx).map(|m| {
+                                (
+                                    m.codepoint,
+                                    m.advance,
+                                    m.bearing_x as i16,
+                                    m.bearing_y as i16,
+                                    (0, 0, 0, 0),
+                                    Vec::new(),
+                                    true,
+                                    format!("{:?}", font.chunk_header.kind),
+                                )
+                            })
+                        })
                     }),
             };
 
-            if let Some((cp, advance, bx, by, bbox, mut outline, approx)) = glyph {
+            if let Some((cp, advance, bx, by, bbox, mut outline, approx, source_font)) = glyph {
                 draw_glyph_vector_view(
                     ui,
                     cp,
@@ -1573,6 +1706,7 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                     bbox,
                     &mut outline,
                     approx,
+                    &source_font,
                     &mut state.glyph_canvas_view,
                     None,
                 );
@@ -1807,16 +1941,17 @@ fn draw_glyph_vector_view(
     bbox: (i16, i16, i16, i16),
     outline: &mut [icu_lib::mirx::PathCmd],
     approximate: bool,
+    source_font: &str,
     view: &mut GlyphCanvasView,
     mut editor: Option<&mut crate::image_viewer::model::GlyphEditorState>,
 ) {
     let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-    let ch = char::from_u32(codepoint).unwrap_or('?');
 
-    const DETAILS_HEIGHT: f32 = 190.0;
-    let available = ui.available_size_before_wrap();
-    let canvas_size = egui::vec2(available.x, (available.y - DETAILS_HEIGHT).max(1.0));
-    let (response, painter) = ui.allocate_painter(canvas_size, egui::Sense::click_and_drag());
+    const CANVAS_SIZE: f32 = 242.0;
+    let (response, painter) = ui.allocate_painter(
+        egui::vec2(CANVAS_SIZE, CANVAS_SIZE),
+        egui::Sense::click_and_drag(),
+    );
     let canvas_rect = response.rect;
 
     let (min_x, min_y, max_x, max_y) = glyph_view_bounds(bbox, bearing_x, advance);
@@ -1971,7 +2106,14 @@ fn draw_glyph_vector_view(
             );
         } else {
             let mut current = egui::Pos2::ZERO;
-            let path_stroke = egui::Stroke::new(1.5, p.accent());
+            let path_selected = editor
+                .as_ref()
+                .is_some_and(|editor| editor.selected_node.is_some());
+            let path_stroke = egui::Stroke::new(
+                if path_selected { 2.5 } else { 1.5 },
+                if path_selected { p.peach } else { p.accent() },
+            );
+            let handle_color = p.peach.linear_multiply(0.6);
             for cmd in outline.iter() {
                 match cmd {
                     icu_lib::mirx::PathCmd::MoveTo(pt) => {
@@ -1992,7 +2134,7 @@ fn draw_glyph_vector_view(
                             egui::Color32::TRANSPARENT,
                             path_stroke,
                         ));
-                        let handle_stroke = egui::Stroke::new(1.2, p.peach);
+                        let handle_stroke = egui::Stroke::new(1.0, handle_color);
                         painter.line_segment([current, ctrl_p], handle_stroke);
                         painter.line_segment([end_p, ctrl_p], handle_stroke);
                         painter.circle_filled(ctrl_p, 3.0, p.peach);
@@ -2009,7 +2151,7 @@ fn draw_glyph_vector_view(
                             egui::Color32::TRANSPARENT,
                             path_stroke,
                         ));
-                        let handle_stroke = egui::Stroke::new(1.2, p.peach);
+                        let handle_stroke = egui::Stroke::new(1.0, handle_color);
                         painter.line_segment([current, c1], handle_stroke);
                         painter.line_segment([e, c2], handle_stroke);
                         painter.circle_filled(c1, 3.0, p.peach);
@@ -2030,12 +2172,10 @@ fn draw_glyph_vector_view(
                 } else if is_handle {
                     3.0
                 } else {
-                    3.5
+                    4.0
                 };
-                let color = if selected {
-                    p.peach
-                } else if is_handle {
-                    p.peach
+                let color = if selected || is_handle {
+                    if is_handle { handle_color } else { p.peach }
                 } else {
                     p.accent()
                 };
@@ -2045,14 +2185,7 @@ fn draw_glyph_vector_view(
         }
     }
 
-    ui.add_space(8.0);
-    ui.horizontal(|ui| {
-        ui.label(
-            egui::RichText::new(format!("Glyph '{}' (U+{:04X})", ch, codepoint))
-                .size(12.0)
-                .color(p.text),
-        );
-    });
+    ui.add_space(12.0);
     glyph_metrics_card(
         ui,
         codepoint,
@@ -2062,6 +2195,7 @@ fn draw_glyph_vector_view(
         bbox,
         outline.len(),
         approximate,
+        source_font,
     );
 }
 
@@ -2074,20 +2208,25 @@ fn glyph_metrics_card(
     bbox: (i16, i16, i16, i16),
     outline_len: usize,
     approximate: bool,
+    source_font: &str,
 ) {
     let (min_x, min_y, max_x, max_y) = bbox;
-    crate::image_viewer::ui::widgets::section_card(
-        ui,
-        t!("section_glyph_metrics").as_ref(),
+    let source_font = source_font.to_string();
+    let from_ttf = if approximate {
+        t!("no").to_string()
+    } else {
+        t!("yes").to_string()
+    };
+    ui.allocate_ui_with_layout(
+        egui::vec2(300.0, ui.available_height()),
+        egui::Layout::left_to_right(egui::Align::Min),
         |ui| {
-            let source_atlas = t!("source_atlas_approximate").to_string();
-            let source_freetype = t!("source_freetype_true_vector").to_string();
             egui::Grid::new("glyph_metrics_grid")
-                .num_columns(2)
-                .spacing([16.0, 4.0])
+                .num_columns(4)
+                .spacing([16.0, 6.0])
                 .show(ui, |ui| {
                     let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-                    let row = |ui: &mut egui::Ui, label: &str, value: &str| {
+                    let cell = |ui: &mut egui::Ui, label: &str, value: &str| {
                         ui.label(egui::RichText::new(label).size(11.0).color(p.overlay0));
                         ui.label(
                             egui::RichText::new(value)
@@ -2095,9 +2234,8 @@ fn glyph_metrics_card(
                                 .color(p.text)
                                 .family(egui::FontFamily::Monospace),
                         );
-                        ui.end_row();
                     };
-                    row(
+                    cell(
                         ui,
                         t!("codepoint").as_ref(),
                         &format!(
@@ -2106,24 +2244,21 @@ fn glyph_metrics_card(
                             char::from_u32(codepoint).unwrap_or('?')
                         ),
                     );
-                    row(ui, t!("advance").as_ref(), &format!("{} px", advance));
-                    row(ui, t!("bearing_x").as_ref(), &format!("{} px", bearing_x));
-                    row(ui, t!("bearing_y").as_ref(), &format!("{} px", bearing_y));
-                    row(
+                    cell(ui, t!("advance").as_ref(), &format!("{} px", advance));
+                    ui.end_row();
+                    cell(ui, t!("bearing_x").as_ref(), &format!("{} px", bearing_x));
+                    cell(ui, t!("bearing_y").as_ref(), &format!("{} px", bearing_y));
+                    ui.end_row();
+                    cell(
                         ui,
                         t!("bbox").as_ref(),
                         &format!("({}, {}, {}, {})", min_x, min_y, max_x, max_y),
                     );
-                    row(ui, t!("outline_cmds").as_ref(), &format!("{}", outline_len));
-                    row(
-                        ui,
-                        t!("source").as_ref(),
-                        if approximate {
-                            source_atlas.as_str()
-                        } else {
-                            source_freetype.as_str()
-                        },
-                    );
+                    cell(ui, t!("outline_cmds").as_ref(), &format!("{}", outline_len));
+                    ui.end_row();
+                    cell(ui, t!("source_font").as_ref(), &source_font);
+                    cell(ui, t!("from_ttf").as_ref(), &from_ttf);
+                    ui.end_row();
                 });
         },
     );

@@ -258,33 +258,77 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
             }
         }
         SidebarItem::Glyph(g) => {
+            let from_ttf = if g.outline_approximate {
+                t!("no").to_string()
+            } else {
+                t!("yes").to_string()
+            };
             widgets::section_card(ui, t!("section_glyph_properties").as_ref(), |ui| {
-                let source_atlas = t!("source_atlas_approximate").to_string();
-                let source_freetype = t!("source_freetype_true_vector").to_string();
                 widgets::info_row(
                     ui,
                     t!("codepoint").as_ref(),
-                    &format!("U+{:04X}", g.codepoint),
+                    &format!("U+{:04X} ({})", g.codepoint, g.char_repr),
                 );
-                widgets::info_row(ui, t!("character").as_ref(), &g.char_repr);
-                widgets::info_row(ui, t!("advance").as_ref(), &format!("{}px", g.advance));
-                widgets::info_row(ui, t!("bearing").as_ref(), &format!("{:?}", g.bearing));
+                widgets::info_row(ui, t!("advance").as_ref(), &format!("{} px", g.advance));
+                widgets::info_row(ui, t!("bearing_x").as_ref(), &format!("{} px", g.bearing.0));
+                widgets::info_row(ui, t!("bearing_y").as_ref(), &format!("{} px", g.bearing.1));
                 widgets::info_row(ui, t!("bbox").as_ref(), &format!("{:?}", g.bbox));
                 widgets::info_row(
                     ui,
                     t!("outline_cmds").as_ref(),
                     &g.outline.len().to_string(),
                 );
-                widgets::info_row(
-                    ui,
-                    t!("source").as_ref(),
-                    if g.outline_approximate {
-                        source_atlas.as_str()
-                    } else {
-                        source_freetype.as_str()
-                    },
-                );
+                widgets::info_row(ui, t!("source_font").as_ref(), &g.source_font);
+                widgets::info_row(ui, t!("from_ttf").as_ref(), &from_ttf);
             });
+            ui.add_space(8.0);
+            ui.label(
+                egui::RichText::new(t!("section_export_glyph").to_string().to_uppercase())
+                    .size(10.0)
+                    .strong()
+                    .color(theme::tokens::palette(ui.ctx()).overlay0),
+            );
+            if widgets::button_opts(
+                ui,
+                t!("btn_export_svg"),
+                widgets::ButtonOpts {
+                    small: true,
+                    full_width: true,
+                    ..Default::default()
+                },
+            )
+            .clicked()
+            {
+                panels::font_panel::export_selected_glyph_svg(state);
+            }
+            if widgets::button_opts(
+                ui,
+                t!("btn_copy_svg_path"),
+                widgets::ButtonOpts {
+                    small: true,
+                    full_width: true,
+                    ..Default::default()
+                },
+            )
+            .clicked()
+            {
+                ui.ctx()
+                    .copy_text(panels::font_panel::selected_glyph_path_data(state));
+            }
+            if widgets::button_opts(
+                ui,
+                t!("btn_export_mirx"),
+                widgets::ButtonOpts {
+                    small: true,
+                    full_width: true,
+                    ..Default::default()
+                },
+            )
+            .clicked()
+            {
+                state.glyph_convert_format = "MIRX".to_string();
+                state.context.right_tab = RightTab::Convert;
+            }
         }
     }
 }
