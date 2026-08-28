@@ -723,13 +723,14 @@ fn draw_selected_glyph_section(
                     None => true,
                 };
                 if need_big {
-                    let big = icu_lib::endecoder::mirui::font_render::render_font_text(
+                    let mut big = icu_lib::endecoder::mirui::font_render::render_font_text(
                         font,
                         &ch.to_string(),
                         128,
                         128,
                         text_color,
                     );
+                    icu_lib::image::imageops::flip_vertical_in_place(&mut big);
                     let ci = egui::ColorImage::from_rgba_unmultiplied(
                         [big.width() as usize, big.height() as usize],
                         big.as_raw(),
@@ -765,13 +766,14 @@ fn draw_selected_glyph_section(
                     None => true,
                 };
                 if need_big {
-                    let big = icu_lib::endecoder::mirui::font_render::render_font_text(
+                    let mut big = icu_lib::endecoder::mirui::font_render::render_font_text(
                         font,
                         &ch.to_string(),
                         128,
                         128,
                         text_color,
                     );
+                    icu_lib::image::imageops::flip_vertical_in_place(&mut big);
                     let ci = egui::ColorImage::from_rgba_unmultiplied(
                         [big.width() as usize, big.height() as usize],
                         big.as_raw(),
