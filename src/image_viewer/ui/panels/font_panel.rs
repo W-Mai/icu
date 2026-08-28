@@ -2127,14 +2127,6 @@ fn draw_glyph_vector_view(
     }
 
     if ui.is_rect_visible(canvas_rect) {
-        painter.rect(
-            canvas_rect,
-            crate::image_viewer::ui::theme::RADIUS,
-            p.surface0,
-            egui::Stroke::new(1.0, p.surface1),
-            egui::StrokeKind::Inside,
-        );
-
         let baseline_y = 0i32;
         let left_x = i32::from(bearing_x);
         let right_x = left_x + i32::from(advance);
