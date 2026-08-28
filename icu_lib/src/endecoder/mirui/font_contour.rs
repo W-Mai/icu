@@ -163,8 +163,12 @@ pub fn approximate_glyph_contour(font: &Font, glyph_index: usize) -> Option<Vec<
         if !closed || points.len() < 3 {
             continue;
         }
-        let to_point =
-            |(x, y): Point| mirx::Point::new(mirx::Fixed::from_raw(x), mirx::Fixed::from_raw(y));
+        let to_point = |(x, y): Point| {
+            mirx::Point::new(
+                mirx::Fixed::from_raw(x),
+                mirx::Fixed::from_raw(size as i32 * 256 - y),
+            )
+        };
         paths.push(mirx::PathCmd::MoveTo(to_point(points[0])));
         for point in points.into_iter().skip(1) {
             paths.push(mirx::PathCmd::LineTo(to_point(point)));
