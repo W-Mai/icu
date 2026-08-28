@@ -726,7 +726,7 @@ fn draw_selected_glyph_section(
                     let big = icu_lib::endecoder::mirui::font_render::render_font_glyph_on_canvas(
                         font, ch, 128, 128, 0.0, 0.0, text_color,
                     );
-                    let big = orient_mirx_grid_image(&big, 128);
+                    let big = orient_mirx_grid_image(&big, 128, font.atlas.source_size as u32);
                     let ci = egui::ColorImage::from_rgba_unmultiplied(
                         [big.width() as usize, big.height() as usize],
                         big.as_raw(),
@@ -765,7 +765,7 @@ fn draw_selected_glyph_section(
                     let big = icu_lib::endecoder::mirui::font_render::render_font_glyph_on_canvas(
                         font, ch, 128, 128, 0.0, 0.0, text_color,
                     );
-                    let big = orient_mirx_grid_image(&big, 128);
+                    let big = orient_mirx_grid_image(&big, 128, font.atlas.source_size as u32);
                     let ci = egui::ColorImage::from_rgba_unmultiplied(
                         [big.width() as usize, big.height() as usize],
                         big.as_raw(),
@@ -901,10 +901,14 @@ fn pad_image_to_cell(src: &icu_lib::image::RgbaImage, cell: u32) -> icu_lib::ima
     canvas
 }
 
-fn orient_mirx_grid_image(src: &icu_lib::image::RgbaImage, cell: u32) -> icu_lib::image::RgbaImage {
+fn orient_mirx_grid_image(
+    src: &icu_lib::image::RgbaImage,
+    cell: u32,
+    source_size: u32,
+) -> icu_lib::image::RgbaImage {
     let padded = pad_image_to_cell(src, cell);
     let mut oriented = icu_lib::image::RgbaImage::new(cell, cell);
-    let baseline = cell as f32 * 0.8;
+    let baseline = source_size as f32 * 0.8;
     for y in 0..cell {
         let target_y = (2.0 * baseline - y as f32).round() as i32;
         if !(0..cell as i32).contains(&target_y) {
@@ -929,13 +933,17 @@ fn render_source_glyph(
             let image = icu_lib::endecoder::mirui::font_render::render_font_glyph_on_canvas(
                 font, ch, cell, cell, 0.0, 0.0, text_color,
             );
-            Some(orient_mirx_grid_image(&image, cell))
+            Some(orient_mirx_grid_image(
+                &image,
+                cell,
+                font.atlas.source_size as u32,
+            ))
         }
         FontData::MirxBundle(_fonts) => selected_mirx_font(font_data, bundle_index).map(|font| {
             let image = icu_lib::endecoder::mirui::font_render::render_font_glyph_on_canvas(
                 font, ch, cell, cell, 0.0, 0.0, text_color,
             );
-            orient_mirx_grid_image(&image, cell)
+            orient_mirx_grid_image(&image, cell, font.atlas.source_size as u32)
         }),
         FontData::FreeType(font) => {
             icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
