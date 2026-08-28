@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en" id="oranda" class="hacker">
+  <head>
+    <title>icu_tool</title>
+    
+      <meta property="og:url" content="https://w-mai.github.io/icu" />
+    
+    
+      <link rel="icon" href="/favicon.ico" />
+    
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+      <meta name="description" content="Image Converter Ultra" />
+      <meta property="og:description" content="Image Converter Ultra" />
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="icu_tool" />
+    
+    
+    
+    <meta http-equiv="Permissions-Policy" content="interest-cohort=()" />
+    <link rel="stylesheet" href="/oranda-v0.6.1.css" />
+    
+    
+  </head>
+  <body>
+    <div class="container">
+      <div class="page-body">
+        
+          <div class="repo_banner">
+            <a href="https://github.com/W-Mai/icu">
+              <div class="github-icon" aria-hidden="true"></div>
+              Check out our GitHub!
+            </a>
+          </div>
+        
+
+        <main>
+          <header>
+            
+            <h1 class="title">icu_tool</h1>
+            
+  <nav class="nav">
+    <ul>
+      <li><a href="/">Home</a></li>
+
+      
+
+      
+        <li><a href="/artifacts/">Install</a></li>
+      
+
+      
+
+      
+
+      
+        <li><a href="/changelog/">Changelog</a></li>
+      
+    </ul>
+  </nav>
+
+          </header>
+
+          
+  <div>
+    <h1>v0.1.13 - 2024-12-02</h1>
+    <div class="releases-body">
+      
+      
+      <section class="release ">
+  
+  <div class="release-info">
+    <span class="flex items-center gap-2">
+      <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'>
+    <path stroke-linecap='round' stroke-linejoin='round' d='M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z' />
+    <path stroke-linecap='round' stroke-linejoin='round' d='M6 6h.008v.008H6V6z' /></svg>
+      v0.1.13
+    </span>
+    <span class="flex items-center gap-2">
+      
+        <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' /></svg>
+        Dec  2 2024 at 10:53 UTC
+      
+    </span>
+  </div>
+  <div class="release-body">
+    <h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added file drag and drop functionality to ImageShower, allowing users to easily drop files into
+the application for processing. (commit 89d234a4d57167e6e29138c1db39f8a7ede41ac4)</li>
+<li>🚀 <strong>New Features</strong>: Enabled persistence of app state with <code>serde</code> serialization for <code>AppContext</code> struct, including
+settings like <code>show_grid</code> and <code>anti_alias</code>. (commit 7350fcec93f9c0c61ab49602be74dc951b2fca09)</li>
+<li>🚀 <strong>New Features</strong>: Added anti-aliasing option to ImageShower, enhancing image quality with linear filtering when
+enabled. (commit c7571d70a7c6d865b2958aa6cbe400292042d5d2)</li>
+<li>🚀 <strong>New Features</strong>: Implemented show grid option in ImageShower, allowing users to toggle the grid display for better
+visualization. (commit d697686281119190aac9395da7d3259858d4d0c1)</li>
+<li>🔧 <strong>Improvements</strong>: Improved dropped files handling in ImageShower, accurately representing file information and
+preparing image data for display. (commit 589aa16ac7b916fc7c8e8a0d902553893b8de25c)</li>
+<li>🔧 <strong>Improvements</strong>: Corrected typo in anti-aliasing toggle label and updated grid display settings for a cleaner
+look. (commit 783c82559e1928164995297d9450d52b7e628e2e)</li>
+<li>🔧 <strong>Improvements</strong>: Simplified position checks in label formatter and improved image display with cursor interaction
+enhancements. (commit 693ccf55c3e6b6d208c8c8b6f90d43cf9e79dcfa)</li>
+<li>🔧 <strong>Improvements</strong>: Updated grid display and coordinate formatting for precision, and removed unused imports to
+maintain code cleanliness. (commit 2aee817e8d5a29986ccee2802210d1471c67942b)</li>
+<li>🛠 <strong>Refactoring</strong>: Refactored RLE encoding logic and LVGL handling, including updates to <code>RleCoder</code> and compression
+methods. (commits 2969fa94521a684868fc77adbc8cf325f1b8a381, 0b58b339c94806148e258aa8e1dff043c44df901)</li>
+<li>🛠 <strong>Refactoring</strong>: Cleaned up icu_lib/src by removing unnecessary references and updating function calls for
+efficiency. (commit 59979684b79ad312af0cbff1185758c42d1775b8)</li>
+<li>🐛 <strong>Bug Fixes</strong>: Fixed errors in image header stride handling and data size mismatches in icu_lib. (commit
+f63632b67e38a1d3e4f67827eba1c26a7b87380b)</li>
+<li>📚 <strong>Documentation</strong>: Updated README files and added serialization details for better project understanding. (commits
+1996dfa999b0f68c295bce3b49a8a440c0317b1e, fde03acbf86b39e19a2537b401585da4a0b9ad40)</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.13 to reflect the updates and improvements.</li>
+</ul>
+
+  </div>
+</section>
+    </div>
+  </div>
+
+        </main>
+      </div>
+
+      <footer>
+        
+          <a href="https://github.com/W-Mai/icu"><div class="github-icon" aria-hidden="true"></div></a>
+        
+        <span>
+          icu_tool, MIT
+        </span>
+      </footer>
+    </div>
+
+    
+    
+
+    
+  </body>
+</html>

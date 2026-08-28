@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en" id="oranda" class="hacker">
+  <head>
+    <title>icu_tool</title>
+    
+      <meta property="og:url" content="https://w-mai.github.io/icu" />
+    
+    
+      <link rel="icon" href="/favicon.ico" />
+    
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+      <meta name="description" content="Image Converter Ultra" />
+      <meta property="og:description" content="Image Converter Ultra" />
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="icu_tool" />
+    
+    
+    
+    <meta http-equiv="Permissions-Policy" content="interest-cohort=()" />
+    <link rel="stylesheet" href="/oranda-v0.6.1.css" />
+    
+    
+  </head>
+  <body>
+    <div class="container">
+      <div class="page-body">
+        
+          <div class="repo_banner">
+            <a href="https://github.com/W-Mai/icu">
+              <div class="github-icon" aria-hidden="true"></div>
+              Check out our GitHub!
+            </a>
+          </div>
+        
+
+        <main>
+          <header>
+            
+            <h1 class="title">icu_tool</h1>
+            
+  <nav class="nav">
+    <ul>
+      <li><a href="/">Home</a></li>
+
+      
+
+      
+        <li><a href="/artifacts/">Install</a></li>
+      
+
+      
+
+      
+
+      
+        <li><a href="/changelog/">Changelog</a></li>
+      
+    </ul>
+  </nav>
+
+          </header>
+
+          
+  <div>
+    <h1>v0.4.0 - 2026-07-13</h1>
+    <div class="releases-body">
+      
+      
+      <section class="release ">
+  
+  <div class="release-info">
+    <span class="flex items-center gap-2">
+      <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'>
+    <path stroke-linecap='round' stroke-linejoin='round' d='M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z' />
+    <path stroke-linecap='round' stroke-linejoin='round' d='M6 6h.008v.008H6V6z' /></svg>
+      0.4.0
+    </span>
+    <span class="flex items-center gap-2">
+      
+        <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' /></svg>
+        Jul 13 2026 at 03:52 UTC
+      
+    </span>
+  </div>
+  <div class="release-body">
+    <h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>:
+<ul>
+<li>✨ <strong>SVG gradient import/export</strong> — <code>usvg::Paint::LinearGradient</code> / <code>RadialGradient</code> convert to <code>mirx::Paint::LinearGradient</code> / <code>RadialGradient</code> with stops, spread mode, gradient units, transform. SVG export emits <code>&lt;linearGradient&gt;</code> / <code>&lt;radialGradient&gt;</code> defs + <code>url(#gradN)</code> fill references. Pattern paints still dropped (no mirx Pattern variant).</li>
+<li>✨ <strong>SVG clipPath import/export</strong> — <code>&lt;clipPath&gt;</code> elements convert to <code>SceneOp::PushClip</code> / <code>PopClip</code> with <code>ResourceRef::Inline(Path)</code>. SVG export emits <code>clip-path="url(#clipN)"</code> attributes.</li>
+<li>✨ <strong>SVG filter wire</strong> — <code>&lt;filter&gt;</code> primitives (feGaussianBlur, feColorMatrix) encode into <code>GroupBegin.filter</code> as a semicolon-separated <code>ResourceRef::Token</code> string (<code>blur:&lt;sx&gt;:&lt;sy&gt;</code> / <code>cm:&lt;matrix|saturate|hueRotate|luminance&gt;</code>). SVG export emits <code>filter="url(#filterN)"</code>.</li>
+<li>✨ <strong>SVG <code>&lt;text&gt;</code> import</strong> — usvg text feature enabled; <code>&lt;text&gt;</code> / <code>&lt;tspan&gt;</code> flatten to glyph outline paths via <code>usvg::Tree::flattened()</code>. Font size / family / weight resolved by usvg.</li>
+<li>✨ <strong>SVG <code>&lt;image&gt;</code> import</strong> — <code>&lt;image href="..."&gt;</code> embeds raster data as a placeholder rect (usvg doesn't expose pixel data to the tree walker).</li>
+<li>✨ <strong>stroke-dasharray import/export</strong> — <code>usvg::Stroke::dasharray()</code> maps to <code>StrokePath.dash</code> (Cow); SVG export emits <code>stroke-dasharray="a,b,c"</code> when dash is non-empty.</li>
+<li>✨ <strong>NonZero fill-rule</strong> — <code>usvg::FillRule::NonZero</code> passes through to <code>SceneOp::FillPath { fill_rule: NonZero }</code> instead of being coerced to EvenOdd.</li>
+<li>✨ <strong>Font viewer glyph grid</strong> — per-glyph thumbnail grid mode; click a glyph to inspect its outline path. Glyph diff mode overlays two atlases from different fonts.</li>
+<li>✨ <strong>Indexed image export</strong> — save edited indexed data (palette + per-pixel indexes) back to PNG (palette-encoded) or LVGL binary (I1/I2/I4/I8). Dither slider + palette edit panel + merge panel for multi-font bundles.</li>
+<li>✨ <strong>Path viewer op inspector</strong> — right panel shows selected SceneOp's fields (path cmds, paint, transform, fill_rule, stroke params).</li>
+<li>✨ <strong>Multi-font bundle</strong> — <code>FontData::MirxBundle</code> variant + bundle selector in font viewer; <code>icu merge-fonts</code> CLI merges single-font <code>.mirx</code> files.</li>
+<li>✨ <strong>Theme-aware font rendering</strong> — atlas tinted by theme fg color on bg, not raw grayscale; cache tint per theme, only re-render on theme switch.</li>
+<li>✨ <strong>woff2 font decode</strong> — <code>can_decode</code> detects woff2 magic; font info panel decompresses woff to ttf for metadata.</li>
+</ul>
+</li>
+<li>🔧 <strong>Improvements</strong>:
+<ul>
+<li>🧹 <strong>Atlas render via SwRenderer draw_label</strong> — proper SDF sampling instead of raw byte threshold; ARGB8888 output uses <code>AlphaMode::Blend</code> with RGB forced to fg color for clean alpha edges.</li>
+<li>🧹 <strong>mirui dependency bumped to v0.42.0</strong> (crates.io) — <code>Paint</code> enum replaces <code>Color</code> in <code>FillPath</code>/<code>StrokePath</code>; <code>stops</code>/<code>dash</code> fields move <code>Vec</code> → <code>Cow&lt;'static, [...]&gt;</code> for const construction. ICU wraps runtime-built stops/dash in <code>Cow::Owned</code>.</li>
+</ul>
+</li>
+<li>🐛 <strong>Bug Fixes</strong>:
+<ul>
+<li>🐛 Font atlas black edges fixed — SDF threshold-to-alpha conversion tints by coverage instead of hard threshold.</li>
+<li>🐛 Indexed hover stuck on theme switch — cache invalidated on theme change.</li>
+<li>🐛 Path highlight + diff conflict on simultaneous selection resolved.</li>
+</ul>
+</li>
+</ul>
+<h3>📦 Dependencies</h3>
+<ul>
+<li>mirui <code>0.41</code> → <code>0.42.0</code> (Paint enum, gradient/clip/blur, StrokePath cap/join/dash)</li>
+</ul>
+
+  </div>
+</section>
+    </div>
+  </div>
+
+        </main>
+      </div>
+
+      <footer>
+        
+          <a href="https://github.com/W-Mai/icu"><div class="github-icon" aria-hidden="true"></div></a>
+        
+        <span>
+          icu_tool, MIT
+        </span>
+      </footer>
+    </div>
+
+    
+    
+
+    
+  </body>
+</html>

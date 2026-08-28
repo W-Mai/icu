@@ -1,0 +1,439 @@
+<?xml version="1.0" encoding="utf-8"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>icu_tool Changelog</title><link>http://127.0.0.1:7979/changelog</link><description>Changelog information for icu_tool</description><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><atom:link href="http://127.0.0.1:7979/changelog.rss" rel="self"/><item><title>v0.10.0 - 2026-08-29</title><link>http://127.0.0.1:7979/changelog/v0.10.0</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.10.0</guid><content:encoded><![CDATA[<ul>
+<li>🎨 Align the Viewer resource list, canvas toolbar, checkerboard, and Inspector surfaces with the preview layout.</li>
+<li>✨ Add renderer-aware <code>Fit</code> and <code>1:1</code> controls for raster images, Indexed views, Path previews, Font Rendered/Atlas/Vector views, and standalone glyphs while hiding inapplicable actions.</li>
+<li>🎨 Refine drag feedback, resource thumbnails, glyph layout, and Indexed canvas controls.</li>
+<li>✨ Render approximate MIRX glyph contours and expose separated bearing metrics in the Vector Inspector.</li>
+<li>✨ Edit standalone glyph nodes and curve handles with Add, Delete, Undo, Redo, and keyboard shortcuts.</li>
+<li>🐛 Keep MIRX Gray/SDF cells and FreeType glyph previews in their native coordinate orientation across Grid and Selected Glyph views.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.9.0 - 2026-08-27</title><link>http://127.0.0.1:7979/changelog/v0.9.0</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.9.0</guid><content:encoded><![CDATA[<ul>
+<li>✨ Add explicit single-file and all-files Viewer export actions for static images, Groups, and animation frames.</li>
+<li>✨ Recursively import native folders and WebAssembly-selected or dropped directories while preserving stable relative paths.</li>
+<li>✨ Download WebAssembly batch exports as a ZIP archive and protect native batch output from overwrites and symlink traversal.</li>
+<li>🐛 Reject static APNG conversion instead of writing ordinary PNG bytes with an <code>.apng</code> suffix.</li>
+<li>🐛 Keep automatic sequence grouping stable when one batch contains multiple independent filename sequences.</li>
+<li>🎨 Stack the Viewer conversion actions as full-width rows and show the resolved task count on <code>Convert All</code>.</li>
+<li>🐛 Restore Web multi-file picking as a separate action from folder picking and capture recursive folder drops before the canvas consumes them.</li>
+<li>🐛 Allow indexed images to participate in pixel diff against indexed and RGBA images.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.8.1 - 2026-08-26</title><link>http://127.0.0.1:7979/changelog/v0.8.1</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.8.1</guid><content:encoded><![CDATA[<ul>
+<li>✨ Add PNG color mode/compression and JPEG quality/background controls to the CLI and viewer.</li>
+<li>✨ Import and export lossless animated WebP in the Viewer on native and WebAssembly.</li>
+<li>⚠️ Extend <code>EncoderParams</code> with PNG/JPEG fields; external struct literals must add them or use <code>..Default::default()</code>.</li>
+<li>🐛 Convert RGBA images to RGB inside the JPEG encoder instead of panicking on unsupported color data.</li>
+<li>🐛 Convert indexed sources through their RGBA view for LVGL true-color and LZ4 exports, and reject invalid Viewer LVGL settings explicitly.</li>
+<li>🐛 Preserve straight RGBA colors when the Viewer exports semi-transparent indexed images.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.8.0 - 2026-08-25</title><link>http://127.0.0.1:7979/changelog/v0.8.0</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.8.0</guid><content:encoded><![CDATA[<h3>🚀 New Features</h3>
+<ul>
+<li>✨ Export grouped and imported GIF animations with configurable frame intervals and repeat counts.</li>
+<li>✨ Export animated image groups as APNG with per-frame timing and repeat support.</li>
+<li>✨ Select and export individual frames from imported GIF and APNG files.</li>
+<li>✨ Show frame thumbnails for imported GIF/APNG animations and grouped image sequences.</li>
+<li>✨ Add Cmd/Ctrl+A list selection, focused Up/Down navigation, and consistent Toggle controls for playback settings.</li>
+<li>✨ Add workspace-wide numeric sequence grouping across mixed filename digit widths.</li>
+<li>✨ Add indexed-image export parameter panels for LVGL, MIRX, and PNG workflows.</li>
+</ul>
+<h3>🎨 Improvements</h3>
+<ul>
+<li>🎨 Localize playback labels and frame information in the viewer.</li>
+<li>🎨 Synchronize converter animation intervals with preview playback.</li>
+<li>🎨 Refresh README branding, badges, navigation, and viewer snapshot presentation.</li>
+</ul>
+<h3>🐛 Fixes</h3>
+<ul>
+<li>🐛 Use a WASM-safe monotonic animation clock instead of <code>std::time::Instant</code>.</li>
+<li>🛡️ Add GIF/APNG animation round-trip coverage and preserve frame timing during export.</li>
+<li>🛡️ Add LVGL v9 raw-block LZ4 compression and decompression using <code>lz4_flex</code>.</li>
+<li>🛡️ Validate compressed sizes and truncated LVGL headers without panicking.</li>
+<li>🔄 Convert indexed LVGL inputs through their RGBA view when writing common output formats.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.7.0 - 2026-07-26</title><link>http://127.0.0.1:7979/changelog/v0.7.0</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.7.0</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>
+<p>🚀 <strong>New Features</strong>:</p>
+<ul>
+<li>✨ <strong>Full glyph parsing</strong> — FreeType fonts now parse all glyphs from the cmap subtable instead of capping at 512. Fonts with thousands of glyphs are fully supported.</li>
+<li>✨ <strong>Grid lazy loading</strong> — Glyph grid renders only visible rows plus a 500-glyph prefetch buffer, with scroll-to-top on font switch. Large fonts load instantly without lag.</li>
+<li>✨ <strong>Atlas on demand</strong> — Atlas view no longer auto-renders on load. A "Render Atlas" button triggers rendering, avoiding startup cost for large fonts.</li>
+<li>✨ <strong>Grid as default mode</strong> — Selecting a font now opens in Grid mode instead of Atlas, matching the most common use case.</li>
+<li>✨ <strong>Glyph diff unified diff mode</strong> — Two fonts selected as diff1/diff2 auto-enter glyph diff with character input and three-panel canvas (A | diff | B) with synced zoom.</li>
+<li>✨ <strong>MIRX scene export for glyph</strong> — Glyphs can export to MIRX scene (VECTOR chunk) or image flat format.</li>
+<li>✨ <strong>Rendered mode zoom/pan</strong> — Font rendered preview supports zoom, pan, and double-click reset.</li>
+<li>✨ <strong>Web file open</strong> — <code>＋</code> button, empty canvas click, and <code>⌘O</code> work on web via synchronous <code>&lt;input type="file"&gt;</code>.</li>
+</ul>
+</li>
+<li>
+<p>🎨 <strong>Improvements</strong>:</p>
+<ul>
+<li>Diff overlay alpha blending fixed to prevent black shadows on transparent backgrounds.</li>
+<li>Identical glyph renders treated as zero diff instead of failing.</li>
+<li>Diff hint messages differentiated by mode (items vs fonts vs same-type).</li>
+<li>Grid columns dynamically computed from available width with vertical-only scroll.</li>
+</ul>
+</li>
+<li>
+<p>🐛 <strong>Fixes</strong>:</p>
+<ul>
+<li>FreeType glyph rendering uses outline bbox to prevent clipping of italic/descender characters.</li>
+<li>Sequence aggregation skips font/path/indexed items to prevent false grouping.</li>
+<li>Diff state (<code>diff_active</code>/<code>only_show_diff</code>) reset on startup to prevent stale FeedMe blank screen.</li>
+<li>Glyph grid texture dimensions match actual rendered image to prevent panic.</li>
+</ul>
+</li>
+</ul>
+]]></content:encoded></item><item><title>v0.6.0 - 2026-07-20</title><link>http://127.0.0.1:7979/changelog/v0.6.0</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.6.0</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>
+<p>🚀 <strong>New Features</strong>:</p>
+<ul>
+<li>✨ <strong>Web file open</strong> — <code>＋</code> button, empty canvas click, and <code>⌘O</code> now work on web via synchronous <code>&lt;input type="file"&gt;</code> (bypasses wasm user-gesture restriction that blocked <code>rfd::AsyncFileDialog</code> in <code>spawn_local</code>). Native path unchanged.</li>
+<li>✨ <strong>Glyph convert</strong> — glyphs export to SVG (PathCmd → SVG path), PNG/JPEG/.../LVGL/MIRX (rasterize outline → RGBA → existing encode path). Convert tab shows full format dropdown for glyph items.</li>
+<li>✨ <strong>FreeType font preview</strong> — <code>draw_font_info_section</code> FreeType branch now renders preview text via new <code>render_freetype_text</code> (was empty before; otf/ttf fonts had no preview input).</li>
+<li>✨ <strong>Glyph sidebar indent</strong> — opened glyph items indent 16px under their parent font, with peach left bar marker keeping original position.</li>
+<li>✨ <strong>New file focus</strong> — adding files (via any method) selects the first new item instead of staying on the old selection.</li>
+<li>✨ <strong>Glyph vector double-click reset</strong> — double-click on glyph vector canvas resets zoom/pan to fit.</li>
+<li>✨ <strong>⌘E for glyphs</strong> — <code>⌘E</code> on a glyph switches to Convert tab (matching RGBA behavior).</li>
+</ul>
+</li>
+<li>
+<p>🐛 <strong>Fixes</strong>:</p>
+<ul>
+<li>Diff state (<code>diff_active</code> / <code>only_show_diff</code>) no longer persists across sessions — reset on startup so empty canvas shows FeedMe instead of a blank diff view.</li>
+</ul>
+</li>
+</ul>
+]]></content:encoded></item><item><title>v0.5.0 - 2026-07-19</title><link>http://127.0.0.1:7979/changelog/v0.5.0</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.5.0</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>
+<p>🚀 <strong>New Features</strong>:</p>
+<ul>
+<li>✨ <strong>Egui 0.35 migration</strong> — upgraded from egui 0.33 + egui_plot 0.34 to egui 0.35 + egui_plot 0.36; dropped <code>catppuccin-egui</code> in favor of an inline MOCHA/LATTE palette with <code>theme::apply</code> setting both <code>dark_style</code> and <code>light_style</code> so toggles switch instantly.</li>
+<li>✨ <strong>Three-column layout</strong> — sidebar (260px) + main canvas + right inspector (300px), matching the original HTML prototype. Removed the extra <code>content_side</code> panel; per-mode controls migrated into the right panel's Info/Convert tabs.</li>
+<li>✨ <strong>Unified right panel with Info/Convert/Diff tabs</strong> — type-specific metadata, convert options, and diff controls all live in one right panel. Tab switch auto-manages <code>diff_active</code> (selecting Diff enables diff mode, switching away disables it).</li>
+<li>✨ <strong>Glyph vector view</strong> — FreeType glyphs render as true vector outlines with Bezier handles, baseline/bearing/advance annotations, zoom/pan (mouse wheel + drag), and touchpad pinch support. SDF/Gray atlas glyphs show approximate marching-squares contours with an "approximate" label.</li>
+<li>✨ <strong>Glyph double-click → sidebar</strong> — double-clicking a glyph in the grid opens it as a standalone <code>OpenedGlyph</code> sidebar item with its outline and metrics, auto-switching to vector view.</li>
+<li>✨ <strong>Font bake charset 3-tab input</strong> — Text (textarea) / Unicode Range (parser) / File (picker), with bit-depth validation (SDF 4/8, Gray 1/2/4/8).</li>
+<li>✨ <strong>MIRX convert detailed params</strong> — Pixel Format dropdown, Dithering toggle + level slider (NeuQuant sample factor 1-30), Stride Align input.</li>
+<li>✨ <strong>Indexed Index Map view</strong> — pre-rendered index-value-encoded texture with zoom overlay.</li>
+<li>✨ <strong>⌘E export shortcut</strong> — dispatches export by current item type (RGBA → Convert tab, Path/Indexed → PNG save dialog, Glyph → no-op).</li>
+<li>✨ <strong>Full i18n</strong> — all hardcoded UI strings translated (en-US / zh-CN). ~90 new locale keys covering section titles, buttons, tabs, labels, and hints.</li>
+</ul>
+</li>
+<li>
+<p>🎨 <strong>Visual Polish</strong>:</p>
+<ul>
+<li>Underline-style right panel tabs, section cards with visible borders, light theme palette realigned with HTML prototype, theme-aware central panel background.</li>
+</ul>
+</li>
+<li>
+<p>🐛 <strong>Fixes</strong>:</p>
+<ul>
+<li>Right panel squeeze when switching Info/Convert tabs resolved by consolidating side controls into the right inspector panel.</li>
+<li>Font mode stuck in Vector after selecting an image item — <code>font_mode</code> resets to Atlas on image selection.</li>
+<li>Diff button couldn't be toggled off — now a proper toggle linked to right tab state.</li>
+</ul>
+</li>
+</ul>
+]]></content:encoded></item><item><title>v0.4.0 - 2026-07-13</title><link>http://127.0.0.1:7979/changelog/0.4.0</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/0.4.0</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>:
+<ul>
+<li>✨ <strong>SVG gradient import/export</strong> — <code>usvg::Paint::LinearGradient</code> / <code>RadialGradient</code> convert to <code>mirx::Paint::LinearGradient</code> / <code>RadialGradient</code> with stops, spread mode, gradient units, transform. SVG export emits <code>&lt;linearGradient&gt;</code> / <code>&lt;radialGradient&gt;</code> defs + <code>url(#gradN)</code> fill references. Pattern paints still dropped (no mirx Pattern variant).</li>
+<li>✨ <strong>SVG clipPath import/export</strong> — <code>&lt;clipPath&gt;</code> elements convert to <code>SceneOp::PushClip</code> / <code>PopClip</code> with <code>ResourceRef::Inline(Path)</code>. SVG export emits <code>clip-path="url(#clipN)"</code> attributes.</li>
+<li>✨ <strong>SVG filter wire</strong> — <code>&lt;filter&gt;</code> primitives (feGaussianBlur, feColorMatrix) encode into <code>GroupBegin.filter</code> as a semicolon-separated <code>ResourceRef::Token</code> string (<code>blur:&lt;sx&gt;:&lt;sy&gt;</code> / <code>cm:&lt;matrix|saturate|hueRotate|luminance&gt;</code>). SVG export emits <code>filter="url(#filterN)"</code>.</li>
+<li>✨ <strong>SVG <code>&lt;text&gt;</code> import</strong> — usvg text feature enabled; <code>&lt;text&gt;</code> / <code>&lt;tspan&gt;</code> flatten to glyph outline paths via <code>usvg::Tree::flattened()</code>. Font size / family / weight resolved by usvg.</li>
+<li>✨ <strong>SVG <code>&lt;image&gt;</code> import</strong> — <code>&lt;image href="..."&gt;</code> embeds raster data as a placeholder rect (usvg doesn't expose pixel data to the tree walker).</li>
+<li>✨ <strong>stroke-dasharray import/export</strong> — <code>usvg::Stroke::dasharray()</code> maps to <code>StrokePath.dash</code> (Cow); SVG export emits <code>stroke-dasharray="a,b,c"</code> when dash is non-empty.</li>
+<li>✨ <strong>NonZero fill-rule</strong> — <code>usvg::FillRule::NonZero</code> passes through to <code>SceneOp::FillPath { fill_rule: NonZero }</code> instead of being coerced to EvenOdd.</li>
+<li>✨ <strong>Font viewer glyph grid</strong> — per-glyph thumbnail grid mode; click a glyph to inspect its outline path. Glyph diff mode overlays two atlases from different fonts.</li>
+<li>✨ <strong>Indexed image export</strong> — save edited indexed data (palette + per-pixel indexes) back to PNG (palette-encoded) or LVGL binary (I1/I2/I4/I8). Dither slider + palette edit panel + merge panel for multi-font bundles.</li>
+<li>✨ <strong>Path viewer op inspector</strong> — right panel shows selected SceneOp's fields (path cmds, paint, transform, fill_rule, stroke params).</li>
+<li>✨ <strong>Multi-font bundle</strong> — <code>FontData::MirxBundle</code> variant + bundle selector in font viewer; <code>icu merge-fonts</code> CLI merges single-font <code>.mirx</code> files.</li>
+<li>✨ <strong>Theme-aware font rendering</strong> — atlas tinted by theme fg color on bg, not raw grayscale; cache tint per theme, only re-render on theme switch.</li>
+<li>✨ <strong>woff2 font decode</strong> — <code>can_decode</code> detects woff2 magic; font info panel decompresses woff to ttf for metadata.</li>
+</ul>
+</li>
+<li>🔧 <strong>Improvements</strong>:
+<ul>
+<li>🧹 <strong>Atlas render via SwRenderer draw_label</strong> — proper SDF sampling instead of raw byte threshold; ARGB8888 output uses <code>AlphaMode::Blend</code> with RGB forced to fg color for clean alpha edges.</li>
+<li>🧹 <strong>mirui dependency bumped to v0.42.0</strong> (crates.io) — <code>Paint</code> enum replaces <code>Color</code> in <code>FillPath</code>/<code>StrokePath</code>; <code>stops</code>/<code>dash</code> fields move <code>Vec</code> → <code>Cow&lt;'static, [...]&gt;</code> for const construction. ICU wraps runtime-built stops/dash in <code>Cow::Owned</code>.</li>
+</ul>
+</li>
+<li>🐛 <strong>Bug Fixes</strong>:
+<ul>
+<li>🐛 Font atlas black edges fixed — SDF threshold-to-alpha conversion tints by coverage instead of hard threshold.</li>
+<li>🐛 Indexed hover stuck on theme switch — cache invalidated on theme change.</li>
+<li>🐛 Path highlight + diff conflict on simultaneous selection resolved.</li>
+</ul>
+</li>
+</ul>
+<h3>📦 Dependencies</h3>
+<ul>
+<li>mirui <code>0.41</code> → <code>0.42.0</code> (Paint enum, gradient/clip/blur, StrokePath cap/join/dash)</li>
+</ul>
+]]></content:encoded></item><item><title>v0.3.0 - 2026-07-09</title><link>http://127.0.0.1:7979/changelog/v0.3.0</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.3.0</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>:
+<ul>
+<li>✨ <strong>mirx image format support</strong> — icu now decodes and encodes mirx FLAT images (all pixel formats: RGB565 / RGB565Swapped / RGB888 / RGBA8888 / BGRA8888 / XRGB8888) plus mirx CHUNK files with VECTOR / FONT chunks. <code>icu convert -F mirx</code> produces mirx output; <code>icu info</code> reports per-chunk metadata (op_count, glyph_count, source_size, bit_depth).</li>
+<li>✨ <strong>TTF/OTF/TTC font parsing</strong> via <code>ttf-parser</code> — <code>icu info</code> on a TTF reports family, style, units_per_em, ascender, descender, line_height, glyph_count. Glyph outlines collect into <code>mirx::PathCmd</code> (MoveTo / LineTo / QuadTo / CubicTo / Close) with 24.8 fixed coordinates.</li>
+<li>✨ <strong><code>icu bake-font</code> CLI</strong> — bakes a TTF/OTF into a mirx FONT chunk (SDF or grayscale atlas). Pipeline: ttf-parser outline → mirui scanline coverage → Euclidean distance transform → 4/8-bit quantization (SDF) or packed coverage (gray). Supports <code>--charset</code> / <code>--charset-file</code> / <code>--size</code> / <code>--bit-depth</code> / <code>--spread</code> / <code>--format sdf|gray</code>.</li>
+<li>✨ <strong><code>icu merge-fonts</code> CLI</strong> — merges multiple single-font <code>.mirx</code> files into one multi-FONT-chunk bundle for <code>MultiFontProvider</code> size-based selection at runtime.</li>
+<li>✨ <strong>SVG import/export</strong> — <code>icu info</code> / <code>icu show</code> / <code>icu convert</code> accept SVG. Import uses <code>usvg</code> (resolves <code>&lt;defs&gt;</code>, <code>&lt;use&gt;</code>, <code>&lt;symbol&gt;</code>, transform lists, style inheritance, gradients/clip-paths/masks). Export emits <code>&lt;path&gt;</code> / <code>&lt;rect&gt;</code> / <code>&lt;line&gt;</code> / <code>&lt;g&gt;</code> with fill, fill-opacity, fill-rule, stroke, stroke-width, stroke-linecap, stroke-linejoin, transform. <code>icu convert test.svg -F mirx</code> produces a VECTOR chunk.</li>
+<li>✨ <strong><code>MiData::PATH</code> / <code>FONT</code> / <code>INDEXED</code> variants</strong> — <code>MiData</code> carries structured data alongside the flat RGBA preview. <code>PATH(SceneData)</code> wraps <code>mirx::Scene</code>; <code>FONT(FontData)</code> is an enum (<code>Mirx(mirx::Font)</code> | <code>FreeType(FreeTypeFontData)</code>); <code>INDEXED(IndexedImageData)</code> carries palette + per-pixel indexes + bpp.</li>
+<li>✨ <strong>Font/path/indexed viewer panels</strong> in the GUI — <code>ImageItem</code> carries the original <code>MiData</code>; central panel dispatches on variant. FONT shows metadata + preview-text input + rendered atlas; PATH shows a scene op tree; INDEXED shows a palette grid whose entries drive an <code>IndexHoverOverlay</code>.</li>
+<li>✨ <strong>SDF → Gray downsample</strong> — <code>sdf_to_gray_font</code> samples an SDF atlas at a target pixel size and packs coverage into an 8-bit grayscale font, no re-bake from TTF needed.</li>
+<li>✨ <strong>Postprocess overlay framework</strong> — <code>ImageOverlay</code> trait + <code>OverlayStack</code> composite with alpha blending and dirty-flag cache. <code>IndexHoverOverlay</code> highlights palette-indexed pixels; <code>QualityOverlay</code> renders a quantization-error heat map; <code>DiffOverlay</code> drives the diff display.</li>
+<li>✨ <strong>LVGL indexed decode</strong> — I1/I2/I4/I8 color formats decode to <code>MiData::INDEXED</code> with palette + indexes + bpp extracted before the generic RGBA conversion.</li>
+<li>✨ <strong>ColorFormat unification</strong> — <code>icu_lib::endecoder::ColorFormat</code> is the universal enum; LVGL and mirx each <code>From</code> their own wire format. <code>EncoderParams.color_format</code> is now <code>icu_lib::ColorFormat</code>.</li>
+</ul>
+</li>
+<li>🔧 <strong>Improvements</strong>:
+<ul>
+<li>🧹 Diff display routed through <code>OverlayStack</code> + <code>DiffOverlay</code>. <code>ImageDiffResult</code> still feeds <code>diff_panel</code> pixel list / min-max range.</li>
+<li>🧹 <code>icu_lib</code> re-exports <code>mirx</code> and <code>image</code> crates.</li>
+<li>🧹 <code>MiData</code> + all variants derive <code>Clone</code> + <code>PartialEq</code>.</li>
+</ul>
+</li>
+</ul>
+<h3>📦 Dependencies</h3>
+<ul>
+<li>➕ <code>ttf-parser = "0.25"</code> (icu_lib)</li>
+<li>➕ <code>usvg = { version = "0.47", default-features = false }</code> (icu_lib; no fontdb, no text shaping — +~510KB binary)</li>
+<li>➕ <code>mirx = "0.41"</code> + <code>mirui = { version = "0.41", default-features = false }</code> + <code>critical-section = { version = "1", features = ["std"] }</code> (icu_lib)</li>
+</ul>
+]]></content:encoded></item><item><title>v0.2.0 - 2026-01-19</title><link>http://127.0.0.1:7979/changelog/v0.2.0</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.2.0</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>:
+<ul>
+<li>✨ Added a conversion panel in the GUI for image format conversion (supports LVGL, PNG, JPEG, etc.).</li>
+<li>✨ Shared conversion logic between CLI and GUI for consistent behavior.</li>
+<li>✨ Implemented automatic panel opening when a single image is loaded.</li>
+<li>✨ Added WASM support for image conversion and saving.</li>
+</ul>
+</li>
+<li>🔧 <strong>Improvements</strong>:
+<ul>
+<li>🧹 Refactored <code>converter</code> module for better code reuse.</li>
+<li>🧹 Updated dependencies and fixed WASM compilation issues.</li>
+</ul>
+</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.23 - 2026-01-19</title><link>http://127.0.0.1:7979/changelog/v0.1.23</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.23</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>:
+<ul>
+<li>✨ Introduced i18n support with runtime language switching and auto-detection.</li>
+<li>✨ Added custom font support (Ark Pixel) for consistent UI rendering.</li>
+<li>✨ Added "Drag files here!" placeholder text for empty state.</li>
+<li>✨ Added bottom panel with version info and links.</li>
+</ul>
+</li>
+<li>🔧 <strong>Improvements</strong>:
+<ul>
+<li>🧹 Moved language selector to bottom panel for better layout.</li>
+<li>🧹 Improved bottom panel responsiveness.</li>
+<li>🧹 Code formatting and clippy fixes in <code>icu_lib</code>.</li>
+</ul>
+</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.22 - 2026-01-19</title><link>http://127.0.0.1:7979/changelog/v0.1.22</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.22</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🔧 <strong>Refactor</strong>: Renamed <code>image_shower</code> to <code>image_viewer</code> and restructured the module for better maintainability.</li>
+<li>🚀 <strong>New Features</strong>:
+<ul>
+<li>Enhanced diff panel layout with grid presentation.</li>
+<li>Added custom toggle component for improved UI interactions.</li>
+<li>Added diff blend slider with quick selection buttons.</li>
+<li>Implemented smooth scrolling to hovered diff pixel.</li>
+<li>Added diff sorting and pagination controls.</li>
+<li>Added support for hovered diff pixel highlighting.</li>
+</ul>
+</li>
+<li>💖 <strong>UI Improvements</strong>:
+<ul>
+<li>Improved "Image Diff" toggle placement.</li>
+<li>Refactored diff panel UI for readability.</li>
+<li>Improved plot highlighting and boundaries.</li>
+</ul>
+</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.21 - 2026-01-15</title><link>http://127.0.0.1:7979/changelog/v0.1.21</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.21</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added an Info Window to display image details (Width, Height, Format, Size, etc.).</li>
+<li>🚀 <strong>New Features</strong>: Added "Tree View" for visualizing complex metadata (EXIF, PNG info) in YAML format.</li>
+<li>🚀 <strong>New Features</strong>: Supported appending dropped images instead of replacing the current list.</li>
+<li>🚀 <strong>New Features</strong>: Implemented metadata extraction for PNG (Color Type, Bit Depth, Interlace) and generic EXIF data.</li>
+<li>🔧 <strong>Improvements</strong>: Refactored image processing and <code>ImageInfo</code> structure in <code>icu_lib</code>.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.20 - 2025-11-14</title><link>http://127.0.0.1:7979/changelog/v0.1.20</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.20</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added color difference visualization in <code>image_shower</code>.</li>
+<li>🚀 <strong>New Features</strong>: Enhanced image diff display in <code>image_shower</code>.</li>
+<li>🔧 <strong>Improvements</strong>: Refactored image diffing logic in <code>diff</code>.</li>
+<li>🔧 <strong>Improvements</strong>: Moved diff panel to a side panel in <code>image_shower</code> for better UI.</li>
+<li>🛠 <strong>Refactoring</strong>: Removed unused variables in <code>endecoder/utils</code>.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.20 to reflect the updates.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.19 - 2025-08-22</title><link>http://127.0.0.1:7979/changelog/v0.1.19</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.19</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🔧 <strong>Improvements</strong>: Updated deal_input_file_paths to handle stdout option and control flow.</li>
+<li>🔧 <strong>Improvements</strong>: Bumped icu_lib version to 0.1.16 for compatibility and updates.</li>
+<li>🔧 <strong>Refactoring</strong>: Refactored image diff logic to use icu_lib for improved performance and clarity.</li>
+<li>🔧 <strong>Refactoring</strong>: Bumped version to 0.1.16 and updated RawImage methods to use parameters.</li>
+<li>🔧 <strong>Refactoring</strong>: Restructured file tree, moved functions to cli mod.</li>
+<li>✨ <strong>New Features</strong>: Added stdout option for outputting converted results directly to console.</li>
+<li>✨ <strong>New Features</strong>: Added raw image header support and implemented RawImage struct for encoding/decoding.</li>
+<li>💖 <strong>Improvements</strong>: Simplified image diff logic and improved variable naming.</li>
+<li>💖 <strong>Improvements</strong>: Refactored image diff logic into utils module.</li>
+<li>🎨 <strong>Improvements</strong>: Optimized color difference calculation and simplified blending logic.</li>
+<li>🎨 <strong>Improvements</strong>: Added diff tolerance and min/max diff controls for improved image comparison.</li>
+<li>🎉 <strong>New Features</strong>: Added initial project files for ICU Web UI with Nix flake and service worker.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.18 - 2025-08-01</title><link>http://127.0.0.1:7979/changelog/v0.1.18</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.18</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: Implemented options in <code>image_shower.rs</code> like showing only differences in diff mode, adding option
+to only show diff area and adjusting fast switch behavior, adding fast switch feature for diff mode with adjustable
+speed, and enhancing image blending logic and renaming diff_alpha to diff_blend.</li>
+<li>📚 <strong>Documentation</strong>: Added components section for artifacts configuration in <code>oranda.json</code>.</li>
+<li>📦 <strong>Dependency Update</strong>: Updated macOS platform configuration for eframe dependencies in <code>Cargo.toml</code>.</li>
+<li>🔄 <strong>Version Bump</strong>: Bumped version to v0.1.18.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.17 - 2025-07-31</title><link>http://127.0.0.1:7979/changelog/v0.1.17</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.17</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🧹 <strong>Chores</strong>: Update crate dependencies.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.16 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.17-1 - 2025-07-31</title><link>http://127.0.0.1:7979/changelog/v0.1.17-1</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.17-1</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🧹 <strong>Chores</strong>: Update crate dependencies.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.16 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.16 - 2025-07-31</title><link>http://127.0.0.1:7979/changelog/v0.1.16</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.16</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added diff support, supported alpha control, initialized diff image indices, adjusted inner and
+outer margins,
+enhanced image diff handling and selected image index, added image diff toggle and updated UI, refined position
+formatting in ImagePlotter, enhanced pixel rendering and added polygon support in ImagePlotter for pixel showing.</li>
+<li>🎨 <strong>Improvements</strong>: Reorganized image selection logic in ImageShower for improved clarity and responsiveness.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.16 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.15 - 2025-01-14</title><link>http://127.0.0.1:7979/changelog/v0.1.15</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.15</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🔧 <strong>Improvements</strong>: Improved error handling for data size mismatches in lvgl. The logging statement was moved for
+correct execution, enhancing error reporting in image header processing.</li>
+<li>🚀 <strong>New Features</strong>: Improved code formatting and organization in image_shower. Refactored the code for better
+readability, adjusted import statements and formatted button click event for setting background color with consistent
+indentation and line breaks.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.15 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.14 - 2024-12-11</title><link>http://127.0.0.1:7979/changelog/v0.1.14</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.14</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added background color support to ImagePlotter, added unique ID to ImagePlotter, updated show
+command to handle multiple files, added image item selection and hover states, added new image plotting functionality,
+added image plotting functionality to Image Handling.</li>
+<li>🔧 <strong>Improvements</strong>: Simplified image data conversion and update type references in ImageShower, refactored image data
+handling and update show method in Image Handling, simplified image selection logic in ImageShower, added parameter to
+<code>show_only</code> and update plot settings in ImagePlotter.</li>
+<li>🐛 <strong>Bug Fixes</strong>: Fixed RLE decoding and handle empty image data in icu_lib.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.14 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.13 - 2024-12-02</title><link>http://127.0.0.1:7979/changelog/v0.1.13</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.13</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added file drag and drop functionality to ImageShower, allowing users to easily drop files into
+the application for processing. (commit 89d234a4d57167e6e29138c1db39f8a7ede41ac4)</li>
+<li>🚀 <strong>New Features</strong>: Enabled persistence of app state with <code>serde</code> serialization for <code>AppContext</code> struct, including
+settings like <code>show_grid</code> and <code>anti_alias</code>. (commit 7350fcec93f9c0c61ab49602be74dc951b2fca09)</li>
+<li>🚀 <strong>New Features</strong>: Added anti-aliasing option to ImageShower, enhancing image quality with linear filtering when
+enabled. (commit c7571d70a7c6d865b2958aa6cbe400292042d5d2)</li>
+<li>🚀 <strong>New Features</strong>: Implemented show grid option in ImageShower, allowing users to toggle the grid display for better
+visualization. (commit d697686281119190aac9395da7d3259858d4d0c1)</li>
+<li>🔧 <strong>Improvements</strong>: Improved dropped files handling in ImageShower, accurately representing file information and
+preparing image data for display. (commit 589aa16ac7b916fc7c8e8a0d902553893b8de25c)</li>
+<li>🔧 <strong>Improvements</strong>: Corrected typo in anti-aliasing toggle label and updated grid display settings for a cleaner
+look. (commit 783c82559e1928164995297d9450d52b7e628e2e)</li>
+<li>🔧 <strong>Improvements</strong>: Simplified position checks in label formatter and improved image display with cursor interaction
+enhancements. (commit 693ccf55c3e6b6d208c8c8b6f90d43cf9e79dcfa)</li>
+<li>🔧 <strong>Improvements</strong>: Updated grid display and coordinate formatting for precision, and removed unused imports to
+maintain code cleanliness. (commit 2aee817e8d5a29986ccee2802210d1471c67942b)</li>
+<li>🛠 <strong>Refactoring</strong>: Refactored RLE encoding logic and LVGL handling, including updates to <code>RleCoder</code> and compression
+methods. (commits 2969fa94521a684868fc77adbc8cf325f1b8a381, 0b58b339c94806148e258aa8e1dff043c44df901)</li>
+<li>🛠 <strong>Refactoring</strong>: Cleaned up icu_lib/src by removing unnecessary references and updating function calls for
+efficiency. (commit 59979684b79ad312af0cbff1185758c42d1775b8)</li>
+<li>🐛 <strong>Bug Fixes</strong>: Fixed errors in image header stride handling and data size mismatches in icu_lib. (commit
+f63632b67e38a1d3e4f67827eba1c26a7b87380b)</li>
+<li>📚 <strong>Documentation</strong>: Updated README files and added serialization details for better project understanding. (commits
+1996dfa999b0f68c295bce3b49a8a440c0317b1e, fde03acbf86b39e19a2537b401585da4a0b9ad40)</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.13 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.12-1 - 2024-11-08</title><link>http://127.0.0.1:7979/changelog/v0.1.12-1</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.12-1</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: support custom dither params, support 1 to 30 levels. 1 is the best level.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.12 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.12 - 2024-11-08</title><link>http://127.0.0.1:7979/changelog/v0.1.12</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.12</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: support custom dither params, support 1 to 30 levels. 1 is the best level.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.12 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.11-1 - 2024-05-01</title><link>http://127.0.0.1:7979/changelog/v0.1.11-1</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.11-1</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<p>劳动节快乐🎉
+Happy Labor Day🎉</p>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added support for PNG indexes 1/2/4/8.
+<ul>
+<li>Now you can easily convert by using the <code>-C</code> option with <code>i1/2/4/8</code> color format.</li>
+</ul>
+</li>
+<li>🚀 <strong>New Features</strong>: Added support for Dither feature! By using <code>--dither</code> option you can make your pictures better and
+more natural.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.11 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.11 - 2024-05-01</title><link>http://127.0.0.1:7979/changelog/v0.1.11</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.11</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<p>劳动节快乐🎉
+Happy Labor Day🎉</p>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added support for PNG indexes 1/2/4/8.
+<ul>
+<li>Now you can easily convert by using the <code>-C</code> option with <code>i1/2/4/8</code> color format.</li>
+</ul>
+</li>
+<li>🚀 <strong>New Features</strong>: Added support for Dither feature! By using <code>--dither</code> option you can make your pictures better and
+more natural.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.11 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.10 - 2024-03-12</title><link>http://127.0.0.1:7979/changelog/v0.1.10</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.10</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚧 <strong>Refactoring</strong>: Refactored code to improve maintainability and readability.</li>
+<li>🚧 <strong>Refactoring</strong>: Refactored error handling to improve user experience and reduce code complexity.</li>
+<li>🚀 <strong>New Features</strong>: The way to display the path is more reasonable.</li>
+<li>🚀 <strong>New Features</strong>: Added support for Auto-Complete feature for the command line interface. See <code>README.md</code> for more
+information.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.10 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.9 - 2024-03-06</title><link>http://127.0.0.1:7979/changelog/v0.1.9</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.9</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>: Added support for LVGL version 8 encode and decode.</li>
+<li>🚀 <strong>New Features</strong>: Added support for image show for LVGL version 8.</li>
+<li>🚀 <strong>New Features</strong>: Added support for more image information logging for LVGL version 8 and 9.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.9 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item><item><title>v0.1.8</title><link>http://127.0.0.1:7979/changelog/v0.1.8</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.8</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>🌍 <strong>Oranda Updates</strong>: Configurations were updated to improve the oranda module's functionality.</li>
+<li>🐛 <strong>Bug Fixes</strong>: Web page bugs were addressed to enhance user experience.</li>
+<li>🌐 <strong>Webpage Additions</strong>: GitHub Pages were added for better project documentation and visibility.</li>
+<li>📦 <strong>Dependency Updates</strong>: Homebrew configurations were updated to ensure compatibility with the latest dependencies.</li>
+<li>🚀 <strong>New Features</strong>: A new info command was added to the main module, and an API for image info retrieval was
+implemented in the icu_lib.</li>
+<li>🛠 <strong>CI/CD</strong>: Automated build CI was added to streamline the development process.</li>
+<li>📚 <strong>Documentation</strong>: README files were updated with more examples and detailed instructions.</li>
+</ul>
+]]></content:encoded></item><item><title></title><link>http://127.0.0.1:7979/changelog/v0.1.7</link><category domain="https://github.com/W-Mai/icu">icu_tool Changelog</category><guid>http://127.0.0.1:7979/changelog/v0.1.7</guid><content:encoded><![CDATA[<h3>🔖 Version Tag</h3>
+<ul>
+<li>📚 <strong>Documentation</strong>: README files were updated to provide more examples and clearer instructions.</li>
+<li>🔄 <strong>Dependencies</strong>: Cargo dependencies were updated to the latest versions.</li>
+<li>🔄 <strong>Version Bump</strong>: Version was bumped to 0.1.7 to reflect the updates and improvements.</li>
+</ul>
+]]></content:encoded></item></channel></rss>

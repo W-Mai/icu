@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en" id="oranda" class="hacker">
+  <head>
+    <title>icu_tool</title>
+    
+      <meta property="og:url" content="https://w-mai.github.io/icu" />
+    
+    
+      <link rel="icon" href="/favicon.ico" />
+    
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+      <meta name="description" content="Image Converter Ultra" />
+      <meta property="og:description" content="Image Converter Ultra" />
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="icu_tool" />
+    
+    
+    
+    <meta http-equiv="Permissions-Policy" content="interest-cohort=()" />
+    <link rel="stylesheet" href="/oranda-v0.6.1.css" />
+    
+    
+  </head>
+  <body>
+    <div class="container">
+      <div class="page-body">
+        
+          <div class="repo_banner">
+            <a href="https://github.com/W-Mai/icu">
+              <div class="github-icon" aria-hidden="true"></div>
+              Check out our GitHub!
+            </a>
+          </div>
+        
+
+        <main>
+          <header>
+            
+            <h1 class="title">icu_tool</h1>
+            
+  <nav class="nav">
+    <ul>
+      <li><a href="/">Home</a></li>
+
+      
+
+      
+        <li><a href="/artifacts/">Install</a></li>
+      
+
+      
+
+      
+
+      
+        <li><a href="/changelog/">Changelog</a></li>
+      
+    </ul>
+  </nav>
+
+          </header>
+
+          
+  <div>
+    <h1>v0.3.0 - 2026-07-09</h1>
+    <div class="releases-body">
+      
+      
+      <section class="release ">
+  
+  <div class="release-info">
+    <span class="flex items-center gap-2">
+      <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'>
+    <path stroke-linecap='round' stroke-linejoin='round' d='M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z' />
+    <path stroke-linecap='round' stroke-linejoin='round' d='M6 6h.008v.008H6V6z' /></svg>
+      v0.3.0
+    </span>
+    <span class="flex items-center gap-2">
+      
+        <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' /></svg>
+        Jul 10 2026 at 06:31 UTC
+      
+    </span>
+  </div>
+  <div class="release-body">
+    <h3>🔖 Version Tag</h3>
+<ul>
+<li>🚀 <strong>New Features</strong>:
+<ul>
+<li>✨ <strong>mirx image format support</strong> — icu now decodes and encodes mirx FLAT images (all pixel formats: RGB565 / RGB565Swapped / RGB888 / RGBA8888 / BGRA8888 / XRGB8888) plus mirx CHUNK files with VECTOR / FONT chunks. <code>icu convert -F mirx</code> produces mirx output; <code>icu info</code> reports per-chunk metadata (op_count, glyph_count, source_size, bit_depth).</li>
+<li>✨ <strong>TTF/OTF/TTC font parsing</strong> via <code>ttf-parser</code> — <code>icu info</code> on a TTF reports family, style, units_per_em, ascender, descender, line_height, glyph_count. Glyph outlines collect into <code>mirx::PathCmd</code> (MoveTo / LineTo / QuadTo / CubicTo / Close) with 24.8 fixed coordinates.</li>
+<li>✨ <strong><code>icu bake-font</code> CLI</strong> — bakes a TTF/OTF into a mirx FONT chunk (SDF or grayscale atlas). Pipeline: ttf-parser outline → mirui scanline coverage → Euclidean distance transform → 4/8-bit quantization (SDF) or packed coverage (gray). Supports <code>--charset</code> / <code>--charset-file</code> / <code>--size</code> / <code>--bit-depth</code> / <code>--spread</code> / <code>--format sdf|gray</code>.</li>
+<li>✨ <strong><code>icu merge-fonts</code> CLI</strong> — merges multiple single-font <code>.mirx</code> files into one multi-FONT-chunk bundle for <code>MultiFontProvider</code> size-based selection at runtime.</li>
+<li>✨ <strong>SVG import/export</strong> — <code>icu info</code> / <code>icu show</code> / <code>icu convert</code> accept SVG. Import uses <code>usvg</code> (resolves <code>&lt;defs&gt;</code>, <code>&lt;use&gt;</code>, <code>&lt;symbol&gt;</code>, transform lists, style inheritance, gradients/clip-paths/masks). Export emits <code>&lt;path&gt;</code> / <code>&lt;rect&gt;</code> / <code>&lt;line&gt;</code> / <code>&lt;g&gt;</code> with fill, fill-opacity, fill-rule, stroke, stroke-width, stroke-linecap, stroke-linejoin, transform. <code>icu convert test.svg -F mirx</code> produces a VECTOR chunk.</li>
+<li>✨ <strong><code>MiData::PATH</code> / <code>FONT</code> / <code>INDEXED</code> variants</strong> — <code>MiData</code> carries structured data alongside the flat RGBA preview. <code>PATH(SceneData)</code> wraps <code>mirx::Scene</code>; <code>FONT(FontData)</code> is an enum (<code>Mirx(mirx::Font)</code> | <code>FreeType(FreeTypeFontData)</code>); <code>INDEXED(IndexedImageData)</code> carries palette + per-pixel indexes + bpp.</li>
+<li>✨ <strong>Font/path/indexed viewer panels</strong> in the GUI — <code>ImageItem</code> carries the original <code>MiData</code>; central panel dispatches on variant. FONT shows metadata + preview-text input + rendered atlas; PATH shows a scene op tree; INDEXED shows a palette grid whose entries drive an <code>IndexHoverOverlay</code>.</li>
+<li>✨ <strong>SDF → Gray downsample</strong> — <code>sdf_to_gray_font</code> samples an SDF atlas at a target pixel size and packs coverage into an 8-bit grayscale font, no re-bake from TTF needed.</li>
+<li>✨ <strong>Postprocess overlay framework</strong> — <code>ImageOverlay</code> trait + <code>OverlayStack</code> composite with alpha blending and dirty-flag cache. <code>IndexHoverOverlay</code> highlights palette-indexed pixels; <code>QualityOverlay</code> renders a quantization-error heat map; <code>DiffOverlay</code> drives the diff display.</li>
+<li>✨ <strong>LVGL indexed decode</strong> — I1/I2/I4/I8 color formats decode to <code>MiData::INDEXED</code> with palette + indexes + bpp extracted before the generic RGBA conversion.</li>
+<li>✨ <strong>ColorFormat unification</strong> — <code>icu_lib::endecoder::ColorFormat</code> is the universal enum; LVGL and mirx each <code>From</code> their own wire format. <code>EncoderParams.color_format</code> is now <code>icu_lib::ColorFormat</code>.</li>
+</ul>
+</li>
+<li>🔧 <strong>Improvements</strong>:
+<ul>
+<li>🧹 Diff display routed through <code>OverlayStack</code> + <code>DiffOverlay</code>. <code>ImageDiffResult</code> still feeds <code>diff_panel</code> pixel list / min-max range.</li>
+<li>🧹 <code>icu_lib</code> re-exports <code>mirx</code> and <code>image</code> crates.</li>
+<li>🧹 <code>MiData</code> + all variants derive <code>Clone</code> + <code>PartialEq</code>.</li>
+</ul>
+</li>
+</ul>
+<h3>📦 Dependencies</h3>
+<ul>
+<li>➕ <code>ttf-parser = "0.25"</code> (icu_lib)</li>
+<li>➕ <code>usvg = { version = "0.47", default-features = false }</code> (icu_lib; no fontdb, no text shaping — +~510KB binary)</li>
+<li>➕ <code>mirx = "0.41"</code> + <code>mirui = { version = "0.41", default-features = false }</code> + <code>critical-section = { version = "1", features = ["std"] }</code> (icu_lib)</li>
+</ul>
+
+  </div>
+</section>
+    </div>
+  </div>
+
+        </main>
+      </div>
+
+      <footer>
+        
+          <a href="https://github.com/W-Mai/icu"><div class="github-icon" aria-hidden="true"></div></a>
+        
+        <span>
+          icu_tool, MIT
+        </span>
+      </footer>
+    </div>
+
+    
+    
+
+    
+  </body>
+</html>

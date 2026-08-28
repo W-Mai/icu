@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en" id="oranda" class="hacker">
+  <head>
+    <title>icu_tool</title>
+    
+      <meta property="og:url" content="https://w-mai.github.io/icu" />
+    
+    
+      <link rel="icon" href="/favicon.ico" />
+    
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+      <meta name="description" content="Image Converter Ultra" />
+      <meta property="og:description" content="Image Converter Ultra" />
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="icu_tool" />
+    
+    
+    
+    <meta http-equiv="Permissions-Policy" content="interest-cohort=()" />
+    <link rel="stylesheet" href="/oranda-v0.6.1.css" />
+    
+    
+  </head>
+  <body>
+    <div class="container">
+      <div class="page-body">
+        
+          <div class="repo_banner">
+            <a href="https://github.com/W-Mai/icu">
+              <div class="github-icon" aria-hidden="true"></div>
+              Check out our GitHub!
+            </a>
+          </div>
+        
+
+        <main>
+          <header>
+            
+            <h1 class="title">icu_tool</h1>
+            
+  <nav class="nav">
+    <ul>
+      <li><a href="/">Home</a></li>
+
+      
+
+      
+        <li><a href="/artifacts/">Install</a></li>
+      
+
+      
+
+      
+
+      
+        <li><a href="/changelog/">Changelog</a></li>
+      
+    </ul>
+  </nav>
+
+          </header>
+
+          
+  <div>
+    <h1>v0.6.0 - 2026-07-20</h1>
+    <div class="releases-body">
+      
+      
+      <section class="release ">
+  
+  <div class="release-info">
+    <span class="flex items-center gap-2">
+      <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'>
+    <path stroke-linecap='round' stroke-linejoin='round' d='M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z' />
+    <path stroke-linecap='round' stroke-linejoin='round' d='M6 6h.008v.008H6V6z' /></svg>
+      v0.6.0
+    </span>
+    <span class="flex items-center gap-2">
+      
+        <svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor' class='w-6 h-6'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5' /></svg>
+        Jul 20 2026 at 14:57 UTC
+      
+    </span>
+  </div>
+  <div class="release-body">
+    <h3>🔖 Version Tag</h3>
+<ul>
+<li>
+<p>🚀 <strong>New Features</strong>:</p>
+<ul>
+<li>✨ <strong>Web file open</strong> — <code>＋</code> button, empty canvas click, and <code>⌘O</code> now work on web via synchronous <code>&lt;input type="file"&gt;</code> (bypasses wasm user-gesture restriction that blocked <code>rfd::AsyncFileDialog</code> in <code>spawn_local</code>). Native path unchanged.</li>
+<li>✨ <strong>Glyph convert</strong> — glyphs export to SVG (PathCmd → SVG path), PNG/JPEG/.../LVGL/MIRX (rasterize outline → RGBA → existing encode path). Convert tab shows full format dropdown for glyph items.</li>
+<li>✨ <strong>FreeType font preview</strong> — <code>draw_font_info_section</code> FreeType branch now renders preview text via new <code>render_freetype_text</code> (was empty before; otf/ttf fonts had no preview input).</li>
+<li>✨ <strong>Glyph sidebar indent</strong> — opened glyph items indent 16px under their parent font, with peach left bar marker keeping original position.</li>
+<li>✨ <strong>New file focus</strong> — adding files (via any method) selects the first new item instead of staying on the old selection.</li>
+<li>✨ <strong>Glyph vector double-click reset</strong> — double-click on glyph vector canvas resets zoom/pan to fit.</li>
+<li>✨ <strong>⌘E for glyphs</strong> — <code>⌘E</code> on a glyph switches to Convert tab (matching RGBA behavior).</li>
+</ul>
+</li>
+<li>
+<p>🐛 <strong>Fixes</strong>:</p>
+<ul>
+<li>Diff state (<code>diff_active</code> / <code>only_show_diff</code>) no longer persists across sessions — reset on startup so empty canvas shows FeedMe instead of a blank diff view.</li>
+</ul>
+</li>
+</ul>
+
+  </div>
+</section>
+    </div>
+  </div>
+
+        </main>
+      </div>
+
+      <footer>
+        
+          <a href="https://github.com/W-Mai/icu"><div class="github-icon" aria-hidden="true"></div></a>
+        
+        <span>
+          icu_tool, MIT
+        </span>
+      </footer>
+    </div>
+
+    
+    
+
+    
+  </body>
+</html>
