@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 - 🎨 Align the Viewer resource list, canvas toolbar, checkerboard, and Inspector surfaces with the preview layout.
-- ✨ Add functional `Fit` and `1:1` canvas controls and keep animation playback controls inside the canvas.
+- ✨ Add renderer-aware `Fit` and `1:1` controls for raster images, Indexed views, Path previews, Font Rendered/Atlas/Vector views, and standalone glyphs while hiding inapplicable actions.
 - 🎨 Refine drag feedback, resource thumbnails, glyph layout, and Indexed canvas controls.
 
 ## [v0.9.0] - 2026-08-27

@@ -1,5 +1,6 @@
 use crate::image_viewer::model::{
-    BakeCharsetTab, FontMode, GlyphCanvasView, GlyphDiffResult, GlyphTextureCache,
+    BakeCharsetTab, CanvasViewCommand, FontMode, GlyphCanvasView, GlyphDiffResult,
+    GlyphTextureCache,
 };
 use crate::image_viewer::plotter::ImagePlotter;
 use eframe::egui;
@@ -1078,6 +1079,51 @@ fn draw_font_bake_section(
     });
 }
 
+fn font_atlas_cache_key(
+    ctx: &egui::Context,
+    state: &crate::image_viewer::model::ViewerState,
+) -> Option<String> {
+    let image = state.current_image()?;
+    let fg = ctx.global_style().visuals.text_color();
+    let bg = ctx.global_style().visuals.panel_fill;
+    Some(format!(
+        "{:?}_{:?}_{}_{}",
+        fg, bg, image.path, state.font_bundle_index
+    ))
+}
+
+pub fn font_atlas_is_current(
+    ctx: &egui::Context,
+    state: &crate::image_viewer::model::ViewerState,
+) -> bool {
+    let Some(key) = font_atlas_cache_key(ctx, state) else {
+        return false;
+    };
+    state
+        .font_atlas_cached
+        .as_ref()
+        .is_some_and(|(cached_key, ..)| cached_key == &key)
+}
+
+pub fn font_vector_has_outline(state: &crate::image_viewer::model::ViewerState) -> Option<bool> {
+    let index = state.selected_glyph?;
+    let MiData::FONT(font_data) = state.current_image()?.midata.as_ref()? else {
+        return None;
+    };
+    match font_data {
+        FontData::FreeType(font) => font
+            .glyphs
+            .get(index)
+            .map(|glyph| !glyph.outline.is_empty()),
+        FontData::Mirx(font) => font.metrics.get(index).map(|_| false),
+        FontData::MirxBundle(fonts) => fonts
+            .get(state.font_bundle_index)
+            .or_else(|| fonts.first())
+            .and_then(|font| font.metrics.get(index))
+            .map(|_| false),
+    }
+}
+
 pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::model::ViewerState) {
     let ctx = ui.ctx().clone();
     let Some(image) = state.current_image().cloned() else {
@@ -1171,6 +1217,8 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                 let fit_scale = (canvas_rect.width() / w as f32)
                     .min(canvas_rect.height() / h as f32)
                     .min(1.0);
+
+                apply_canvas_command(view, fit_scale);
 
                 if response.contains_pointer() {
                     let (zoom_delta, scroll_delta, pointer) = ui
@@ -1449,10 +1497,7 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
             }
         }
         FontMode::Atlas => {
-            let theme_key = format!(
-                "{:?}_{:?}_{}_{}",
-                fg, bg, image.path, state.font_bundle_index,
-            );
+            let theme_key = font_atlas_cache_key(&ctx, state).unwrap_or_default();
             let need_render = match &state.font_atlas_cached {
                 Some((k, _, _, _, _)) => k != &theme_key,
                 None => true,
@@ -1600,6 +1645,40 @@ fn build_opened_glyph(
     }
 }
 
+fn apply_canvas_command(view: &mut GlyphCanvasView, fit_scale: f32) {
+    let Some(command) = view.pending.take() else {
+        return;
+    };
+    match command {
+        CanvasViewCommand::Fit => {
+            view.zoom = 1.0;
+            view.pan = egui::Vec2::ZERO;
+        }
+        CanvasViewCommand::ActualSize if fit_scale.is_finite() && fit_scale > 0.0 => {
+            view.zoom = 1.0 / fit_scale;
+            view.pan = egui::Vec2::ZERO;
+        }
+        CanvasViewCommand::ActualSize => {}
+    }
+}
+
+fn glyph_view_bounds(
+    bbox: (i16, i16, i16, i16),
+    bearing_x: i16,
+    advance: u16,
+) -> (i32, i32, i32, i32) {
+    const PADDING: i32 = 4;
+    let (bbox_min_x, bbox_min_y, bbox_max_x, bbox_max_y) = bbox;
+    let guide_left = i32::from(bearing_x).min(0);
+    let guide_right = i32::from(bearing_x) + i32::from(advance);
+    (
+        i32::from(bbox_min_x).min(guide_left).min(guide_right) - PADDING,
+        i32::from(bbox_min_y).min(0) - PADDING,
+        i32::from(bbox_max_x).max(guide_left).max(guide_right) + PADDING,
+        i32::from(bbox_max_y).max(0) + PADDING,
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 fn draw_glyph_vector_view(
     ui: &mut egui::Ui,
@@ -1613,7 +1692,6 @@ fn draw_glyph_vector_view(
     view: &mut GlyphCanvasView,
 ) {
     let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
-    let (bx, by, bw, bh) = bbox;
     let ch = char::from_u32(codepoint).unwrap_or('?');
 
     const DETAILS_HEIGHT: f32 = 190.0;
@@ -1622,13 +1700,13 @@ fn draw_glyph_vector_view(
     let (response, painter) = ui.allocate_painter(canvas_size, egui::Sense::click_and_drag());
     let canvas_rect = response.rect;
 
-    let (min_x, min_y) = (bx.min(0) - 4, by.min(0) - 4);
-    let (max_x, max_y) = (bx + bw + 4, by + bh + 4);
+    let (min_x, min_y, max_x, max_y) = glyph_view_bounds(bbox, bearing_x, advance);
     let gw = (max_x - min_x).max(1) as f32;
     let gh = (max_y - min_y).max(1) as f32;
 
     let fit_rect = canvas_rect.shrink(16.0);
     let fit_scale = (fit_rect.width() / gw).min(fit_rect.height() / gh);
+    apply_canvas_command(view, fit_scale);
 
     if response.contains_pointer() {
         let (zoom_delta, scroll_delta, pointer) =
@@ -1668,34 +1746,34 @@ fn draw_glyph_vector_view(
         );
 
         let baseline_y = 0i32;
-        let left_x = bearing_x;
-        let right_x = bearing_x + advance as i16;
+        let left_x = i32::from(bearing_x);
+        let right_x = left_x + i32::from(advance);
         let stroke_dash = egui::Stroke::new(0.5, p.overlay0);
         for x in [left_x, right_x] {
-            let p1 = to_screen(x as i32, min_y as i32);
-            let p2 = to_screen(x as i32, max_y as i32);
+            let p1 = to_screen(x, min_y);
+            let p2 = to_screen(x, max_y);
             paint_dashed_line(&painter, p1, p2, stroke_dash, 4.0);
         }
-        let p1 = to_screen(min_x as i32, baseline_y);
-        let p2 = to_screen(max_x as i32, baseline_y);
+        let p1 = to_screen(min_x, baseline_y);
+        let p2 = to_screen(max_x, baseline_y);
         paint_dashed_line(&painter, p1, p2, stroke_dash, 4.0);
 
         painter.text(
-            to_screen(left_x as i32, max_y as i32) + egui::vec2(2.0, -2.0),
+            to_screen(left_x, max_y) + egui::vec2(2.0, -2.0),
             egui::Align2::LEFT_BOTTOM,
             t!("label_bearing_x"),
             egui::FontId::monospace(8.0),
             p.overlay0,
         );
         painter.text(
-            to_screen(right_x as i32, max_y as i32) + egui::vec2(2.0, -2.0),
+            to_screen(right_x, max_y) + egui::vec2(2.0, -2.0),
             egui::Align2::LEFT_BOTTOM,
             t!("label_advance"),
             egui::FontId::monospace(8.0),
             p.overlay0,
         );
         painter.text(
-            to_screen(min_x as i32, baseline_y) + egui::vec2(2.0, 2.0),
+            to_screen(min_x, baseline_y) + egui::vec2(2.0, 2.0),
             egui::Align2::LEFT_TOP,
             t!("label_baseline"),
             egui::FontId::monospace(8.0),
@@ -1806,7 +1884,7 @@ fn glyph_metrics_card(
     outline_len: usize,
     approximate: bool,
 ) {
-    let (bx, by, bw, bh) = bbox;
+    let (min_x, min_y, max_x, max_y) = bbox;
     crate::image_viewer::ui::widgets::section_card(
         ui,
         t!("section_glyph_metrics").as_ref(),
@@ -1842,7 +1920,7 @@ fn glyph_metrics_card(
                     row(
                         ui,
                         t!("bbox").as_ref(),
-                        &format!("({}, {}, {}, {})", bx, by, bw, bh),
+                        &format!("({}, {}, {}, {})", min_x, min_y, max_x, max_y),
                     );
                     row(ui, t!("outline_cmds").as_ref(), &format!("{}", outline_len));
                     row(
@@ -1881,5 +1959,34 @@ fn paint_dashed_line(
         }
         t = next;
         on = !on;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn actual_size_command_sets_unit_scale_and_recenters() {
+        let mut view = GlyphCanvasView {
+            zoom: 3.0,
+            pan: egui::vec2(12.0, -8.0),
+            pending: Some(CanvasViewCommand::ActualSize),
+        };
+
+        apply_canvas_command(&mut view, 0.25);
+
+        assert_eq!(view.zoom, 4.0);
+        assert_eq!(view.pan, egui::Vec2::ZERO);
+        assert_eq!(view.pending, None);
+    }
+
+    #[test]
+    fn zero_bbox_uses_guides_for_finite_bounds() {
+        let (min_x, min_y, max_x, max_y) = glyph_view_bounds((0, 0, 0, 0), -2, 8);
+
+        assert_eq!((min_x, min_y, max_x, max_y), (-6, -4, 10, 4));
+        assert!(min_x < max_x);
+        assert!(min_y < max_y);
     }
 }

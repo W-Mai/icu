@@ -1,4 +1,6 @@
-use crate::image_viewer::model::{FrameSource, GlyphCanvasView, ImageItem, ViewerState};
+use crate::image_viewer::model::{
+    CanvasViewCommand, FontMode, FrameSource, GlyphCanvasView, ImageItem, SidebarItem, ViewerState,
+};
 use crate::image_viewer::plotter::ImagePlotter;
 use crate::image_viewer::ui::panels;
 use eframe::egui;
@@ -81,11 +83,12 @@ fn draw_central_toolbar(ui: &mut egui::Ui, state: &mut ViewerState, content_type
         .inner_margin(egui::Margin::symmetric(10, 6))
         .show(ui, |ui| {
             let (name, metadata) = selected_resource_toolbar_text(state);
+            let controls = canvas_controls(ui.ctx(), state, content_type);
             ui.allocate_ui_with_layout(
                 egui::vec2(ui.available_width(), 28.0),
                 egui::Layout::right_to_left(egui::Align::Center),
                 |ui| {
-                    if !matches!(content_type, ContentType::Path)
+                    if controls.fit
                         && crate::image_viewer::ui::widgets::button_opts(
                             ui,
                             "Fit",
@@ -96,9 +99,9 @@ fn draw_central_toolbar(ui: &mut egui::Ui, state: &mut ViewerState, content_type
                         )
                         .clicked()
                     {
-                        fit_canvas(ui.ctx(), state, content_type);
+                        apply_canvas_action(ui.ctx(), state, content_type, CanvasViewCommand::Fit);
                     }
-                    if matches!(content_type, ContentType::Rgba | ContentType::Indexed)
+                    if controls.actual_size
                         && crate::image_viewer::ui::widgets::button_opts(
                             ui,
                             "1:1",
@@ -109,7 +112,12 @@ fn draw_central_toolbar(ui: &mut egui::Ui, state: &mut ViewerState, content_type
                         )
                         .clicked()
                     {
-                        actual_size_canvas(ui.ctx(), state, content_type);
+                        apply_canvas_action(
+                            ui.ctx(),
+                            state,
+                            content_type,
+                            CanvasViewCommand::ActualSize,
+                        );
                     }
                     ui.add_sized(
                         [112.0, 28.0],
@@ -130,27 +138,157 @@ fn draw_central_toolbar(ui: &mut egui::Ui, state: &mut ViewerState, content_type
         });
 }
 
-fn canvas_plot_id(content_type: ContentType) -> egui::Id {
-    ImagePlotter::plot_id(match content_type {
-        ContentType::Indexed => "indexed_view",
-        _ => "viewer",
-    })
+#[derive(Clone, Copy)]
+struct CanvasControls {
+    fit: bool,
+    actual_size: bool,
 }
 
-fn actual_size_canvas(ctx: &egui::Context, state: &ViewerState, content_type: ContentType) {
-    let Some(image) = state.current_image() else {
-        return;
-    };
-    let plot_id = canvas_plot_id(content_type);
-    let Some(mut memory) = egui_plot::PlotMemory::load(ctx, plot_id) else {
+#[derive(Clone, Copy)]
+struct RasterCanvasTarget {
+    plot_id: egui::Id,
+    width: u32,
+    height: u32,
+}
+
+fn canvas_controls(
+    ctx: &egui::Context,
+    state: &ViewerState,
+    content_type: ContentType,
+) -> CanvasControls {
+    match get_diff_mode(state) {
+        DiffMode::Image if state.context.diff_active => {
+            let active = state.diff_result.is_some();
+            return CanvasControls {
+                fit: active,
+                actual_size: active,
+            };
+        }
+        DiffMode::Glyph if state.context.diff_active => {
+            return CanvasControls {
+                fit: false,
+                actual_size: false,
+            };
+        }
+        _ => {}
+    }
+
+    match content_type {
+        ContentType::Rgba | ContentType::Indexed | ContentType::Path => CanvasControls {
+            fit: true,
+            actual_size: true,
+        },
+        ContentType::Font => match state.font_mode {
+            FontMode::Grid => CanvasControls {
+                fit: false,
+                actual_size: false,
+            },
+            FontMode::Rendered => {
+                let active = state.font_rendered_preview.is_some();
+                CanvasControls {
+                    fit: active,
+                    actual_size: active,
+                }
+            }
+            FontMode::Atlas => {
+                let active = panels::font_panel::font_atlas_is_current(ctx, state);
+                CanvasControls {
+                    fit: active,
+                    actual_size: active,
+                }
+            }
+            FontMode::Vector => {
+                let has_outline = panels::font_panel::font_vector_has_outline(state);
+                CanvasControls {
+                    fit: has_outline.is_some(),
+                    actual_size: has_outline.unwrap_or(false),
+                }
+            }
+        },
+        ContentType::Glyph => CanvasControls {
+            fit: true,
+            actual_size: matches!(state.selected_item(), Some(SidebarItem::Glyph(glyph)) if !glyph.outline.is_empty()),
+        },
+    }
+}
+
+fn raster_canvas_target(
+    state: &ViewerState,
+    content_type: ContentType,
+) -> Option<RasterCanvasTarget> {
+    if state.context.diff_active && get_diff_mode(state) == DiffMode::Image {
+        let image = state.diff_result.as_ref().map(|(image, _)| image)?;
+        return Some(RasterCanvasTarget {
+            plot_id: ImagePlotter::plot_id("viewer"),
+            width: image.width,
+            height: image.height,
+        });
+    }
+
+    match content_type {
+        ContentType::Rgba => state.current_image().map(|image| RasterCanvasTarget {
+            plot_id: ImagePlotter::plot_id("viewer"),
+            width: image.width,
+            height: image.height,
+        }),
+        ContentType::Indexed => state.current_image().map(|image| RasterCanvasTarget {
+            plot_id: ImagePlotter::plot_id("indexed_view"),
+            width: image.width,
+            height: image.height,
+        }),
+        ContentType::Path => state.current_image().map(|image| RasterCanvasTarget {
+            plot_id: ImagePlotter::plot_id("path_preview"),
+            width: image.width,
+            height: image.height,
+        }),
+        ContentType::Font if state.font_mode == FontMode::Atlas => state
+            .font_atlas_cached
+            .as_ref()
+            .map(|(_, _, _, width, height)| RasterCanvasTarget {
+                plot_id: ImagePlotter::plot_id("font_atlas_viewer"),
+                width: *width,
+                height: *height,
+            }),
+        ContentType::Font | ContentType::Glyph => None,
+    }
+}
+
+fn apply_canvas_action(
+    ctx: &egui::Context,
+    state: &mut ViewerState,
+    content_type: ContentType,
+    command: CanvasViewCommand,
+) {
+    match (content_type, state.font_mode) {
+        (ContentType::Font, FontMode::Rendered) => {
+            state.render_canvas_view.pending = Some(command);
+        }
+        (ContentType::Font, FontMode::Vector) | (ContentType::Glyph, _) => {
+            state.glyph_canvas_view.pending = Some(command);
+        }
+        _ => {
+            let Some(target) = raster_canvas_target(state, content_type) else {
+                return;
+            };
+            match command {
+                CanvasViewCommand::Fit => fit_raster_canvas(ctx, target.plot_id),
+                CanvasViewCommand::ActualSize => actual_size_raster_canvas(ctx, target),
+            }
+        }
+    }
+    ctx.request_repaint();
+}
+
+fn actual_size_raster_canvas(ctx: &egui::Context, target: RasterCanvasTarget) {
+    let Some(mut memory) = egui_plot::PlotMemory::load(ctx, target.plot_id) else {
         return;
     };
     let frame = memory.transform().frame().size();
     if frame.x <= 0.0 || frame.y <= 0.0 {
         return;
     }
-    let center_x = image.width as f64 / 2.0;
-    let center_y = -(image.height as f64) / 2.0;
+    let center_x = target.width as f64 / 2.0;
+    let center_y = -(target.height as f64) / 2.0;
     let half_w = frame.x as f64 / 2.0;
     let half_h = frame.y as f64 / 2.0;
     memory.auto_bounds = false.into();
@@ -158,21 +296,14 @@ fn actual_size_canvas(ctx: &egui::Context, state: &ViewerState, content_type: Co
         [center_x - half_w, center_y - half_h],
         [center_x + half_w, center_y + half_h],
     ));
-    memory.store(ctx, plot_id);
-    ctx.request_repaint();
+    memory.store(ctx, target.plot_id);
 }
 
-fn fit_canvas(ctx: &egui::Context, state: &mut ViewerState, content_type: ContentType) {
-    let plot_id = canvas_plot_id(content_type);
+fn fit_raster_canvas(ctx: &egui::Context, plot_id: egui::Id) {
     if let Some(mut memory) = egui_plot::PlotMemory::load(ctx, plot_id) {
         memory.auto_bounds = true.into();
         memory.store(ctx, plot_id);
     }
-    state.render_canvas_view.zoom = 1.0;
-    state.render_canvas_view.pan = egui::Vec2::ZERO;
-    state.glyph_canvas_view.zoom = 1.0;
-    state.glyph_canvas_view.pan = egui::Vec2::ZERO;
-    ctx.request_repaint();
 }
 
 fn selected_resource_toolbar_text(state: &ViewerState) -> (String, String) {

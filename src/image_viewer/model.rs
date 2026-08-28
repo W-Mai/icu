@@ -420,10 +420,17 @@ impl Default for FontMode {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CanvasViewCommand {
+    Fit,
+    ActualSize,
+}
+
 #[derive(Clone, Copy)]
 pub struct GlyphCanvasView {
     pub zoom: f32,
     pub pan: Vec2,
+    pub pending: Option<CanvasViewCommand>,
 }
 
 pub struct GlyphTextureCache {
@@ -436,6 +443,7 @@ impl Default for GlyphCanvasView {
         Self {
             zoom: 1.0,
             pan: Vec2::ZERO,
+            pending: None,
         }
     }
 }
