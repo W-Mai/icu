@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [v1.10.0] - 2026-08-29
+## [v0.10.0] - 2026-08-29
 
 - 🎨 Align the Viewer resource list, canvas toolbar, checkerboard, and Inspector surfaces with the preview layout.
 - ✨ Add renderer-aware `Fit` and `1:1` controls for raster images, Indexed views, Path previews, Font Rendered/Atlas/Vector views, and standalone glyphs while hiding inapplicable actions.
