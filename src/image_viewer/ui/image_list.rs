@@ -21,14 +21,14 @@ pub fn draw_left_panel(
                 .show(ui, |ui| {
                     let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
 
-                    let header_h = 32.0;
+                    let header_h = 36.0;
                     let (hdr_rect, _) = ui.allocate_exact_size(
                         egui::vec2(ui.available_width(), header_h),
                         egui::Sense::hover(),
                     );
                     if ui.is_rect_visible(hdr_rect) {
                         ui.painter().text(
-                            egui::pos2(hdr_rect.left() + 4.0, hdr_rect.center().y),
+                            egui::pos2(hdr_rect.left() + 8.0, hdr_rect.center().y),
                             egui::Align2::LEFT_CENTER,
                             t!("files_header", count = state.len()).to_string(),
                             egui::FontId::proportional(11.0),
@@ -36,8 +36,8 @@ pub fn draw_left_panel(
                         );
                         let btn_y = hdr_rect.center().y;
                         let add_rect = egui::Rect::from_center_size(
-                            egui::pos2(hdr_rect.right() - 64.0, btn_y),
-                            egui::vec2(24.0, 20.0),
+                            egui::pos2(hdr_rect.right() - 76.0, btn_y),
+                            egui::vec2(24.0, 24.0),
                         );
                         let add_resp =
                             ui.interact(add_rect, ui.id().with("sb_add"), egui::Sense::click());
@@ -93,8 +93,8 @@ pub fn draw_left_panel(
                             }
                         }
                         let folder_rect = egui::Rect::from_center_size(
-                            egui::pos2(hdr_rect.right() - 40.0, btn_y),
-                            egui::vec2(24.0, 20.0),
+                            egui::pos2(hdr_rect.right() - 48.0, btn_y),
+                            egui::vec2(24.0, 24.0),
                         );
                         let folder_resp = ui.interact(
                             folder_rect,
@@ -144,8 +144,8 @@ pub fn draw_left_panel(
                             );
                         }
                         let clr_rect = egui::Rect::from_center_size(
-                            egui::pos2(hdr_rect.right() - 16.0, btn_y),
-                            egui::vec2(24.0, 20.0),
+                            egui::pos2(hdr_rect.right() - 20.0, btn_y),
+                            egui::vec2(24.0, 24.0),
                         );
                         let clr_resp =
                             ui.interact(clr_rect, ui.id().with("sb_clear"), egui::Sense::click());
@@ -173,7 +173,6 @@ pub fn draw_left_panel(
                         }
                     }
 
-                    ui.separator();
                     if state.selected_ids.len() > 1
                         || state
                             .selected_ids
