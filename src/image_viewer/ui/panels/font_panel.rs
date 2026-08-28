@@ -1748,36 +1748,51 @@ fn draw_glyph_vector_view(
         let baseline_y = 0i32;
         let left_x = i32::from(bearing_x);
         let right_x = left_x + i32::from(advance);
-        let stroke_dash = egui::Stroke::new(0.5, p.overlay0);
+        let guide_stroke = egui::Stroke::new(1.0, p.overlay1);
         for x in [left_x, right_x] {
             let p1 = to_screen(x, min_y);
             let p2 = to_screen(x, max_y);
-            paint_dashed_line(&painter, p1, p2, stroke_dash, 4.0);
+            paint_dashed_line(&painter, p1, p2, guide_stroke, 5.0);
         }
         let p1 = to_screen(min_x, baseline_y);
         let p2 = to_screen(max_x, baseline_y);
-        paint_dashed_line(&painter, p1, p2, stroke_dash, 4.0);
+        paint_dashed_line(&painter, p1, p2, guide_stroke, 5.0);
 
-        painter.text(
-            to_screen(left_x, max_y) + egui::vec2(2.0, -2.0),
+        let label_font = egui::FontId::monospace(11.0);
+        let label_color = p.text;
+        let label_pos = |pos: egui::Pos2| {
+            egui::pos2(
+                pos.x
+                    .clamp(canvas_rect.left() + 4.0, canvas_rect.right() - 4.0),
+                pos.y
+                    .clamp(canvas_rect.top() + 4.0, canvas_rect.bottom() - 4.0),
+            )
+        };
+        let draw_label = |pos: egui::Pos2, align: egui::Align2, text: String| {
+            let pos = label_pos(pos);
+            painter.text(
+                pos + egui::vec2(1.0, 1.0),
+                align,
+                &text,
+                label_font.clone(),
+                p.mantle,
+            );
+            painter.text(pos, align, text, label_font.clone(), label_color);
+        };
+        draw_label(
+            to_screen(left_x, max_y) + egui::vec2(4.0, -5.0),
             egui::Align2::LEFT_BOTTOM,
-            t!("label_bearing_x"),
-            egui::FontId::monospace(8.0),
-            p.overlay0,
+            t!("label_bearing_x").to_string(),
         );
-        painter.text(
-            to_screen(right_x, max_y) + egui::vec2(2.0, -2.0),
+        draw_label(
+            to_screen(right_x, max_y) + egui::vec2(4.0, -5.0),
             egui::Align2::LEFT_BOTTOM,
-            t!("label_advance"),
-            egui::FontId::monospace(8.0),
-            p.overlay0,
+            t!("label_advance").to_string(),
         );
-        painter.text(
-            to_screen(min_x, baseline_y) + egui::vec2(2.0, 2.0),
+        draw_label(
+            to_screen(min_x, baseline_y) + egui::vec2(4.0, 5.0),
             egui::Align2::LEFT_TOP,
-            t!("label_baseline"),
-            egui::FontId::monospace(8.0),
-            p.overlay0,
+            t!("label_baseline").to_string(),
         );
 
         if outline.is_empty() {
@@ -1815,10 +1830,10 @@ fn draw_glyph_vector_view(
                             egui::Color32::TRANSPARENT,
                             path_stroke,
                         ));
-                        let handle_stroke = egui::Stroke::new(0.7, p.peach);
+                        let handle_stroke = egui::Stroke::new(1.2, p.peach);
                         painter.line_segment([current, ctrl_p], handle_stroke);
                         painter.line_segment([end_p, ctrl_p], handle_stroke);
-                        painter.circle_filled(ctrl_p, 2.0, p.peach);
+                        painter.circle_filled(ctrl_p, 3.0, p.peach);
                         current = end_p;
                     }
                     icu_lib::mirx::PathCmd::CubicTo { ctrl1, ctrl2, end } => {
@@ -1832,11 +1847,11 @@ fn draw_glyph_vector_view(
                             egui::Color32::TRANSPARENT,
                             path_stroke,
                         ));
-                        let handle_stroke = egui::Stroke::new(0.7, p.peach);
+                        let handle_stroke = egui::Stroke::new(1.2, p.peach);
                         painter.line_segment([current, c1], handle_stroke);
                         painter.line_segment([e, c2], handle_stroke);
-                        painter.circle_filled(c1, 2.0, p.peach);
-                        painter.circle_filled(c2, 2.0, p.peach);
+                        painter.circle_filled(c1, 3.0, p.peach);
+                        painter.circle_filled(c2, 3.0, p.peach);
                         current = e;
                     }
                     icu_lib::mirx::PathCmd::Close => {}
