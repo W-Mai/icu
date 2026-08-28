@@ -29,7 +29,7 @@ pub fn draw_right_panel_container(ui: &mut egui::Ui, state: &mut ViewerState) {
             }
             let p = theme::tokens::palette(ui.ctx());
             egui::Frame::new()
-                .fill(p.surface0)
+                .fill(p.mantle)
                 .stroke(egui::Stroke::NONE)
                 .inner_margin(egui::Margin::same(0))
                 .show(ui, |ui| {
@@ -65,7 +65,6 @@ pub fn draw_right_panel_container(ui: &mut egui::Ui, state: &mut ViewerState) {
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 8.0;
-                    ui.allocate_space(egui::vec2(12.0, 0.0));
                     egui::Frame::new()
                         .inner_margin(egui::Margin::same(12))
                         .show(ui, |ui| match state.context.right_tab {

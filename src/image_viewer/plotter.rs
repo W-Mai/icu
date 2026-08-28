@@ -18,6 +18,10 @@ pub struct ImagePlotter<'a> {
 }
 
 impl<'a> ImagePlotter<'a> {
+    pub fn plot_id(id: &str) -> egui::Id {
+        egui::Id::new(("image-plot", id))
+    }
+
     pub fn new(id: impl ToString) -> ImagePlotter<'a> {
         Self {
             id: id.to_string(),
@@ -106,6 +110,7 @@ impl<'a> ImagePlotter<'a> {
                 let cursor_pos_2 = cursor_pos.clone();
 
                 let mut plot = egui_plot::Plot::new(format!("plot{}", self.id))
+                    .id(Self::plot_id(&self.id))
                     .data_aspect(1.0)
                     .y_axis_formatter(move |y, _| format!("{:.0}", -y.value))
                     .label_formatter(move |hover| {
@@ -141,7 +146,7 @@ impl<'a> ImagePlotter<'a> {
                     .allow_drag(!self.show_only)
                     .show_x(!self.show_only)
                     .show_y(!self.show_only)
-                    .show_background(self.background_color.is_additive());
+                    .show_background(false);
 
                 if !self.show_only {
                     plot = plot.coordinates_formatter(

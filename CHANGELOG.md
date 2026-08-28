@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+- 🎨 Align the Viewer resource list, canvas toolbar, checkerboard, and Inspector surfaces with the preview layout.
+- ✨ Add functional `Fit` and `1:1` canvas controls and keep animation playback controls inside the canvas.
+
 ## [v0.9.0] - 2026-08-27
 
 - ✨ Add explicit single-file and all-files Viewer export actions for static images, Groups, and animation frames.

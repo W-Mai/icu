@@ -71,6 +71,9 @@ pub fn mode_tabs<T: Copy + PartialEq>(
     let tab_w = total_width / n as f32;
     let desired_size = Vec2::new(total_width, height);
     let (outer, mut response) = ui.allocate_exact_size(desired_size, Sense::hover());
+    if ui.is_rect_visible(outer) {
+        ui.painter().rect_filled(outer, RADIUS_SM, p.mantle);
+    }
 
     let mut any_clicked = false;
     for (i, (value, label)) in tabs.iter().enumerate() {
@@ -215,9 +218,9 @@ pub fn section_card(ui: &mut Ui, title: &str, add_contents: impl FnOnce(&mut Ui)
         .fill(p.surface0)
         .stroke(Stroke::new(1.0, p.surface1))
         .corner_radius(RADIUS_SM)
-        .inner_margin(Margin::same(10))
+        .inner_margin(Margin::same(8))
         .show(ui, |ui| {
-            ui.set_min_width(ui.max_rect().width() - 20.0);
+            ui.set_min_width(ui.max_rect().width() - 16.0);
             add_contents(ui);
         });
     ui.add_space(12.0);

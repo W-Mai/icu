@@ -13,22 +13,189 @@ pub fn draw_central_panel(ui: &mut egui::Ui, state: &mut ViewerState) {
             ui.ctx(),
         ))
         .show(ui, |ui| {
-            match (
-                state.context.diff_active,
-                get_diff_mode(state),
-                content_type,
-            ) {
-                (true, DiffMode::Glyph | DiffMode::Image, _) | (_, _, ContentType::Rgba) => {
-                    draw_rgba_canvas(ui, state)
-                }
-                (_, _, ContentType::Font) => panels::font_panel::draw_font_canvas(ui, state),
-                (_, _, ContentType::Path) => panels::path_panel::draw_path_canvas(ui, state),
-                (_, _, ContentType::Indexed) => {
-                    panels::indexed_panel::draw_indexed_canvas(ui, state)
-                }
-                (_, _, ContentType::Glyph) => panels::font_panel::draw_glyph_canvas(ui, state),
-            }
+            draw_central_toolbar(ui, state, content_type);
+            ui.add_space(4.0);
+            egui::Frame::new()
+                .fill(crate::image_viewer::ui::theme::tokens::palette(ui.ctx()).mantle)
+                .stroke(egui::Stroke::new(
+                    1.0,
+                    crate::image_viewer::ui::theme::tokens::palette(ui.ctx()).surface0,
+                ))
+                .corner_radius(crate::image_viewer::ui::theme::RADIUS)
+                .inner_margin(egui::Margin::same(6))
+                .show(ui, |ui| {
+                    paint_checkerboard(ui);
+                    match (
+                        state.context.diff_active,
+                        get_diff_mode(state),
+                        content_type,
+                    ) {
+                        (true, DiffMode::Glyph | DiffMode::Image, _)
+                        | (_, _, ContentType::Rgba) => draw_rgba_canvas(ui, state),
+                        (_, _, ContentType::Font) => {
+                            panels::font_panel::draw_font_canvas(ui, state)
+                        }
+                        (_, _, ContentType::Path) => {
+                            panels::path_panel::draw_path_canvas(ui, state)
+                        }
+                        (_, _, ContentType::Indexed) => {
+                            panels::indexed_panel::draw_indexed_canvas(ui, state)
+                        }
+                        (_, _, ContentType::Glyph) => {
+                            panels::font_panel::draw_glyph_canvas(ui, state)
+                        }
+                    }
+                });
         });
+}
+
+fn paint_checkerboard(ui: &mut egui::Ui) {
+    let rect = ui.max_rect();
+    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+    let cell = 12.0;
+    let light = p.surface0;
+    let dark = p.mantle;
+    let cols = (rect.width() / cell).ceil() as usize;
+    let rows = (rect.height() / cell).ceil() as usize;
+    for row in 0..rows {
+        for col in 0..cols {
+            let min = egui::pos2(
+                rect.left() + col as f32 * cell,
+                rect.top() + row as f32 * cell,
+            );
+            let tile = egui::Rect::from_min_size(min, egui::vec2(cell, cell));
+            ui.painter().rect_filled(
+                tile,
+                egui::CornerRadius::ZERO,
+                if (row + col) % 2 == 0 { light } else { dark },
+            );
+        }
+    }
+}
+
+fn draw_central_toolbar(ui: &mut egui::Ui, state: &mut ViewerState, content_type: ContentType) {
+    let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
+    egui::Frame::new()
+        .fill(p.mantle)
+        .stroke(egui::Stroke::new(1.0, p.surface0))
+        .inner_margin(egui::Margin::symmetric(10, 6))
+        .show(ui, |ui| {
+            let (name, metadata) = selected_resource_toolbar_text(state);
+            ui.allocate_ui_with_layout(
+                egui::vec2(ui.available_width(), 28.0),
+                egui::Layout::right_to_left(egui::Align::Center),
+                |ui| {
+                    if !matches!(content_type, ContentType::Path)
+                        && crate::image_viewer::ui::widgets::button_opts(
+                            ui,
+                            "Fit",
+                            crate::image_viewer::ui::widgets::ButtonOpts {
+                                small: true,
+                                ..Default::default()
+                            },
+                        )
+                        .clicked()
+                    {
+                        fit_canvas(ui.ctx(), state);
+                    }
+                    if matches!(content_type, ContentType::Rgba | ContentType::Indexed)
+                        && crate::image_viewer::ui::widgets::button_opts(
+                            ui,
+                            "1:1",
+                            crate::image_viewer::ui::widgets::ButtonOpts {
+                                small: true,
+                                ..Default::default()
+                            },
+                        )
+                        .clicked()
+                    {
+                        actual_size_canvas(ui.ctx(), state);
+                    }
+                    ui.add_sized(
+                        [112.0, 28.0],
+                        egui::Label::new(
+                            egui::RichText::new(metadata).size(10.0).color(p.overlay0),
+                        )
+                        .truncate(),
+                    );
+                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                        ui.add_sized(
+                            [ui.available_width().max(1.0), 28.0],
+                            egui::Label::new(egui::RichText::new(name).size(11.0).color(p.text))
+                                .truncate(),
+                        );
+                    });
+                },
+            );
+        });
+}
+
+fn actual_size_canvas(ctx: &egui::Context, state: &ViewerState) {
+    let Some(image) = state.current_image() else {
+        return;
+    };
+    let plot_id = ImagePlotter::plot_id("viewer");
+    let Some(mut memory) = egui_plot::PlotMemory::load(ctx, plot_id) else {
+        return;
+    };
+    let frame = memory.transform().frame().size();
+    if frame.x <= 0.0 || frame.y <= 0.0 {
+        return;
+    }
+    let center_x = image.width as f64 / 2.0;
+    let center_y = -(image.height as f64) / 2.0;
+    let half_w = frame.x as f64 / 2.0;
+    let half_h = frame.y as f64 / 2.0;
+    memory.auto_bounds = false.into();
+    memory.set_bounds(egui_plot::PlotBounds::from_min_max(
+        [center_x - half_w, center_y - half_h],
+        [center_x + half_w, center_y + half_h],
+    ));
+    memory.store(ctx, plot_id);
+    ctx.request_repaint();
+}
+
+fn fit_canvas(ctx: &egui::Context, state: &mut ViewerState) {
+    let plot_id = ImagePlotter::plot_id("viewer");
+    if let Some(mut memory) = egui_plot::PlotMemory::load(ctx, plot_id) {
+        memory.auto_bounds = true.into();
+        memory.store(ctx, plot_id);
+    }
+    state.render_canvas_view.zoom = 1.0;
+    state.render_canvas_view.pan = egui::Vec2::ZERO;
+    state.glyph_canvas_view.zoom = 1.0;
+    state.glyph_canvas_view.pan = egui::Vec2::ZERO;
+    ctx.request_repaint();
+}
+
+fn selected_resource_toolbar_text(state: &ViewerState) -> (String, String) {
+    if state.context.diff_active {
+        let mode = match get_diff_mode(state) {
+            DiffMode::Glyph => "Glyph diff",
+            DiffMode::Image => "Image diff",
+            DiffMode::Incompatible => "Incompatible diff",
+            DiffMode::None => "Diff",
+        };
+        return (mode.to_string(), String::new());
+    }
+
+    match state.selected_item() {
+        Some(crate::image_viewer::model::SidebarItem::Image(image)) => (
+            resource_name(&image.path),
+            format!("{}×{} · {}", image.width, image.height, image.info.format),
+        ),
+        Some(crate::image_viewer::model::SidebarItem::Glyph(glyph)) => {
+            (glyph.name.clone(), String::new())
+        }
+        None => (t!("app_title_short").to_string(), String::new()),
+    }
+}
+
+fn resource_name(path: &str) -> String {
+    std::path::Path::new(path)
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.to_string())
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -115,7 +282,7 @@ fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
 
     let selected_index = state.selected_id.and_then(|id| state.index_of(id));
     let mut plot_hover = state.hovered_diff_pixel_from_plot;
-    let image_plotter = ImagePlotter::new("viewer")
+    let mut image_plotter = ImagePlotter::new("viewer")
         .anti_alias(state.context.anti_alias)
         .show_grid(state.context.show_grid)
         .background_color(state.context.background_color)
@@ -128,16 +295,12 @@ fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
 
     if state.context.only_show_diff {
         if let Some((diff_img, _)) = &state.diff_result {
-            image_plotter
-                .badge(format!("{}×{} · diff", diff_img.width, diff_img.height))
-                .show(ui, &Some(diff_img.clone()));
+            image_plotter.show(ui, &Some(diff_img.clone()));
         }
     } else if let Some((diff_img, _)) = &state.diff_result
         && state.context.diff_active
     {
-        image_plotter
-            .badge(format!("{}×{} · diff", diff_img.width, diff_img.height))
-            .show(ui, &Some(diff_img.clone()));
+        image_plotter.show(ui, &Some(diff_img.clone()));
     } else if let Some(crate::image_viewer::model::SidebarItem::Image(image)) =
         selected_index.and_then(|index| state.content_at_mut(index))
     {
@@ -146,13 +309,19 @@ fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
             ui.ctx().request_repaint();
         }
         let image_for_plot = image.clone();
-        image_plotter
-            .badge(format!(
-                "{}×{} · {}",
-                image_for_plot.width, image_for_plot.height, image_for_plot.info.format
-            ))
-            .show(ui, &Some(image_for_plot));
-        draw_frame_controls(ui, image);
+        if image.frame_count() > 1 {
+            let plot_height = (ui.available_height() - 32.0).max(1.0);
+            ui.allocate_ui_with_layout(
+                egui::vec2(ui.available_width(), plot_height),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    image_plotter.show(ui, &Some(image_for_plot));
+                },
+            );
+            draw_frame_controls(ui, image);
+        } else {
+            image_plotter.show(ui, &Some(image_for_plot));
+        }
     } else {
         let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
         let avail = ui.available_size();
@@ -177,10 +346,7 @@ fn draw_rgba_canvas(ui: &mut egui::Ui, state: &mut ViewerState) {
             text_color,
             f32::INFINITY,
         );
-        let text_pos = egui::pos2(
-            rect.center().x - galley.size().x / 2.0,
-            rect.center().y - galley.size().y / 2.0,
-        );
+        let text_pos = rect.center() - 0.5 * galley.size();
         ui.painter().galley(text_pos, galley, text_color);
         if click_response.clicked() {
             #[cfg(not(target_arch = "wasm32"))]

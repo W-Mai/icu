@@ -21,7 +21,7 @@ pub fn draw_left_panel(
                 .show(ui, |ui| {
                     let p = crate::image_viewer::ui::theme::tokens::palette(ui.ctx());
 
-                    let header_h = 28.0;
+                    let header_h = 32.0;
                     let (hdr_rect, _) = ui.allocate_exact_size(
                         egui::vec2(ui.available_width(), header_h),
                         egui::Sense::hover(),
@@ -262,11 +262,11 @@ fn draw_sidebar_item(
                     .map(|n| n.to_string_lossy().into_owned())
                     .unwrap_or_else(|| img.path.clone())
             });
-            let meta_str = format!("{}×{}", img.width, img.height);
+            let meta_str = format!("{}×{} · {}", img.width, img.height, img.info.format);
             let (badge, color) = match &img.midata {
                 Some(icu_lib::midata::MiData::FONT(_)) => ("FONT", p.mauve),
                 Some(icu_lib::midata::MiData::PATH(_)) => ("SVG", p.green),
-                Some(icu_lib::midata::MiData::INDEXED(_)) => ("IDX", p.yellow),
+                Some(icu_lib::midata::MiData::INDEXED(_)) => ("INDEXED", p.yellow),
                 _ => ("IMG", p.accent()),
             };
             (fname, meta_str, badge, color)
@@ -299,7 +299,12 @@ fn draw_sidebar_item(
         _ => (0, 0),
     };
 
-    let desired = egui::vec2(ui.available_width(), 48.0);
+    let row_height = if state.context.diff_active && matches!(item, SidebarItem::Image(_)) {
+        72.0
+    } else {
+        56.0
+    };
+    let desired = egui::vec2(ui.available_width(), row_height);
     let (rect, response) = ui.allocate_exact_size(desired, egui::Sense::click());
 
     let arrow_rect = if is_animated {
@@ -344,7 +349,7 @@ fn draw_sidebar_item(
         } else {
             0.0
         };
-        let thumb_size = 36.0;
+        let thumb_size = 40.0;
         let thumb_rect = egui::Rect::from_min_size(
             egui::pos2(
                 rect.left() + 6.0 + indent,
@@ -662,7 +667,17 @@ fn draw_diff_selection_buttons(
     ui.horizontal(|ui| {
         let diff1_selected = state.diff_image1_id == Some(id);
         let diff2_selected = state.diff_image2_id == Some(id);
-        if ui.selectable_label(diff1_selected, t!("diff1")).clicked() {
+        if crate::image_viewer::ui::widgets::button_opts(
+            ui,
+            t!("diff1"),
+            crate::image_viewer::ui::widgets::ButtonOpts {
+                active: diff1_selected,
+                small: true,
+                ..Default::default()
+            },
+        )
+        .clicked()
+        {
             if state.diff_image1_id == Some(id) {
                 state.diff_image1_id = None;
             } else {
@@ -672,7 +687,17 @@ fn draw_diff_selection_buttons(
                 }
             }
         }
-        if ui.selectable_label(diff2_selected, t!("diff2")).clicked() {
+        if crate::image_viewer::ui::widgets::button_opts(
+            ui,
+            t!("diff2"),
+            crate::image_viewer::ui::widgets::ButtonOpts {
+                active: diff2_selected,
+                small: true,
+                ..Default::default()
+            },
+        )
+        .clicked()
+        {
             if state.diff_image2_id == Some(id) {
                 state.diff_image2_id = None;
             } else {
