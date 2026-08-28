@@ -723,14 +723,13 @@ fn draw_selected_glyph_section(
                     None => true,
                 };
                 if need_big {
-                    let mut big = icu_lib::endecoder::mirui::font_render::render_font_text(
+                    let big = icu_lib::endecoder::mirui::font_render::render_font_text(
                         font,
                         &ch.to_string(),
                         128,
                         128,
                         text_color,
                     );
-                    icu_lib::image::imageops::flip_vertical_in_place(&mut big);
                     let ci = egui::ColorImage::from_rgba_unmultiplied(
                         [big.width() as usize, big.height() as usize],
                         big.as_raw(),
@@ -741,7 +740,16 @@ fn draw_selected_glyph_section(
                     state.font_grid_big_cached = Some((big_key, tex));
                 }
                 if let Some((_, tex)) = &state.font_grid_big_cached {
-                    ui.image(egui::load::SizedTexture::new(tex.id(), [128.0, 128.0]));
+                    ui.add(
+                        egui::Image::from_texture(egui::load::SizedTexture::new(
+                            tex.id(),
+                            [128.0, 128.0],
+                        ))
+                        .uv(egui::Rect::from_min_max(
+                            egui::pos2(0.0, 1.0),
+                            egui::pos2(1.0, 0.0),
+                        )),
+                    );
                 }
             });
         }
@@ -766,14 +774,13 @@ fn draw_selected_glyph_section(
                     None => true,
                 };
                 if need_big {
-                    let mut big = icu_lib::endecoder::mirui::font_render::render_font_text(
+                    let big = icu_lib::endecoder::mirui::font_render::render_font_text(
                         font,
                         &ch.to_string(),
                         128,
                         128,
                         text_color,
                     );
-                    icu_lib::image::imageops::flip_vertical_in_place(&mut big);
                     let ci = egui::ColorImage::from_rgba_unmultiplied(
                         [big.width() as usize, big.height() as usize],
                         big.as_raw(),
@@ -784,7 +791,16 @@ fn draw_selected_glyph_section(
                     state.font_grid_big_cached = Some((big_key, tex));
                 }
                 if let Some((_, tex)) = &state.font_grid_big_cached {
-                    ui.image(egui::load::SizedTexture::new(tex.id(), [128.0, 128.0]));
+                    ui.add(
+                        egui::Image::from_texture(egui::load::SizedTexture::new(
+                            tex.id(),
+                            [128.0, 128.0],
+                        ))
+                        .uv(egui::Rect::from_min_max(
+                            egui::pos2(0.0, 1.0),
+                            egui::pos2(1.0, 0.0),
+                        )),
+                    );
                 }
             });
         }
@@ -918,26 +934,23 @@ fn render_source_glyph(
 ) -> Option<icu_lib::image::RgbaImage> {
     match font_data {
         FontData::Mirx(font) => {
-            let mut image = icu_lib::endecoder::mirui::font_render::render_font_text(
+            let image = icu_lib::endecoder::mirui::font_render::render_font_text(
                 font,
                 &ch.to_string(),
                 cell,
                 cell,
                 text_color,
             );
-            icu_lib::image::imageops::flip_vertical_in_place(&mut image);
             Some(image)
         }
         FontData::MirxBundle(_fonts) => selected_mirx_font(font_data, bundle_index).map(|font| {
-            let mut image = icu_lib::endecoder::mirui::font_render::render_font_text(
+            icu_lib::endecoder::mirui::font_render::render_font_text(
                 font,
                 &ch.to_string(),
                 cell,
                 cell,
                 text_color,
-            );
-            icu_lib::image::imageops::flip_vertical_in_place(&mut image);
-            image
+            )
         }),
         FontData::FreeType(font) => {
             icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
@@ -1693,10 +1706,16 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                             let Some(tex) = cache.map.get(&i) else {
                                 continue;
                             };
-                            let btn = egui::Button::image(egui::load::SizedTexture::new(
-                                tex.id(),
-                                [cell; 2],
-                            ))
+                            let btn = egui::Button::image(
+                                egui::Image::from_texture(egui::load::SizedTexture::new(
+                                    tex.id(),
+                                    [cell; 2],
+                                ))
+                                .uv(egui::Rect::from_min_max(
+                                    egui::pos2(0.0, 1.0),
+                                    egui::pos2(1.0, 0.0),
+                                )),
+                            )
                             .corner_radius(egui::CornerRadius::same(2))
                             .stroke(if is_sel {
                                 egui::Stroke::new(2.0, p.accent())
