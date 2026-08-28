@@ -717,18 +717,14 @@ fn draw_selected_glyph_section(
                     m.advance, m.bearing_x, m.bearing_y
                 ));
                 ui.label("bbox: n/a  outline cmds: 0");
-                let big_key = format!("{}_{}", grid_key, idx);
+                let big_key = format!("{grid_key}_{idx}_mirx_cell_raster_128_v1");
                 let need_big = match &state.font_grid_big_cached {
                     Some((k, _)) => k != &big_key,
                     None => true,
                 };
                 if need_big {
-                    let big = icu_lib::endecoder::mirui::font_render::render_font_text(
-                        font,
-                        &ch.to_string(),
-                        128,
-                        128,
-                        text_color,
+                    let big = icu_lib::endecoder::mirui::font_render::render_mirx_glyph_cell(
+                        font, ch, 128, text_color,
                     );
                     let ci = egui::ColorImage::from_rgba_unmultiplied(
                         [big.width() as usize, big.height() as usize],
@@ -740,16 +736,7 @@ fn draw_selected_glyph_section(
                     state.font_grid_big_cached = Some((big_key, tex));
                 }
                 if let Some((_, tex)) = &state.font_grid_big_cached {
-                    ui.add(
-                        egui::Image::from_texture(egui::load::SizedTexture::new(
-                            tex.id(),
-                            [128.0, 128.0],
-                        ))
-                        .uv(egui::Rect::from_min_max(
-                            egui::pos2(0.0, 1.0),
-                            egui::pos2(1.0, 0.0),
-                        )),
-                    );
+                    ui.image(egui::load::SizedTexture::new(tex.id(), [128.0, 128.0]));
                 }
             });
         }
@@ -768,18 +755,14 @@ fn draw_selected_glyph_section(
                     m.advance, m.bearing_x, m.bearing_y
                 ));
                 ui.label("bbox: n/a  outline cmds: 0");
-                let big_key = format!("{}_{}", grid_key, idx);
+                let big_key = format!("{grid_key}_{idx}_mirx_cell_raster_128_v1");
                 let need_big = match &state.font_grid_big_cached {
                     Some((k, _)) => k != &big_key,
                     None => true,
                 };
                 if need_big {
-                    let big = icu_lib::endecoder::mirui::font_render::render_font_text(
-                        font,
-                        &ch.to_string(),
-                        128,
-                        128,
-                        text_color,
+                    let big = icu_lib::endecoder::mirui::font_render::render_mirx_glyph_cell(
+                        font, ch, 128, text_color,
                     );
                     let ci = egui::ColorImage::from_rgba_unmultiplied(
                         [big.width() as usize, big.height() as usize],
@@ -791,16 +774,7 @@ fn draw_selected_glyph_section(
                     state.font_grid_big_cached = Some((big_key, tex));
                 }
                 if let Some((_, tex)) = &state.font_grid_big_cached {
-                    ui.add(
-                        egui::Image::from_texture(egui::load::SizedTexture::new(
-                            tex.id(),
-                            [128.0, 128.0],
-                        ))
-                        .uv(egui::Rect::from_min_max(
-                            egui::pos2(0.0, 1.0),
-                            egui::pos2(1.0, 0.0),
-                        )),
-                    );
+                    ui.image(egui::load::SizedTexture::new(tex.id(), [128.0, 128.0]));
                 }
             });
         }
@@ -906,6 +880,24 @@ fn paste_to_canvas(src: &icu_lib::image::RgbaImage, w: u32, h: u32) -> icu_lib::
     canvas
 }
 
+fn place_image_on_canvas(
+    src: &icu_lib::image::RgbaImage,
+    canvas_width: u32,
+    canvas_height: u32,
+    offset_x: u32,
+    offset_y: u32,
+) -> icu_lib::image::RgbaImage {
+    let mut canvas = icu_lib::image::RgbaImage::new(canvas_width, canvas_height);
+    let copy_width = src.width().min(canvas_width.saturating_sub(offset_x));
+    let copy_height = src.height().min(canvas_height.saturating_sub(offset_y));
+    for y in 0..copy_height {
+        for x in 0..copy_width {
+            canvas.put_pixel(offset_x + x, offset_y + y, *src.get_pixel(x, y));
+        }
+    }
+    canvas
+}
+
 fn pad_image_to_cell(src: &icu_lib::image::RgbaImage, cell: u32) -> icu_lib::image::RgbaImage {
     let sw = src.width();
     let sh = src.height();
@@ -990,19 +982,80 @@ fn render_glyph_grid_texture(
     font_data: &FontData,
     bundle_index: usize,
     glyph_index: usize,
-    cell: u32,
+    canvas_size: u32,
     text_color: icu_lib::mirx::Color,
 ) -> Option<egui::TextureHandle> {
     let ch = char::from_u32(glyph_codepoint(font_data, bundle_index, glyph_index)?).unwrap_or('?');
-    let img = render_source_glyph(font_data, bundle_index, ch, cell, text_color)?;
-    let padded = pad_image_to_cell(&img, cell);
-    let ci =
-        egui::ColorImage::from_rgba_unmultiplied([cell as usize, cell as usize], padded.as_raw());
+    let image = match font_data {
+        FontData::Mirx(font) => {
+            let raster_size = u32::from(font.atlas.source_size);
+            let raster = icu_lib::endecoder::mirui::font_render::render_mirx_glyph_cell(
+                font,
+                ch,
+                raster_size,
+                text_color,
+            );
+            let offset = canvas_size.saturating_sub(raster_size) / 2;
+            place_image_on_canvas(&raster, canvas_size, canvas_size, offset, offset)
+        }
+        FontData::MirxBundle(_) => {
+            let font = selected_mirx_font(font_data, bundle_index)?;
+            let raster_size = u32::from(font.atlas.source_size);
+            let raster = icu_lib::endecoder::mirui::font_render::render_mirx_glyph_cell(
+                font,
+                ch,
+                raster_size,
+                text_color,
+            );
+            let offset = canvas_size.saturating_sub(raster_size) / 2;
+            place_image_on_canvas(&raster, canvas_size, canvas_size, offset, offset)
+        }
+        FontData::FreeType(_) => {
+            let image = render_source_glyph(font_data, bundle_index, ch, canvas_size, text_color)?;
+            pad_image_to_cell(&image, canvas_size)
+        }
+    };
+    let ci = egui::ColorImage::from_rgba_unmultiplied(
+        [canvas_size as usize, canvas_size as usize],
+        image.as_raw(),
+    );
     Some(ctx.load_texture(
         format!("glyph_grid_{bundle_index}_{glyph_index}"),
         ci,
         egui::TextureOptions::LINEAR,
     ))
+}
+
+fn glyph_grid_cache_key(
+    path: &str,
+    foreground: egui::Color32,
+    font_data: &FontData,
+    bundle_index: usize,
+) -> String {
+    let (font_kind, raster_size, canvas_size) = match font_data {
+        FontData::Mirx(font) => {
+            let raster_size = u32::from(font.atlas.source_size);
+            let kind = match font.chunk_header.kind {
+                icu_lib::mirx::FontChunkKind::Sdf => "mirx-sdf",
+                icu_lib::mirx::FontChunkKind::Grayscale => "mirx-gray",
+            };
+            (kind, raster_size, raster_size.saturating_add(4))
+        }
+        FontData::MirxBundle(_) => selected_mirx_font(font_data, bundle_index)
+            .map(|font| {
+                let raster_size = u32::from(font.atlas.source_size);
+                let kind = match font.chunk_header.kind {
+                    icu_lib::mirx::FontChunkKind::Sdf => "mirx-sdf",
+                    icu_lib::mirx::FontChunkKind::Grayscale => "mirx-gray",
+                };
+                (kind, raster_size, raster_size.saturating_add(4))
+            })
+            .unwrap_or(("mirx-empty", 0, 0)),
+        FontData::FreeType(_) => ("freetype", 48, 48),
+    };
+    format!(
+        "{path}_{foreground:?}_{bundle_index}_{font_kind}_r{raster_size}_c{canvas_size}_glyph_cell_v1"
+    )
 }
 
 fn diff_cell_size(left: &FontData, right: &FontData, bundle_index: usize) -> u32 {
@@ -1584,10 +1637,8 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
             }
         }
         FontMode::Grid => {
-            let grid_key = format!(
-                "{}_{:?}_{}_mirx_y_down_v2",
-                image.path, fg, state.font_bundle_index
-            );
+            let grid_key =
+                glyph_grid_cache_key(&image.path, fg, font_data, state.font_bundle_index);
             let cache_changed = match &state.font_grid_cached {
                 Some(cache) => cache.key != grid_key,
                 None => true,
@@ -1706,16 +1757,9 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                             let Some(tex) = cache.map.get(&i) else {
                                 continue;
                             };
-                            let btn = egui::Button::image(
-                                egui::Image::from_texture(egui::load::SizedTexture::new(
-                                    tex.id(),
-                                    [cell; 2],
-                                ))
-                                .uv(egui::Rect::from_min_max(
-                                    egui::pos2(0.0, 1.0),
-                                    egui::pos2(1.0, 0.0),
-                                )),
-                            )
+                            let btn = egui::Button::image(egui::Image::from_texture(
+                                egui::load::SizedTexture::new(tex.id(), [cell; 2]),
+                            ))
                             .corner_radius(egui::CornerRadius::same(2))
                             .stroke(if is_sel {
                                 egui::Stroke::new(2.0, p.accent())
@@ -2417,6 +2461,21 @@ fn paint_dashed_line(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn grid_canvas_adds_padding_without_scaling_or_reversing() {
+        let mut raster = icu_lib::image::RgbaImage::new(2, 2);
+        raster.put_pixel(0, 0, icu_lib::image::Rgba([255, 0, 0, 255]));
+        raster.put_pixel(1, 1, icu_lib::image::Rgba([0, 0, 255, 255]));
+
+        let canvas = place_image_on_canvas(&raster, 6, 6, 2, 2);
+
+        assert_eq!(canvas.dimensions(), (6, 6));
+        assert_eq!(canvas.get_pixel(2, 2), raster.get_pixel(0, 0));
+        assert_eq!(canvas.get_pixel(3, 3), raster.get_pixel(1, 1));
+        assert_eq!(canvas.get_pixel(2, 3).0[3], 0);
+        assert_eq!(canvas.get_pixel(0, 0).0[3], 0);
+    }
 
     #[test]
     fn actual_size_command_sets_unit_scale_and_recenters() {

@@ -349,33 +349,100 @@ fn map_freetype_cmd(cmd: &PathCmd, x0: f32, y0: f32, scale: f32, baseline: f32) 
     }
 }
 
-#[allow(dead_code)]
-fn sample_atlas_pixel(bytes: &[u8], source: u32, x: u32, y: u32, bit_depth: u8) -> u8 {
-    let idx = y * source + x;
+fn sample_atlas_pixel(bytes: &[u8], source: u32, x: u32, y: u32, bit_depth: u8) -> Option<u8> {
+    let idx = y.checked_mul(source)?.checked_add(x)? as usize;
     match bit_depth {
         1 => {
-            let byte = bytes[idx as usize / 8];
+            let byte = *bytes.get(idx / 8)?;
             let bit = 7 - (idx % 8) as u8;
-            if (byte >> bit) & 1 == 1 {
-                255
-            } else {
-                0
-            }
+            Some(if (byte >> bit) & 1 == 1 { 255 } else { 0 })
         }
         2 => {
-            let byte = bytes[idx as usize / 4];
+            let byte = *bytes.get(idx / 4)?;
             let shift = 6 - (idx % 4) as u8 * 2;
-            let v = (byte >> shift) & 0x3;
-            v * 85
+            Some(((byte >> shift) & 0x3) * 85)
         }
         4 => {
-            let byte = bytes[idx as usize / 2];
+            let byte = *bytes.get(idx / 2)?;
             let shift = 4 - (idx % 2) as u8 * 4;
-            let v = (byte >> shift) & 0xF;
-            v * 17
+            Some(((byte >> shift) & 0xF) * 17)
         }
-        8 => bytes[idx as usize],
-        _ => 0,
+        8 => bytes.get(idx).copied(),
+        _ => None,
+    }
+}
+
+fn render_gray_glyph_cell(
+    font: &mirx::Font,
+    ch: char,
+    raster_size: u32,
+    color: mirx::Color,
+) -> Option<RgbaImage> {
+    let source_size = u32::from(font.atlas.source_size);
+    let bit_depth = font.atlas.bit_depth;
+    if source_size == 0 || raster_size == 0 || !matches!(bit_depth, 1 | 2 | 4 | 8) {
+        return None;
+    }
+    let glyph_index = font
+        .metrics
+        .binary_search_by_key(&(ch as u32), |metric| metric.codepoint)
+        .ok()?;
+    let expected_bytes = source_size
+        .checked_mul(source_size)?
+        .checked_mul(u32::from(bit_depth))?
+        .div_ceil(8);
+    if font.atlas.bytes_per_glyph != expected_bytes {
+        return None;
+    }
+    let stride = usize::try_from(expected_bytes).ok()?;
+    let start = glyph_index.checked_mul(stride)?;
+    let bytes = font.data.get(start..start.checked_add(stride)?)?;
+    let mut image = RgbaImage::new(raster_size, raster_size);
+    for y in 0..raster_size {
+        let source_y = (u64::from(y) * u64::from(source_size) / u64::from(raster_size))
+            .min(u64::from(source_size - 1)) as u32;
+        for x in 0..raster_size {
+            let source_x = (u64::from(x) * u64::from(source_size) / u64::from(raster_size))
+                .min(u64::from(source_size - 1)) as u32;
+            let coverage = sample_atlas_pixel(bytes, source_size, source_x, source_y, bit_depth)?;
+            let alpha = (u16::from(coverage) * u16::from(color.a) / 255) as u8;
+            image.put_pixel(x, y, image::Rgba([color.r, color.g, color.b, alpha]));
+        }
+    }
+    Some(image)
+}
+
+pub fn render_mirx_glyph_cell(
+    font: &mirx::Font,
+    ch: char,
+    raster_size: u32,
+    color: mirx::Color,
+) -> RgbaImage {
+    if raster_size == 0 || font.atlas.source_size == 0 {
+        return RgbaImage::new(0, 0);
+    }
+
+    match font.chunk_header.kind {
+        FontChunkKind::Sdf => {
+            let payload: &'static [u8] = leak_font_payload(font);
+            let mut mirui_font =
+                match mirui::render::font::sdf::font_from_mirx_chunk("icu-glyph-cell", payload) {
+                    Ok(font) => font,
+                    Err(_) => return RgbaImage::new(raster_size, raster_size),
+                };
+            mirui_font.size = raster_size.min(u16::MAX as u32) as u16;
+            render_text_with_font_at(
+                &mirui_font,
+                &ch.to_string(),
+                raster_size,
+                raster_size,
+                0.0,
+                0.0,
+                color,
+            )
+        }
+        FontChunkKind::Grayscale => render_gray_glyph_cell(font, ch, raster_size, color)
+            .unwrap_or_else(|| RgbaImage::new(raster_size, raster_size)),
     }
 }
 
@@ -584,5 +651,160 @@ mod tests {
         );
         assert!(img.width() > 0);
         assert!(img.height() > 0);
+    }
+
+    fn asymmetric_font(kind: FontChunkKind, source_size: u16, data: Vec<u8>) -> mirx::Font {
+        let bit_depth = match kind {
+            FontChunkKind::Sdf => 4,
+            FontChunkKind::Grayscale => 8,
+        };
+        mirx::Font {
+            chunk_header: mirx::FontChunkHeader {
+                kind,
+                format: bit_depth,
+                size: source_size,
+            },
+            atlas: mirx::AtlasHeader {
+                version: mirx::SUPPORTED_VERSION,
+                bit_depth,
+                _pad0: 0,
+                source_size,
+                spread: 1,
+                glyph_count: 1,
+                metric_offset: mirx::HEADER_LEN as u32,
+                data_offset: (mirx::HEADER_LEN + mirx::METRIC_LEN) as u32,
+                bytes_per_glyph: data.len() as u32,
+                ascender: source_size,
+                descender: 0,
+                line_height: source_size,
+                _pad1: 0,
+            },
+            metrics: vec![mirx::GlyphMetric {
+                codepoint: 'A' as u32,
+                advance: source_size,
+                bearing_x: 0,
+                bearing_y: source_size.min(i8::MAX as u16) as i8,
+            }],
+            data,
+        }
+    }
+
+    fn white() -> mirx::Color {
+        mirx::Color {
+            r: 255,
+            g: 255,
+            b: 255,
+            a: 255,
+        }
+    }
+
+    #[test]
+    fn freetype_glyph_raster_keeps_positive_y_above_negative_y() {
+        let point = |x, y| mirx::Point::new(mirx::Fixed::from_int(x), mirx::Fixed::from_int(y));
+        let font = crate::midata::FreeTypeFontData {
+            family: "test".to_owned(),
+            style: "regular".to_owned(),
+            units_per_em: 100,
+            ascender: 100,
+            descender: -20,
+            line_height: 120,
+            glyph_count: 1,
+            glyphs: vec![crate::midata::FreeTypeGlyph {
+                codepoint: 'A' as u32,
+                advance: 50,
+                bearing_x: 0,
+                bearing_y: 100,
+                bbox: (0, -100, 40, 100),
+                outline: vec![
+                    mirx::PathCmd::MoveTo(point(0, 60)),
+                    mirx::PathCmd::LineTo(point(40, 60)),
+                    mirx::PathCmd::LineTo(point(40, 100)),
+                    mirx::PathCmd::LineTo(point(0, 100)),
+                    mirx::PathCmd::Close,
+                    mirx::PathCmd::MoveTo(point(0, -100)),
+                    mirx::PathCmd::LineTo(point(20, -100)),
+                    mirx::PathCmd::LineTo(point(20, -80)),
+                    mirx::PathCmd::LineTo(point(0, -80)),
+                    mirx::PathCmd::Close,
+                ],
+            }],
+        };
+
+        let image = render_freetype_glyph_at(&font, 'A', 40, 40, white()).unwrap();
+        let split = image.height() / 2;
+        let top_alpha: u32 = image
+            .rows()
+            .take(split as usize)
+            .flatten()
+            .map(|pixel| u32::from(pixel.0[3]))
+            .sum();
+        let bottom_alpha: u32 = image
+            .rows()
+            .skip(split as usize)
+            .flatten()
+            .map(|pixel| u32::from(pixel.0[3]))
+            .sum();
+        assert!(top_alpha > bottom_alpha);
+    }
+
+    #[test]
+    fn gray_glyph_cell_preserves_native_rows_and_nearest_neighbor_scaling() {
+        let font = asymmetric_font(FontChunkKind::Grayscale, 2, vec![255, 0, 0, 0]);
+
+        let native = render_mirx_glyph_cell(&font, 'A', 2, white());
+        assert_eq!(native.get_pixel(0, 0).0[3], 255);
+        assert_eq!(native.get_pixel(0, 1).0[3], 0);
+
+        let scaled = render_mirx_glyph_cell(&font, 'A', 4, white());
+        for y in 0..2 {
+            for x in 0..2 {
+                assert_eq!(scaled.get_pixel(x, y).0[3], 255);
+            }
+        }
+        for y in 2..4 {
+            assert_eq!(scaled.get_pixel(0, y).0[3], 0);
+        }
+    }
+
+    #[test]
+    fn gray_glyph_cell_supports_full_u16_source_geometry() {
+        let source_size = 256u16;
+        let mut data = vec![0; usize::from(source_size) * usize::from(source_size)];
+        *data.last_mut().unwrap() = 255;
+        let font = asymmetric_font(FontChunkKind::Grayscale, source_size, data);
+
+        let image = render_mirx_glyph_cell(&font, 'A', u32::from(source_size), white());
+
+        assert_eq!(image.get_pixel(255, 255).0[3], 255);
+        assert_eq!(image.get_pixel(255, 254).0[3], 0);
+    }
+
+    #[test]
+    fn gray_glyph_cell_multiplies_coverage_by_color_alpha() {
+        let font = asymmetric_font(FontChunkKind::Grayscale, 1, vec![128]);
+        let color = mirx::Color {
+            r: 12,
+            g: 34,
+            b: 56,
+            a: 128,
+        };
+
+        let image = render_mirx_glyph_cell(&font, 'A', 1, color);
+
+        assert_eq!(image.get_pixel(0, 0).0, [12, 34, 56, 64]);
+    }
+
+    #[test]
+    fn sdf_glyph_cell_scales_without_reversing_rows() {
+        let font = asymmetric_font(
+            FontChunkKind::Sdf,
+            4,
+            vec![0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+        );
+
+        let scaled = render_mirx_glyph_cell(&font, 'A', 8, white());
+        let top_alpha: u32 = (0..8).map(|x| u32::from(scaled.get_pixel(x, 0).0[3])).sum();
+        let bottom_alpha: u32 = (0..8).map(|x| u32::from(scaled.get_pixel(x, 7).0[3])).sum();
+        assert!(top_alpha > bottom_alpha);
     }
 }
