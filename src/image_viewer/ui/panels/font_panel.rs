@@ -730,6 +730,7 @@ fn draw_selected_glyph_section(
                         128,
                         text_color,
                     );
+                    let big = orient_mirx_grid_image(&big, 128);
                     let ci = egui::ColorImage::from_rgba_unmultiplied(
                         [big.width() as usize, big.height() as usize],
                         big.as_raw(),
@@ -740,16 +741,7 @@ fn draw_selected_glyph_section(
                     state.font_grid_big_cached = Some((big_key, tex));
                 }
                 if let Some((_, tex)) = &state.font_grid_big_cached {
-                    ui.add(
-                        egui::Image::from_texture(egui::load::SizedTexture::new(
-                            tex.id(),
-                            [128.0, 128.0],
-                        ))
-                        .uv(egui::Rect::from_min_max(
-                            egui::pos2(0.0, 1.0),
-                            egui::pos2(1.0, 0.0),
-                        )),
-                    );
+                    ui.image(egui::load::SizedTexture::new(tex.id(), [128.0, 128.0]));
                 }
             });
         }
@@ -781,6 +773,7 @@ fn draw_selected_glyph_section(
                         128,
                         text_color,
                     );
+                    let big = orient_mirx_grid_image(&big, 128);
                     let ci = egui::ColorImage::from_rgba_unmultiplied(
                         [big.width() as usize, big.height() as usize],
                         big.as_raw(),
@@ -791,16 +784,7 @@ fn draw_selected_glyph_section(
                     state.font_grid_big_cached = Some((big_key, tex));
                 }
                 if let Some((_, tex)) = &state.font_grid_big_cached {
-                    ui.add(
-                        egui::Image::from_texture(egui::load::SizedTexture::new(
-                            tex.id(),
-                            [128.0, 128.0],
-                        ))
-                        .uv(egui::Rect::from_min_max(
-                            egui::pos2(0.0, 1.0),
-                            egui::pos2(1.0, 0.0),
-                        )),
-                    );
+                    ui.image(egui::load::SizedTexture::new(tex.id(), [128.0, 128.0]));
                 }
             });
         }
@@ -925,6 +909,22 @@ fn pad_image_to_cell(src: &icu_lib::image::RgbaImage, cell: u32) -> icu_lib::ima
     canvas
 }
 
+fn orient_mirx_grid_image(src: &icu_lib::image::RgbaImage, cell: u32) -> icu_lib::image::RgbaImage {
+    let padded = pad_image_to_cell(src, cell);
+    let mut oriented = icu_lib::image::RgbaImage::new(cell, cell);
+    let baseline = cell as f32 * 0.8;
+    for y in 0..cell {
+        let target_y = (2.0 * baseline - y as f32).round() as i32;
+        if !(0..cell as i32).contains(&target_y) {
+            continue;
+        }
+        for x in 0..cell {
+            oriented.put_pixel(x, target_y as u32, *padded.get_pixel(x, y));
+        }
+    }
+    oriented
+}
+
 fn render_source_glyph(
     font_data: &FontData,
     bundle_index: usize,
@@ -941,16 +941,17 @@ fn render_source_glyph(
                 cell,
                 text_color,
             );
-            Some(image)
+            Some(orient_mirx_grid_image(&image, cell))
         }
         FontData::MirxBundle(_fonts) => selected_mirx_font(font_data, bundle_index).map(|font| {
-            icu_lib::endecoder::mirui::font_render::render_font_text(
+            let image = icu_lib::endecoder::mirui::font_render::render_font_text(
                 font,
                 &ch.to_string(),
                 cell,
                 cell,
                 text_color,
-            )
+            );
+            orient_mirx_grid_image(&image, cell)
         }),
         FontData::FreeType(font) => {
             icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
@@ -1585,7 +1586,7 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
         }
         FontMode::Grid => {
             let grid_key = format!(
-                "{}_{:?}_{}_mirx_y_down_v2",
+                "{}_{:?}_{}_mirx_baseline_flip_v3",
                 image.path, fg, state.font_bundle_index
             );
             let cache_changed = match &state.font_grid_cached {
@@ -1706,16 +1707,10 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                             let Some(tex) = cache.map.get(&i) else {
                                 continue;
                             };
-                            let btn = egui::Button::image(
-                                egui::Image::from_texture(egui::load::SizedTexture::new(
-                                    tex.id(),
-                                    [cell; 2],
-                                ))
-                                .uv(egui::Rect::from_min_max(
-                                    egui::pos2(0.0, 1.0),
-                                    egui::pos2(1.0, 0.0),
-                                )),
-                            )
+                            let btn = egui::Button::image(egui::load::SizedTexture::new(
+                                tex.id(),
+                                [cell; 2],
+                            ))
                             .corner_radius(egui::CornerRadius::same(2))
                             .stroke(if is_sel {
                                 egui::Stroke::new(2.0, p.accent())
