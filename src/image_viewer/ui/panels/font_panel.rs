@@ -915,21 +915,27 @@ fn render_source_glyph(
     text_color: icu_lib::mirx::Color,
 ) -> Option<icu_lib::image::RgbaImage> {
     match font_data {
-        FontData::Mirx(font) => Some(icu_lib::endecoder::mirui::font_render::render_font_text(
-            font,
-            &ch.to_string(),
-            cell,
-            cell,
-            text_color,
-        )),
-        FontData::MirxBundle(_fonts) => selected_mirx_font(font_data, bundle_index).map(|font| {
-            icu_lib::endecoder::mirui::font_render::render_font_text(
+        FontData::Mirx(font) => {
+            let mut image = icu_lib::endecoder::mirui::font_render::render_font_text(
                 font,
                 &ch.to_string(),
                 cell,
                 cell,
                 text_color,
-            )
+            );
+            icu_lib::image::imageops::flip_vertical_in_place(&mut image);
+            Some(image)
+        }
+        FontData::MirxBundle(_fonts) => selected_mirx_font(font_data, bundle_index).map(|font| {
+            let mut image = icu_lib::endecoder::mirui::font_render::render_font_text(
+                font,
+                &ch.to_string(),
+                cell,
+                cell,
+                text_color,
+            );
+            icu_lib::image::imageops::flip_vertical_in_place(&mut image);
+            image
         }),
         FontData::FreeType(font) => {
             icu_lib::endecoder::mirui::font_render::render_freetype_glyph_at(
