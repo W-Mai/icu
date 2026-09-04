@@ -928,12 +928,34 @@ pub enum PngCompression {
     Best,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Copy, Clone, Debug, ValueEnum, Default)]
+pub enum MirxCoding {
+    #[default]
+    Raw,
+    Pixel,
+    Rle,
+    Lz4,
+}
+
+impl From<MirxCoding> for icu_lib::MirxCoding {
+    fn from(coding: MirxCoding) -> Self {
+        match coding {
+            MirxCoding::Raw => Self::Raw,
+            MirxCoding::Pixel => Self::Pixel,
+            MirxCoding::Rle => Self::Rle,
+            MirxCoding::Lz4 => Self::Lz4,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ConvertParams {
     pub output_format: ImageFormat,
     pub lvgl_version: LvglVersion,
     pub color_format: LvglColorFormat,
     pub compression: LvglCompression,
+    #[serde(default)]
+    pub mirx_coding: MirxCoding,
     pub stride_align: u8,
     pub dither: bool,
     pub dither_level: u32,
@@ -958,6 +980,7 @@ impl Default for ConvertParams {
             lvgl_version: LvglVersion::V9,
             color_format: LvglColorFormat::RGB565,
             compression: LvglCompression::None,
+            mirx_coding: MirxCoding::default(),
             stride_align: 1,
             dither: false,
             dither_level: 10,

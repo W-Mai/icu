@@ -63,6 +63,7 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
             output_stride_align,
             output_color_format,
             output_compressed_method,
+            mirx_coding,
             stdout,
             dither,
             lvgl_version,
@@ -134,6 +135,7 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
                                     .map(|t| t.into())
                                     .unwrap_or_default(),
                             )
+                            .with_mirx_coding((*mirx_coding).into())
                             .with_lvgl_version((*lvgl_version).into())
                             .with_png_color_mode(match png_mode.unwrap_or(PngMode::Rgba) {
                                 PngMode::Rgba => icu_lib::PngColorMode::Rgba,
@@ -161,7 +163,20 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
                         let mid = decode_with(data, *input_format)?;
                         let preserve_indexed_png = output_format == &ImageFormats::PNG
                             && matches!(png_mode, Some(PngMode::Preserve));
-                        let mid = if output_format != &ImageFormats::LVGL && !preserve_indexed_png {
+                        let preserve_indexed_mirx = output_format == &ImageFormats::MIRX
+                            && matches!(
+                                output_color_format,
+                                Some(
+                                    crate::converter::OutputColorFormats::I1
+                                        | crate::converter::OutputColorFormats::I2
+                                        | crate::converter::OutputColorFormats::I4
+                                        | crate::converter::OutputColorFormats::I8
+                                )
+                            );
+                        let mid = if output_format != &ImageFormats::LVGL
+                            && !preserve_indexed_png
+                            && !preserve_indexed_mirx
+                        {
                             match mid {
                                 MiData::INDEXED(indexed) => MiData::RGBA(indexed.rgba),
                                 mid => mid,
@@ -173,6 +188,11 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
                             return Err("--png-mode preserve requires indexed input".into());
                         }
                         let data = mid.encode_into(ed, params);
+                        if data.is_empty() {
+                            return Err(
+                                "the selected output profile cannot encode this input".into()
+                            );
+                        }
 
                         match output_category {
                             OutputFileFormatCategory::Common | OutputFileFormatCategory::Bin => {

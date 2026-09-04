@@ -1,6 +1,7 @@
 use crate::image_viewer::model::ViewerState;
 use crate::image_viewer::model::{
-    ImageFormat, LvglColorFormat, LvglCompression, LvglVersion, PngColorMode, PngCompression,
+    ImageFormat, LvglColorFormat, LvglCompression, LvglVersion, MirxCoding, PngColorMode,
+    PngCompression,
 };
 use clap::ValueEnum;
 use eframe::egui;
@@ -116,6 +117,19 @@ pub(crate) fn draw_lvgl_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                             }
                         });
                 });
+                param_row(ui, "coding", |ui| {
+                    egui::ComboBox::from_id_salt("mirx_coding")
+                        .selected_text(format!("{:?}", state.context.convert_params.mirx_coding))
+                        .show_ui(ui, |ui| {
+                            for &coding in MirxCoding::value_variants() {
+                                ui.selectable_value(
+                                    &mut state.context.convert_params.mirx_coding,
+                                    coding,
+                                    format!("{coding:?}"),
+                                );
+                            }
+                        });
+                });
                 param_row(ui, t!("stride_align").as_ref(), |ui| {
                     ui.add(egui::DragValue::new(
                         &mut state.context.convert_params.stride_align,
@@ -154,6 +168,10 @@ pub(crate) fn draw_mirx_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                                         | LvglColorFormat::RGBA8888
                                         | LvglColorFormat::BGRA8888
                                         | LvglColorFormat::XRGB8888
+                                        | LvglColorFormat::I1
+                                        | LvglColorFormat::I2
+                                        | LvglColorFormat::I4
+                                        | LvglColorFormat::I8
                                 ) {
                                     ui.selectable_value(
                                         &mut state.context.convert_params.color_format,

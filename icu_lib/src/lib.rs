@@ -25,11 +25,21 @@ pub enum PngCompression {
     Best,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MirxCoding {
+    #[default]
+    Raw,
+    Pixel,
+    Rle,
+    Lz4,
+}
+
 pub struct EncoderParams {
     pub color_format: endecoder::ColorFormat,
     pub stride_align: u32,
     pub dither: Option<u32>,
     pub compress: lvgl::Compress,
+    pub mirx_coding: MirxCoding,
     pub lvgl_version: lvgl::LVGLVersion,
     pub raw_image_header: Option<RawImageHeader>,
     pub png_color_mode: PngColorMode,
@@ -45,6 +55,7 @@ impl Default for EncoderParams {
             stride_align: 1,
             dither: None,
             compress: Default::default(),
+            mirx_coding: MirxCoding::default(),
             lvgl_version: lvgl::LVGLVersion::Unknown,
             raw_image_header: Default::default(),
             png_color_mode: PngColorMode::default(),
@@ -77,6 +88,11 @@ impl EncoderParams {
 
     pub fn with_compress(mut self, compress: lvgl::Compress) -> Self {
         self.compress = compress;
+        self
+    }
+
+    pub fn with_mirx_coding(mut self, coding: MirxCoding) -> Self {
+        self.mirx_coding = coding;
         self
     }
 

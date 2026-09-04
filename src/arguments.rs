@@ -87,6 +87,10 @@ pub(crate) enum SubCommands {
         #[arg(long, value_enum)]
         output_compressed_method: Option<OutputCompressedMethod>,
 
+        /// MIRX sample coding profile
+        #[arg(long, value_enum, default_value = "raw")]
+        mirx_coding: MirxCodingMode,
+
         /// Output converted result to stdout
         #[arg(long)]
         stdout: bool,
@@ -177,6 +181,25 @@ pub(crate) enum PngCompressionMode {
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MirxCodingMode {
+    Raw,
+    Pixel,
+    Rle,
+    Lz4,
+}
+
+impl From<MirxCodingMode> for icu_lib::MirxCoding {
+    fn from(coding: MirxCodingMode) -> Self {
+        match coding {
+            MirxCodingMode::Raw => Self::Raw,
+            MirxCodingMode::Pixel => Self::Pixel,
+            MirxCodingMode::Rle => Self::Rle,
+            MirxCodingMode::Lz4 => Self::Lz4,
+        }
+    }
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum BakeFormat {
     Sdf,
     Gray,
@@ -213,6 +236,8 @@ pub fn parse_args() -> Args {
             SubCommands::Convert {
                 output_format,
                 output_color_format,
+                output_compressed_method,
+                mirx_coding,
                 dither,
                 png_mode,
                 png_compression,
@@ -228,6 +253,36 @@ pub fn parse_args() -> Args {
                     );
 
                     error.exit();
+                }
+                if output_format != &ImageFormats::LVGL && output_compressed_method.is_some() {
+                    command
+                        .error(
+                            ErrorKind::InvalidValue,
+                            "--output-compressed-method requires LVGL output.",
+                        )
+                        .exit();
+                }
+                if output_format != &ImageFormats::MIRX && *mirx_coding != MirxCodingMode::Raw {
+                    command
+                        .error(
+                            ErrorKind::InvalidValue,
+                            "--mirx-coding requires MIRX output.",
+                        )
+                        .exit();
+                }
+                if output_format == &ImageFormats::MIRX
+                    && *mirx_coding == MirxCodingMode::Pixel
+                    && !matches!(
+                        output_color_format,
+                        Some(OutputColorFormats::RGB888 | OutputColorFormats::RGBA8888)
+                    )
+                {
+                    command
+                        .error(
+                            ErrorKind::InvalidValue,
+                            "MIRX Pixel coding requires RGB888 or RGBA8888 output samples.",
+                        )
+                        .exit();
                 }
                 if output_format == &ImageFormats::LVGL
                     && output_color_format.is_some_and(|format| !format.supports_lvgl())

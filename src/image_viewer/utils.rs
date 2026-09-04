@@ -1230,7 +1230,25 @@ pub fn convert_image(
     {
         return Err("LVGL LZ4 compression requires LVGL v9".to_string());
     }
+    if output_format == ImageFormat::MIRX
+        && params.mirx_coding == crate::image_viewer::model::MirxCoding::Pixel
+        && !matches!(
+            params.color_format,
+            crate::image_viewer::model::LvglColorFormat::RGB888
+                | crate::image_viewer::model::LvglColorFormat::RGBA8888
+        )
+    {
+        return Err("MIRX Pixel coding requires RGB888 or RGBA8888 samples".to_string());
+    }
     let preserve_indexed = output_format == ImageFormat::LVGL
+        || (output_format == ImageFormat::MIRX
+            && matches!(
+                params.color_format,
+                crate::image_viewer::model::LvglColorFormat::I1
+                    | crate::image_viewer::model::LvglColorFormat::I2
+                    | crate::image_viewer::model::LvglColorFormat::I4
+                    | crate::image_viewer::model::LvglColorFormat::I8
+            ))
         || (output_format == ImageFormat::PNG
             && params.png_color_mode == crate::image_viewer::model::PngColorMode::Preserve);
     let midata = if preserve_indexed {
@@ -1266,6 +1284,7 @@ pub fn convert_image(
             None
         },
         compress: params.compression.into(),
+        mirx_coding: params.mirx_coding.into(),
         png_color_mode: match params.png_color_mode {
             crate::image_viewer::model::PngColorMode::Rgba => icu_lib::PngColorMode::Rgba,
             crate::image_viewer::model::PngColorMode::Rgb => icu_lib::PngColorMode::Rgb,
@@ -2295,6 +2314,34 @@ mod tests {
         for (actual, expected) in pixel.0.into_iter().zip([135, 122, 14]) {
             assert!((i16::from(actual) - expected).abs() <= 8);
         }
+    }
+
+    #[test]
+    fn mirx_viewer_exports_indexed_lz4_without_flattening_palette() {
+        let item = semi_transparent_indexed_item();
+        let mut params = ConvertParams::default();
+        params.output_format = ImageFormat::MIRX;
+        params.color_format = crate::image_viewer::model::LvglColorFormat::I1;
+        params.mirx_coding = crate::image_viewer::model::MirxCoding::Lz4;
+        let (bytes, extension) = convert_image(&item, &params).unwrap();
+        assert_eq!(extension, "mirx");
+        assert_eq!(
+            rgba_bytes(icu_lib::endecoder::mirui::Mirx {}.decode(bytes)),
+            SEMI_TRANSPARENT_RGBA
+        );
+    }
+
+    #[test]
+    fn mirx_viewer_rejects_pixel_coding_for_non_rgb_samples() {
+        let item = semi_transparent_indexed_item();
+        let mut params = ConvertParams::default();
+        params.output_format = ImageFormat::MIRX;
+        params.color_format = crate::image_viewer::model::LvglColorFormat::I1;
+        params.mirx_coding = crate::image_viewer::model::MirxCoding::Pixel;
+        assert_eq!(
+            convert_image(&item, &params).unwrap_err(),
+            "MIRX Pixel coding requires RGB888 or RGBA8888 samples"
+        );
     }
 
     #[test]
