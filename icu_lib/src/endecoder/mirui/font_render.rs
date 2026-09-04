@@ -2,71 +2,44 @@ use image::imageops::overlay;
 use image::RgbaImage;
 use mirui::render::backends::sw::SwRenderer;
 use mirui::render::canvas::Canvas;
-use mirui::render::font::Font;
 use mirui::render::path::{Path, PathCmd};
 use mirui::render::raster::FillRule;
 use mirui::render::texture::{AlphaMode, ColorFormat, Texture};
-use mirui::types::{Fixed, Point, Rect};
-use mirx::{FontChunkKind, Paint};
+use mirui::types::{Fixed, Rect};
+use mirx::{
+    FontRepresentationFallback, FontRepresentationKind, FontRepresentationRequest,
+    FontRepresentations, Paint,
+};
 
 pub fn render_font_atlas(font: &mirx::Font) -> RgbaImage {
-    let atlas = &font.atlas;
-    let source = atlas.source_size as u32;
-    if source == 0 || font.metrics.is_empty() {
+    let Some(representation) = font.representation(0) else {
         return RgbaImage::new(0, 0);
-    }
-    let payload: &'static [u8] = leak_font_payload(font);
-    let mirui_font = match font.chunk_header.kind {
-        FontChunkKind::Sdf => {
-            match mirui::render::font::sdf::font_from_mirx_chunk("atlas", payload) {
-                Ok(f) => f,
-                Err(_) => return RgbaImage::new(0, 0),
-            }
-        }
-        FontChunkKind::Grayscale => {
-            match mirui::render::font::gray::font_from_mirx_chunk("atlas", payload) {
-                Ok(f) => f,
-                Err(_) => return RgbaImage::new(0, 0),
-            }
-        }
     };
-
-    let cell = source;
+    let cell = u32::from(representation.metadata().design_ppem());
     let gap = 1u32;
-    let cols = (font.metrics.len() as f64).sqrt().ceil() as u32;
+    let cols = (font.codepoints().len() as f64).sqrt().ceil() as u32;
     let cols = cols.max(1);
-    let rows = (font.metrics.len() as u32).div_ceil(cols);
+    let rows = (font.codepoints().len() as u32).div_ceil(cols);
     let grid_w = cols * cell + (cols + 1) * gap;
     let grid_h = rows * cell + (rows + 1) * gap;
-    let mut buffer = vec![0u8; (grid_w * grid_h * 4) as usize];
-    let w = grid_w.min(u16::MAX as u32) as u16;
-    let h = grid_h.min(u16::MAX as u32) as u16;
-    let texture = Texture::new(&mut buffer, w, h, ColorFormat::RGBA8888);
-    let mut renderer = SwRenderer::new(texture).with_alpha_mode(AlphaMode::Blend);
-    let clip = Rect::new(
-        Fixed::ZERO,
-        Fixed::ZERO,
-        Fixed::from_int(w as i32),
-        Fixed::from_int(h as i32),
-    );
-    let color = mirui::types::Color {
+    let mut image = RgbaImage::new(grid_w, grid_h);
+    let color = mirx::Color {
         r: 255,
         g: 255,
         b: 255,
         a: 255,
     };
-
-    for (i, m) in font.metrics.iter().enumerate() {
-        let row = i as u32 / cols;
-        let col = i as u32 % cols;
+    for (index, character) in font.codepoints().iter().copied().enumerate() {
+        let glyph = render_glyph(font, 0, index, cell, cell, color)
+            .unwrap_or_else(|| RgbaImage::new(cell, cell));
+        let row = index as u32 / cols;
+        let col = index as u32 % cols;
         let x0 = gap + col * (cell + gap);
         let y0 = gap + row * (cell + gap);
-        let ch = char::from_u32(m.codepoint).unwrap_or('?');
-        let pos = Point::new(Fixed::from_int(x0 as i32), Fixed::from_int(y0 as i32));
-        renderer.draw_label(&pos, &ch.to_string(), &mirui_font, &clip, &color, 255);
+        let _ = character;
+        overlay(&mut image, &glyph, i64::from(x0), i64::from(y0));
     }
-    renderer.flush();
-    RgbaImage::from_raw(grid_w, grid_h, buffer).unwrap_or_else(|| RgbaImage::new(grid_w, grid_h))
+    image
 }
 
 pub fn render_freetype_glyph_at(
@@ -349,62 +322,60 @@ fn map_freetype_cmd(cmd: &PathCmd, x0: f32, y0: f32, scale: f32, baseline: f32) 
     }
 }
 
-fn sample_atlas_pixel(bytes: &[u8], source: u32, x: u32, y: u32, bit_depth: u8) -> Option<u8> {
-    let idx = y.checked_mul(source)?.checked_add(x)? as usize;
-    match bit_depth {
-        1 => {
-            let byte = *bytes.get(idx / 8)?;
-            let bit = 7 - (idx % 8) as u8;
-            Some(if (byte >> bit) & 1 == 1 { 255 } else { 0 })
-        }
-        2 => {
-            let byte = *bytes.get(idx / 4)?;
-            let shift = 6 - (idx % 4) as u8 * 2;
-            Some(((byte >> shift) & 0x3) * 85)
-        }
-        4 => {
-            let byte = *bytes.get(idx / 2)?;
-            let shift = 4 - (idx % 2) as u8 * 4;
-            Some(((byte >> shift) & 0xF) * 17)
-        }
-        8 => bytes.get(idx).copied(),
-        _ => None,
-    }
+fn select_representation(font: &mirx::Font, requested_size: u16) -> Option<usize> {
+    let representations = (0..font.representation_count())
+        .filter_map(|index| font.representation(index).map(|value| value.metadata()))
+        .collect::<Vec<_>>();
+    FontRepresentations::new(&representations)
+        .ok()?
+        .select(
+            FontRepresentationRequest::new(requested_size)
+                .with_fallback(FontRepresentationFallback::Nearest),
+        )
+        .ok()
+        .map(|matched| matched.index())
 }
 
-fn render_gray_glyph_cell(
+fn render_glyph(
     font: &mirx::Font,
-    ch: char,
-    raster_size: u32,
+    representation_index: usize,
+    glyph_index: usize,
+    target_width: u32,
+    target_height: u32,
     color: mirx::Color,
 ) -> Option<RgbaImage> {
-    let source_size = u32::from(font.atlas.source_size);
-    let bit_depth = font.atlas.bit_depth;
-    if source_size == 0 || raster_size == 0 || !matches!(bit_depth, 1 | 2 | 4 | 8) {
+    if target_width == 0 || target_height == 0 {
         return None;
     }
-    let glyph_index = font
-        .metrics
-        .binary_search_by_key(&(ch as u32), |metric| metric.codepoint)
-        .ok()?;
-    let expected_bytes = source_size
-        .checked_mul(source_size)?
-        .checked_mul(u32::from(bit_depth))?
-        .div_ceil(8);
-    if font.atlas.bytes_per_glyph != expected_bytes {
-        return None;
+    let representation = font.representation(representation_index)?.metadata();
+    let glyph = super::font_contour::unpack_glyph(font, representation_index, glyph_index)?;
+    let source_width = glyph.width();
+    let source_height = glyph.height();
+    if source_width == 0 || source_height == 0 {
+        return Some(RgbaImage::new(target_width, target_height));
     }
-    let stride = usize::try_from(expected_bytes).ok()?;
-    let start = glyph_index.checked_mul(stride)?;
-    let bytes = font.data.get(start..start.checked_add(stride)?)?;
-    let mut image = RgbaImage::new(raster_size, raster_size);
-    for y in 0..raster_size {
-        let source_y = (u64::from(y) * u64::from(source_size) / u64::from(raster_size))
-            .min(u64::from(source_size - 1)) as u32;
-        for x in 0..raster_size {
-            let source_x = (u64::from(x) * u64::from(source_size) / u64::from(raster_size))
-                .min(u64::from(source_size - 1)) as u32;
-            let coverage = sample_atlas_pixel(bytes, source_size, source_x, source_y, bit_depth)?;
+    let mut image = RgbaImage::new(target_width, target_height);
+    let sdf_spread = match representation.kind() {
+        FontRepresentationKind::SignedDistance { spread, .. } => Some(f32::from(spread)),
+        _ => None,
+    };
+    let source_scale = (source_width as f32 / target_width as f32)
+        .max(source_height as f32 / target_height as f32);
+    for y in 0..target_height {
+        let source_y = (u64::from(y) * u64::from(source_height) / u64::from(target_height))
+            .min(u64::from(source_height - 1)) as usize;
+        for x in 0..target_width {
+            let source_x = (u64::from(x) * u64::from(source_width) / u64::from(target_width))
+                .min(u64::from(source_width - 1)) as usize;
+            let sample = glyph.samples()[source_y * source_width as usize + source_x];
+            let coverage = if let Some(spread) = sdf_spread {
+                let half_edge = (source_scale * 127.5 / spread / 2.0).max(0.5);
+                (((f32::from(sample) - (127.5 - half_edge)) / (2.0 * half_edge)) * 255.0)
+                    .round()
+                    .clamp(0.0, 255.0) as u8
+            } else {
+                sample
+            };
             let alpha = (u16::from(coverage) * u16::from(color.a) / 255) as u8;
             image.put_pixel(x, y, image::Rgba([color.r, color.g, color.b, alpha]));
         }
@@ -418,32 +389,25 @@ pub fn render_mirx_glyph_cell(
     raster_size: u32,
     color: mirx::Color,
 ) -> RgbaImage {
-    if raster_size == 0 || font.atlas.source_size == 0 {
+    let requested_size = match u16::try_from(raster_size) {
+        Ok(size) if size != 0 => size,
+        _ => return RgbaImage::new(0, 0),
+    };
+    let Some(representation_index) = select_representation(font, requested_size) else {
         return RgbaImage::new(0, 0);
-    }
-
-    match font.chunk_header.kind {
-        FontChunkKind::Sdf => {
-            let payload: &'static [u8] = leak_font_payload(font);
-            let mut mirui_font =
-                match mirui::render::font::sdf::font_from_mirx_chunk("icu-glyph-cell", payload) {
-                    Ok(font) => font,
-                    Err(_) => return RgbaImage::new(raster_size, raster_size),
-                };
-            mirui_font.size = raster_size.min(u16::MAX as u32) as u16;
-            render_text_with_font_at(
-                &mirui_font,
-                &ch.to_string(),
-                raster_size,
-                raster_size,
-                0.0,
-                0.0,
-                color,
-            )
-        }
-        FontChunkKind::Grayscale => render_gray_glyph_cell(font, ch, raster_size, color)
-            .unwrap_or_else(|| RgbaImage::new(raster_size, raster_size)),
-    }
+    };
+    let Some(glyph_index) = font.codepoints().binary_search(&ch).ok() else {
+        return RgbaImage::new(raster_size, raster_size);
+    };
+    render_glyph(
+        font,
+        representation_index,
+        glyph_index,
+        raster_size,
+        raster_size,
+        color,
+    )
+    .unwrap_or_else(|| RgbaImage::new(raster_size, raster_size))
 }
 
 pub fn render_font_text(
@@ -456,42 +420,45 @@ pub fn render_font_text(
     if width == 0 || height == 0 || text.is_empty() {
         return RgbaImage::new(0, 0);
     }
-    let source_size = font.atlas.source_size.max(1) as u32;
-    let scale = height as f32 / source_size as f32;
-    let total_advance: u32 = text
-        .chars()
-        .filter_map(|ch| {
-            font.metrics
-                .iter()
-                .find(|m| m.codepoint == ch as u32)
-                .map(|m| m.advance as u32)
-        })
-        .sum::<u32>()
-        .max(1);
-    let actual_width = (total_advance as f32 * scale).ceil() as u32 + source_size;
-    let ascender = font.atlas.ascender as u32;
-    let actual_height = height.max(ascender + source_size + font.atlas.descender as u32);
-    let payload: &'static [u8] = leak_font_payload(font);
-    let mirui_font = match font.chunk_header.kind {
-        FontChunkKind::Sdf => {
-            match mirui::render::font::sdf::font_from_mirx_chunk("icu-preview", payload) {
-                Ok(f) => f,
-                Err(_) => return RgbaImage::new(actual_width, actual_height),
-            }
-        }
-        FontChunkKind::Grayscale => {
-            match mirui::render::font::gray::font_from_mirx_chunk("icu-preview", payload) {
-                Ok(f) => f,
-                Err(_) => return RgbaImage::new(actual_width, actual_height),
-            }
-        }
+    let requested_size = height.min(u32::from(u16::MAX)) as u16;
+    let Some(representation_index) = select_representation(font, requested_size) else {
+        return RgbaImage::new(width, height);
     };
-    render_text_with_font(&mirui_font, text, actual_width, actual_height, color)
-}
-
-fn leak_font_payload(font: &mirx::Font) -> &'static [u8] {
-    let payload = font.encode();
-    Box::leak(payload.into_boxed_slice())
+    let representation = font.representation(representation_index).unwrap();
+    let design = f32::from(representation.metadata().design_ppem());
+    let scale = f32::from(requested_size) / design;
+    let baseline = representation.line_metrics().ascent().raw() as f32 / 256.0 * scale;
+    let mut output = RgbaImage::new(width, height);
+    let mut pen_x = 0.0f32;
+    for character in text.chars() {
+        let Ok(glyph_index) = font.codepoints().binary_search(&character) else {
+            continue;
+        };
+        let Some(metric) = representation.metrics().get(glyph_index).copied() else {
+            continue;
+        };
+        let Some(unpacked) =
+            super::font_contour::unpack_glyph(font, representation_index, glyph_index)
+        else {
+            continue;
+        };
+        let target_width = (unpacked.width() as f32 * scale).round().max(1.0) as u32;
+        let target_height = (unpacked.height() as f32 * scale).round().max(1.0) as u32;
+        if let Some(glyph) = render_glyph(
+            font,
+            representation_index,
+            glyph_index,
+            target_width,
+            target_height,
+            color,
+        ) {
+            let x = pen_x + metric.bearing_x().raw() as f32 / 256.0 * scale;
+            let y = baseline - metric.bearing_y().raw() as f32 / 256.0 * scale;
+            overlay(&mut output, &glyph, x.round() as i64, y.round() as i64);
+        }
+        pen_x += metric.advance().raw() as f32 / 256.0 * scale;
+    }
+    output
 }
 
 pub fn render_font_glyph_on_canvas(
@@ -503,131 +470,100 @@ pub fn render_font_glyph_on_canvas(
     baseline_y: f32,
     color: mirx::Color,
 ) -> RgbaImage {
-    let payload: &'static [u8] = leak_font_payload(font);
-    let mirui_font = match font.chunk_header.kind {
-        FontChunkKind::Sdf => {
-            match mirui::render::font::sdf::font_from_mirx_chunk("icu-preview", payload) {
-                Ok(f) => f,
-                Err(_) => return RgbaImage::new(width, height),
-            }
-        }
-        FontChunkKind::Grayscale => {
-            match mirui::render::font::gray::font_from_mirx_chunk("icu-preview", payload) {
-                Ok(f) => f,
-                Err(_) => return RgbaImage::new(width, height),
-            }
-        }
-    };
-    render_text_with_font_at(
-        &mirui_font,
-        &ch.to_string(),
-        width,
-        height,
-        x,
-        baseline_y,
-        color,
-    )
-}
-
-fn render_text_with_font_at(
-    font: &Font,
-    text: &str,
-    width: u32,
-    height: u32,
-    x: f32,
-    baseline_y: f32,
-    color: mirx::Color,
-) -> RgbaImage {
-    let mut buffer = vec![0u8; (width * height * 4) as usize];
-    let w = width.min(u16::MAX as u32) as u16;
-    let h = height.min(u16::MAX as u32) as u16;
-    let texture = Texture::new(&mut buffer, w, h, ColorFormat::RGBA8888);
-    let mut renderer = SwRenderer::new(texture).with_alpha_mode(AlphaMode::Blend);
-    let clip = Rect::new(
-        Fixed::ZERO,
-        Fixed::ZERO,
-        Fixed::from_int(w as i32),
-        Fixed::from_int(h as i32),
-    );
-    let pos = Point::new(Fixed::from_f32(x), Fixed::from_f32(baseline_y));
-    let render_color = mirui::types::Color {
-        r: color.r,
-        g: color.g,
-        b: color.b,
-        a: color.a,
-    };
-    renderer.draw_label(&pos, text, font, &clip, &render_color, 255);
-    renderer.flush();
-    let mut img =
-        RgbaImage::from_raw(width, height, buffer).unwrap_or_else(|| RgbaImage::new(width, height));
-    for px in img.pixels_mut() {
-        px.0[0] = color.r;
-        px.0[1] = color.g;
-        px.0[2] = color.b;
+    if width == 0 || height == 0 {
+        return RgbaImage::new(0, 0);
     }
-    img
-}
-
-fn render_text_with_font(
-    font: &Font,
-    text: &str,
-    width: u32,
-    height: u32,
-    color: mirx::Color,
-) -> RgbaImage {
-    let metrics = font.metrics();
-    render_text_with_font_at(
+    let requested_size = height.min(u32::from(u16::MAX)) as u16;
+    let Some(representation_index) = select_representation(font, requested_size) else {
+        return RgbaImage::new(width, height);
+    };
+    let Some(glyph_index) = font.codepoints().binary_search(&ch).ok() else {
+        return RgbaImage::new(width, height);
+    };
+    let representation = font.representation(representation_index).unwrap();
+    let metric = representation.metrics()[glyph_index];
+    let scale = f32::from(requested_size) / f32::from(representation.metadata().design_ppem());
+    let Some(unpacked) = super::font_contour::unpack_glyph(font, representation_index, glyph_index)
+    else {
+        return RgbaImage::new(width, height);
+    };
+    let target_width = (unpacked.width() as f32 * scale).round().max(1.0) as u32;
+    let target_height = (unpacked.height() as f32 * scale).round().max(1.0) as u32;
+    let mut output = RgbaImage::new(width, height);
+    if let Some(glyph) = render_glyph(
         font,
-        text,
-        width,
-        height,
-        0.0,
-        metrics.ascender as f32,
+        representation_index,
+        glyph_index,
+        target_width,
+        target_height,
         color,
-    )
+    ) {
+        let glyph_x = x + metric.bearing_x().raw() as f32 / 256.0 * scale;
+        let glyph_y = baseline_y - metric.bearing_y().raw() as f32 / 256.0 * scale;
+        overlay(
+            &mut output,
+            &glyph,
+            glyph_x.round() as i64,
+            glyph_y.round() as i64,
+        );
+    }
+    output
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mirx::font::{
+        FontAsset, GlyphMap, GlyphMetrics, GlyphSurfaceAsset, LineMetrics, RawGlyphs,
+        RepresentationAsset,
+    };
+    use mirx::image::SampleLayout;
 
-    fn build_sdf_payload() -> Vec<u8> {
-        mirx::Font {
-            chunk_header: mirx::FontChunkHeader {
-                kind: mirx::FontChunkKind::Sdf,
-                format: 4,
-                size: 24,
-            },
-            atlas: mirx::AtlasHeader {
-                version: mirx::SUPPORTED_VERSION,
-                bit_depth: 4,
-                _pad0: 0,
-                source_size: 4,
-                spread: 1,
-                glyph_count: 1,
-                metric_offset: mirx::HEADER_LEN as u32,
-                data_offset: (mirx::HEADER_LEN + mirx::METRIC_LEN) as u32,
-                bytes_per_glyph: 8,
-                ascender: 3,
-                descender: 1,
-                line_height: 4,
-                _pad1: 0,
-            },
-            metrics: vec![mirx::GlyphMetric {
-                codepoint: 'A' as u32,
-                advance: 4,
-                bearing_x: 0,
-                bearing_y: 3,
-            }],
-            data: vec![0xFFu8; 8],
-        }
-        .encode()
+    fn font(kind: mirx::FontRepresentation, size: u16, data: Vec<u8>) -> mirx::Font {
+        let bits = match kind.kind() {
+            FontRepresentationKind::Coverage { bits }
+            | FontRepresentationKind::SignedDistance { bits, .. } => bits,
+            _ => unreachable!(),
+        };
+        let layout = match bits {
+            1 => SampleLayout::A1,
+            2 => SampleLayout::A2,
+            4 => SampleLayout::A4,
+            8 => SampleLayout::A8,
+            _ => unreachable!(),
+        };
+        let codepoints = ['A'];
+        let map = GlyphMap::glyph_major(u32::from(size), u32::from(size), 1).unwrap();
+        let glyphs = RawGlyphs::builder(map, layout).build(&data).unwrap();
+        let metrics = [GlyphMetrics::new(
+            mirx::Fixed::from_int(i32::from(size)),
+            mirx::Fixed::ZERO,
+            mirx::Fixed::from_int(i32::from(size)),
+        )];
+        let line = LineMetrics::new(
+            mirx::Fixed::from_int(i32::from(size)),
+            mirx::Fixed::ZERO,
+            mirx::Fixed::from_int(i32::from(size)),
+        )
+        .unwrap();
+        mirx::Font::from_asset(
+            FontAsset::new(
+                &codepoints,
+                &[RepresentationAsset::new(kind, 0, line, &metrics)],
+                &[GlyphSurfaceAsset::raw(glyphs)],
+            ),
+            &mirx::PayloadLimits::HOST,
+        )
+        .unwrap()
     }
 
     #[test]
     fn render_atlas_returns_grid() {
-        let payload = build_sdf_payload();
-        let font = mirx::Font::decode(&payload).unwrap();
+        let font = font(
+            mirx::FontRepresentation::signed_distance(4, 1, 4, 2, 16, 8).unwrap(),
+            4,
+            vec![0xff; 8],
+        );
         let img = render_font_atlas(&font);
         assert!(img.width() > 0);
         assert!(img.height() > 0);
@@ -635,8 +571,11 @@ mod tests {
 
     #[test]
     fn render_text_returns_image() {
-        let payload = build_sdf_payload();
-        let font = mirx::Font::decode(&payload).unwrap();
+        let font = font(
+            mirx::FontRepresentation::signed_distance(4, 1, 4, 2, 16, 8).unwrap(),
+            4,
+            vec![0xff; 8],
+        );
         let img = render_font_text(
             &font,
             "A",
@@ -651,42 +590,6 @@ mod tests {
         );
         assert!(img.width() > 0);
         assert!(img.height() > 0);
-    }
-
-    fn asymmetric_font(kind: FontChunkKind, source_size: u16, data: Vec<u8>) -> mirx::Font {
-        let bit_depth = match kind {
-            FontChunkKind::Sdf => 4,
-            FontChunkKind::Grayscale => 8,
-        };
-        mirx::Font {
-            chunk_header: mirx::FontChunkHeader {
-                kind,
-                format: bit_depth,
-                size: source_size,
-            },
-            atlas: mirx::AtlasHeader {
-                version: mirx::SUPPORTED_VERSION,
-                bit_depth,
-                _pad0: 0,
-                source_size,
-                spread: 1,
-                glyph_count: 1,
-                metric_offset: mirx::HEADER_LEN as u32,
-                data_offset: (mirx::HEADER_LEN + mirx::METRIC_LEN) as u32,
-                bytes_per_glyph: data.len() as u32,
-                ascender: source_size,
-                descender: 0,
-                line_height: source_size,
-                _pad1: 0,
-            },
-            metrics: vec![mirx::GlyphMetric {
-                codepoint: 'A' as u32,
-                advance: source_size,
-                bearing_x: 0,
-                bearing_y: source_size.min(i8::MAX as u16) as i8,
-            }],
-            data,
-        }
     }
 
     fn white() -> mirx::Color {
@@ -748,8 +651,12 @@ mod tests {
     }
 
     #[test]
-    fn gray_glyph_cell_preserves_native_rows_and_nearest_neighbor_scaling() {
-        let font = asymmetric_font(FontChunkKind::Grayscale, 2, vec![255, 0, 0, 0]);
+    fn coverage_glyph_cell_preserves_native_rows_and_nearest_neighbor_scaling() {
+        let font = font(
+            mirx::FontRepresentation::coverage(8, 2, 4).unwrap(),
+            2,
+            vec![255, 0, 0, 0],
+        );
 
         let native = render_mirx_glyph_cell(&font, 'A', 2, white());
         assert_eq!(native.get_pixel(0, 0).0[3], 255);
@@ -767,11 +674,15 @@ mod tests {
     }
 
     #[test]
-    fn gray_glyph_cell_supports_full_u16_source_geometry() {
+    fn coverage_glyph_cell_supports_full_u16_source_geometry() {
         let source_size = 256u16;
         let mut data = vec![0; usize::from(source_size) * usize::from(source_size)];
         *data.last_mut().unwrap() = 255;
-        let font = asymmetric_font(FontChunkKind::Grayscale, source_size, data);
+        let font = font(
+            mirx::FontRepresentation::coverage(8, source_size, 65_536).unwrap(),
+            source_size,
+            data,
+        );
 
         let image = render_mirx_glyph_cell(&font, 'A', u32::from(source_size), white());
 
@@ -780,8 +691,12 @@ mod tests {
     }
 
     #[test]
-    fn gray_glyph_cell_multiplies_coverage_by_color_alpha() {
-        let font = asymmetric_font(FontChunkKind::Grayscale, 1, vec![128]);
+    fn coverage_glyph_cell_multiplies_coverage_by_color_alpha() {
+        let font = font(
+            mirx::FontRepresentation::coverage(8, 1, 1).unwrap(),
+            1,
+            vec![128],
+        );
         let color = mirx::Color {
             r: 12,
             g: 34,
@@ -796,8 +711,8 @@ mod tests {
 
     #[test]
     fn sdf_glyph_cell_scales_without_reversing_rows() {
-        let font = asymmetric_font(
-            FontChunkKind::Sdf,
+        let font = font(
+            mirx::FontRepresentation::signed_distance(4, 1, 4, 2, 16, 8).unwrap(),
             4,
             vec![0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
         );

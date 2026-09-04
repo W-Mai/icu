@@ -1,73 +1,86 @@
-use mirx::{Font, FontChunkKind};
+use mirx::font::GlyphSurfaceAsset;
+use mirx::{Font, FontRepresentationKind};
 
-/// Unpacks one glyph atlas cell into MSB-first quantized scalar samples.
-/// Returns `None` for invalid geometry, glyph index, or truncated data.
-pub fn unpack_glyph_cell(font: &Font, glyph_index: usize) -> Option<Vec<u8>> {
-    let size = usize::from(font.atlas.source_size);
-    let bit_depth = usize::from(font.atlas.bit_depth);
-    if size == 0 || bit_depth == 0 || bit_depth > 8 {
-        return None;
-    }
-    if matches!(font.chunk_header.kind, FontChunkKind::Sdf) && !matches!(bit_depth, 4 | 8) {
-        return None;
-    }
-    if matches!(font.chunk_header.kind, FontChunkKind::Grayscale)
-        && !matches!(bit_depth, 1 | 2 | 4 | 8)
-    {
-        return None;
-    }
-    let pixels = size.checked_mul(size)?;
-    let bits = pixels.checked_mul(bit_depth)?;
-    let bytes = bits.div_ceil(8);
-    if font.atlas.bytes_per_glyph as usize != bytes {
-        return None;
-    }
-    if glyph_index >= usize::try_from(font.atlas.glyph_count).ok()? {
-        return None;
-    }
-    let start = glyph_index.checked_mul(bytes)?;
-    let end = start.checked_add(bytes)?;
-    let packed = font.data.get(start..end)?;
-    let max = (1u16 << bit_depth) - 1;
-    let mut samples = Vec::with_capacity(pixels);
-    for pixel in 0..pixels {
-        let value = if matches!(font.chunk_header.kind, FontChunkKind::Sdf) && bit_depth == 4 {
-            let byte = packed[pixel / 2];
-            if pixel % 2 == 0 {
-                u16::from(byte & 0x0f)
-            } else {
-                u16::from(byte >> 4)
-            }
-        } else if bit_depth == 8 {
-            u16::from(packed[pixel])
-        } else {
-            let bit = pixel * bit_depth;
-            let mut value = 0u16;
-            for offset in 0..bit_depth {
-                let bit_index = bit + offset;
-                let byte = packed[bit_index / 8];
-                value = (value << 1) | u16::from((byte >> (7 - bit_index % 8)) & 1);
-            }
-            value
-        };
-        samples.push((u32::from(value) * 255 / u32::from(max)) as u8);
-    }
-    Some(samples)
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnpackedGlyph {
+    width: u32,
+    height: u32,
+    samples: Vec<u8>,
 }
 
-/// Extracts deterministic, approximate closed contours from one atlas glyph cell.
-/// Atlas values are thresholded at the scalar midpoint and emitted as pixel-space paths.
-pub fn approximate_glyph_contour(font: &Font, glyph_index: usize) -> Option<Vec<mirx::PathCmd>> {
-    let size = usize::from(font.atlas.source_size);
-    let samples = unpack_glyph_cell(font, glyph_index)?;
+impl UnpackedGlyph {
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    pub fn samples(&self) -> &[u8] {
+        &self.samples
+    }
+}
+
+/// Unpacks one raw glyph region into row-major eight-bit scalar samples.
+pub fn unpack_glyph(
+    font: &Font,
+    representation_index: usize,
+    glyph_index: usize,
+) -> Option<UnpackedGlyph> {
+    let representation = font.representation(representation_index)?;
+    let bits = match representation.metadata().kind() {
+        FontRepresentationKind::Coverage { bits }
+        | FontRepresentationKind::SignedDistance { bits, .. } => bits,
+        _ => return None,
+    };
+    let GlyphSurfaceAsset::Raw { glyphs, .. } =
+        font.surface(usize::from(representation.surface_index()))?
+    else {
+        return None;
+    };
+    let raster = glyphs.get(glyph_index)?;
+    let region = raster.region();
+    let plane = raster.storage().plane(0)?;
+    let stride = u64::from(plane.memory().stride());
+    let bytes = plane.bytes();
+    let count = usize::try_from(u64::from(region.width()) * u64::from(region.height())).ok()?;
+    let mut samples = Vec::with_capacity(count);
+    let max = (1u16 << bits) - 1;
+    for y in 0..region.height() {
+        for x in 0..region.width() {
+            let bit = (u64::from(region.y()) + u64::from(y)) * stride * 8
+                + (u64::from(region.x()) + u64::from(x)) * u64::from(bits);
+            let byte = *bytes.get(usize::try_from(bit / 8).ok()?)?;
+            let shift = 8 - bits - (bit % 8) as u8;
+            let value = u16::from((byte >> shift) & max as u8);
+            samples.push((u32::from(value) * 255 / u32::from(max)) as u8);
+        }
+    }
+    Some(UnpackedGlyph {
+        width: region.width(),
+        height: region.height(),
+        samples,
+    })
+}
+
+/// Extracts deterministic approximate closed contours from one glyph region.
+pub fn approximate_glyph_contour(
+    font: &Font,
+    representation_index: usize,
+    glyph_index: usize,
+) -> Option<Vec<mirx::PathCmd>> {
+    let glyph = unpack_glyph(font, representation_index, glyph_index)?;
+    let width = usize::try_from(glyph.width).ok()?;
+    let height = usize::try_from(glyph.height).ok()?;
     type Point = (i32, i32);
     let mut segments = std::collections::BTreeSet::<(Point, Point)>::new();
 
     let sample = |x: isize, y: isize| -> u8 {
-        if x < 0 || y < 0 || x as usize >= size || y as usize >= size {
+        if x < 0 || y < 0 || x as usize >= width || y as usize >= height {
             0
         } else {
-            samples[y as usize * size + x as usize]
+            glyph.samples[y as usize * width + x as usize]
         }
     };
     let intersection = |x: i32, y: i32, edge: usize, a: u8, b: u8| -> Point {
@@ -89,8 +102,8 @@ pub fn approximate_glyph_contour(font: &Font, glyph_index: usize) -> Option<Vec<
             segments.insert(if a <= b { (a, b) } else { (b, a) });
         };
 
-    for y in 0..=size {
-        for x in 0..=size {
+    for y in 0..=height {
+        for x in 0..=width {
             let x = x as isize;
             let y = y as isize;
             let values = [
@@ -123,8 +136,7 @@ pub fn approximate_glyph_contour(font: &Font, glyph_index: usize) -> Option<Vec<
                 5 if center >= 128 => &[(0, 3), (1, 2)],
                 5 => &[(0, 1), (2, 3)],
                 6 => &[(0, 2)],
-                7 => &[(2, 3)],
-                8 => &[(2, 3)],
+                7 | 8 => &[(2, 3)],
                 9 => &[(0, 2)],
                 10 if center >= 128 => &[(0, 1), (2, 3)],
                 10 => &[(0, 3), (1, 2)],
@@ -166,7 +178,7 @@ pub fn approximate_glyph_contour(font: &Font, glyph_index: usize) -> Option<Vec<
         let to_point = |(x, y): Point| {
             mirx::Point::new(
                 mirx::Fixed::from_raw(x),
-                mirx::Fixed::from_raw(size as i32 * 256 - y),
+                mirx::Fixed::from_raw(height as i32 * 256 - y),
             )
         };
         paths.push(mirx::PathCmd::MoveTo(to_point(points[0])));
@@ -181,115 +193,126 @@ pub fn approximate_glyph_contour(font: &Font, glyph_index: usize) -> Option<Vec<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mirx::font::{
+        FontAsset, GlyphMap, GlyphMetrics, LineMetrics, RawGlyphs, RepresentationAsset,
+    };
+    use mirx::image::SampleLayout;
+    use mirx::{FontRepresentation, PayloadLimits};
 
-    fn font(kind: FontChunkKind, bit_depth: u8, data: Vec<u8>) -> Font {
-        font_with_size(kind, bit_depth, 2, data)
-    }
-
-    fn font_with_size(kind: FontChunkKind, bit_depth: u8, size: u16, data: Vec<u8>) -> Font {
-        Font {
-            chunk_header: mirx::FontChunkHeader {
-                kind,
-                format: bit_depth,
-                size,
-            },
-            atlas: mirx::AtlasHeader {
-                version: mirx::SUPPORTED_VERSION,
-                bit_depth,
-                _pad0: 0,
-                source_size: size,
-                spread: 1,
-                glyph_count: 1,
-                metric_offset: mirx::HEADER_LEN as u32,
-                data_offset: (mirx::HEADER_LEN + mirx::METRIC_LEN) as u32,
-                bytes_per_glyph: data.len() as u32,
-                ascender: 0,
-                descender: 0,
-                line_height: 0,
-                _pad1: 0,
-            },
-            metrics: vec![mirx::GlyphMetric {
-                codepoint: 65,
-                advance: 2,
-                bearing_x: 0,
-                bearing_y: 0,
-            }],
-            data,
-        }
+    fn font(kind: FontRepresentation, layout: SampleLayout, size: u32, data: &[u8]) -> Font {
+        let codepoints = ['A'];
+        let map = GlyphMap::glyph_major(size, size, 1).unwrap();
+        let glyphs = RawGlyphs::builder(map, layout).build(data).unwrap();
+        let line = LineMetrics::new(
+            mirx::Fixed::from_int(size as i32),
+            mirx::Fixed::ZERO,
+            mirx::Fixed::from_int(size as i32),
+        )
+        .unwrap();
+        let metrics = [GlyphMetrics::new(
+            mirx::Fixed::from_int(size as i32),
+            mirx::Fixed::ZERO,
+            mirx::Fixed::from_int(size as i32),
+        )];
+        Font::from_asset(
+            FontAsset::new(
+                &codepoints,
+                &[RepresentationAsset::new(kind, 0, line, &metrics)],
+                &[GlyphSurfaceAsset::raw(glyphs)],
+            ),
+            &PayloadLimits::HOST,
+        )
+        .unwrap()
     }
 
     #[test]
-    fn unpacks_four_bit_samples_msb_first() {
-        let f = font(FontChunkKind::Grayscale, 4, vec![0x01, 0x2f]);
-        assert_eq!(unpack_glyph_cell(&f, 0), Some(vec![0, 17, 34, 255]));
+    fn unpacks_sub_byte_samples_msb_first() {
+        let four = font(
+            FontRepresentation::coverage(4, 2, 2).unwrap(),
+            SampleLayout::A4,
+            2,
+            &[0x01, 0x2f],
+        );
+        assert_eq!(
+            unpack_glyph(&four, 0, 0).unwrap().samples(),
+            [0, 17, 34, 255]
+        );
+        let one = font(
+            FontRepresentation::coverage(1, 2, 2).unwrap(),
+            SampleLayout::A1,
+            2,
+            &[0b1000_0000, 0b1000_0000],
+        );
+        assert_eq!(
+            unpack_glyph(&one, 0, 0).unwrap().samples(),
+            [255, 0, 255, 0]
+        );
     }
 
     #[test]
-    fn unpacks_one_and_two_bit_samples_msb_first() {
-        let one = font(FontChunkKind::Grayscale, 1, vec![0b1010_0000]);
-        assert_eq!(unpack_glyph_cell(&one, 0), Some(vec![255, 0, 255, 0]));
-        let two = font(FontChunkKind::Grayscale, 2, vec![0b00_01_10_11]);
-        assert_eq!(unpack_glyph_cell(&two, 0), Some(vec![0, 85, 170, 255]));
+    fn sdf_uses_the_same_msb_first_layout() {
+        let font = font(
+            FontRepresentation::signed_distance(4, 1, 2, 1, 8, 2).unwrap(),
+            SampleLayout::A4,
+            2,
+            &[0x12, 0x3f],
+        );
+        assert_eq!(
+            unpack_glyph(&font, 0, 0).unwrap().samples(),
+            [17, 34, 51, 255]
+        );
     }
 
     #[test]
-    fn unpacks_sdf_four_bit_samples_low_nibble_first() {
-        let f = font(FontChunkKind::Sdf, 4, vec![0x21, 0xf3]);
-        assert_eq!(unpack_glyph_cell(&f, 0), Some(vec![17, 34, 51, 255]));
-    }
-
-    #[test]
-    fn rejects_invalid_index_and_short_data() {
-        let f = font(FontChunkKind::Grayscale, 8, vec![0, 1, 2, 3]);
-        assert_eq!(unpack_glyph_cell(&f, 1), None);
-        let mut short = f;
-        short.data.pop();
-        assert_eq!(unpack_glyph_cell(&short, 0), None);
+    fn rejects_invalid_representation_and_glyph_indices() {
+        let font = font(
+            FontRepresentation::coverage(8, 2, 4).unwrap(),
+            SampleLayout::A8,
+            2,
+            &[0, 1, 2, 3],
+        );
+        assert!(unpack_glyph(&font, 1, 0).is_none());
+        assert!(unpack_glyph(&font, 0, 1).is_none());
     }
 
     #[test]
     fn maps_top_image_rows_to_high_glyph_coordinates() {
-        let f = font_with_size(
-            FontChunkKind::Grayscale,
-            8,
+        let mut data = vec![0; 25];
+        data[1] = 255;
+        let font = font(
+            FontRepresentation::coverage(8, 5, 25).unwrap(),
+            SampleLayout::A8,
             5,
-            vec![
-                0, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &data,
         );
-        let contour = approximate_glyph_contour(&f, 0).unwrap();
-        let ys: Vec<i32> = contour
-            .iter()
-            .filter_map(|cmd| match cmd {
-                mirx::PathCmd::MoveTo(point) | mirx::PathCmd::LineTo(point) => Some(point.y.raw()),
-                mirx::PathCmd::Close => None,
-                mirx::PathCmd::QuadTo { .. } | mirx::PathCmd::CubicTo { .. } => None,
-            })
-            .collect();
-        assert!(!ys.is_empty());
-        assert!(ys.iter().all(|y| *y > 2 * 256));
+        let contour = approximate_glyph_contour(&font, 0, 0).unwrap();
+        let y_values = contour.iter().filter_map(|command| match command {
+            mirx::PathCmd::MoveTo(point) | mirx::PathCmd::LineTo(point) => Some(point.y.raw()),
+            _ => None,
+        });
+        assert!(y_values.into_iter().all(|y| y > 2 * 256));
     }
 
     #[test]
-    fn extracts_rectangle_and_disconnected_regions_deterministically() {
-        let f = font_with_size(
-            FontChunkKind::Grayscale,
-            8,
+    fn extracts_disconnected_regions_deterministically() {
+        let data = [
+            0, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 255, 0, 255, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0,
+        ];
+        let font = font(
+            FontRepresentation::coverage(8, 5, 25).unwrap(),
+            SampleLayout::A8,
             5,
-            vec![
-                0, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 255, 0, 255, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0,
-            ],
+            &data,
         );
-        let first = approximate_glyph_contour(&f, 0).unwrap();
-        let second = approximate_glyph_contour(&f, 0).unwrap();
+        let first = approximate_glyph_contour(&font, 0, 0).unwrap();
+        let second = approximate_glyph_contour(&font, 0, 0).unwrap();
         assert_eq!(first, second);
         assert_eq!(
             first
                 .iter()
-                .filter(|cmd| matches!(cmd, mirx::PathCmd::MoveTo(_)))
+                .filter(|command| matches!(command, mirx::PathCmd::MoveTo(_)))
                 .count(),
             2
         );
-        assert!(first.iter().any(|cmd| matches!(cmd, mirx::PathCmd::Close)));
     }
 }

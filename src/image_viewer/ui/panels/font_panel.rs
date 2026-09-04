@@ -85,6 +85,75 @@ fn selected_mirx_font<'a>(
     }
 }
 
+fn primary_representation(
+    font: &icu_lib::mirx::Font,
+) -> Option<icu_lib::mirx::font::RepresentationAsset<'_>> {
+    font.representation(0)
+}
+
+fn mirx_glyph(
+    font: &icu_lib::mirx::Font,
+    index: usize,
+) -> Option<(u32, icu_lib::mirx::font::GlyphMetrics)> {
+    let codepoint = u32::from(*font.codepoints().get(index)?);
+    let metrics = *primary_representation(font)?.metrics().get(index)?;
+    Some((codepoint, metrics))
+}
+
+fn fixed_i16(value: icu_lib::mirx::Fixed) -> i16 {
+    value
+        .to_f32()
+        .round()
+        .clamp(f32::from(i16::MIN), f32::from(i16::MAX)) as i16
+}
+
+fn fixed_u16(value: icu_lib::mirx::Fixed) -> u16 {
+    value.to_f32().round().clamp(0.0, f32::from(u16::MAX)) as u16
+}
+
+fn representation_kind_label(kind: icu_lib::mirx::FontRepresentationKind) -> &'static str {
+    match kind {
+        icu_lib::mirx::FontRepresentationKind::Coverage { .. } => "coverage",
+        icu_lib::mirx::FontRepresentationKind::SignedDistance { .. } => "sdf",
+        icu_lib::mirx::FontRepresentationKind::Application(_) => "application",
+        _ => "unknown",
+    }
+}
+
+fn mirx_font_kind(font: &icu_lib::mirx::Font) -> &'static str {
+    primary_representation(font)
+        .map(|representation| representation_kind_label(representation.metadata().kind()))
+        .unwrap_or("empty")
+}
+
+fn mirx_font_design_ppem(font: &icu_lib::mirx::Font) -> u32 {
+    primary_representation(font)
+        .map(|representation| u32::from(representation.metadata().design_ppem()))
+        .unwrap_or(0)
+}
+
+fn mirx_font_line_height(font: &icu_lib::mirx::Font) -> u32 {
+    primary_representation(font)
+        .map(|representation| {
+            representation
+                .line_metrics()
+                .line_height()
+                .to_f32()
+                .ceil()
+                .max(1.0) as u32
+        })
+        .unwrap_or(1)
+}
+
+fn mirx_font_is_sdf(font: &icu_lib::mirx::Font) -> bool {
+    primary_representation(font).is_some_and(|representation| {
+        matches!(
+            representation.metadata().kind(),
+            icu_lib::mirx::FontRepresentationKind::SignedDistance { .. }
+        )
+    })
+}
+
 fn reset_font_caches(state: &mut crate::image_viewer::model::ViewerState) {
     state.font_rendered_preview = None;
     state.font_atlas_cached = None;
@@ -433,10 +502,11 @@ pub fn draw_font_info_section(
                                 &mut next_index,
                                 idx,
                                 format!(
-                                    "{}: {:?}, {} glyphs",
+                                    "{}: {}, {} glyphs, {} representations",
                                     idx + 1,
-                                    font.chunk_header.kind,
-                                    font.atlas.glyph_count
+                                    mirx_font_kind(font),
+                                    font.codepoints().len(),
+                                    font.representation_count()
                                 ),
                             );
                         }
@@ -706,15 +776,17 @@ fn draw_selected_glyph_section(
 
     match font_data {
         FontData::Mirx(font) => {
-            let Some(m) = font.metrics.get(idx) else {
+            let Some((codepoint, metrics)) = mirx_glyph(font, idx) else {
                 return;
             };
-            let ch = char::from_u32(m.codepoint).unwrap_or('?');
+            let ch = char::from_u32(codepoint).unwrap_or('?');
             crate::image_viewer::ui::widgets::section_card(ui, "Selected Glyph", |ui| {
-                ui.heading(format!("Glyph #{}: '{}' (U+{:04X})", idx, ch, m.codepoint));
+                ui.heading(format!("Glyph #{}: '{}' (U+{:04X})", idx, ch, codepoint));
                 ui.label(format!(
-                    "advance: {}  bearing: ({}, {})",
-                    m.advance, m.bearing_x, m.bearing_y
+                    "advance: {:.2}  bearing: ({:.2}, {:.2})",
+                    metrics.advance().to_f32(),
+                    metrics.bearing_x().to_f32(),
+                    metrics.bearing_y().to_f32()
                 ));
                 ui.label("bbox: n/a  outline cmds: 0");
                 let big_key = format!("{grid_key}_{idx}_mirx_cell_raster_128_v1");
@@ -744,15 +816,17 @@ fn draw_selected_glyph_section(
             let Some(font) = fonts.get(state.font_bundle_index).or_else(|| fonts.first()) else {
                 return;
             };
-            let Some(m) = font.metrics.get(idx) else {
+            let Some((codepoint, metrics)) = mirx_glyph(font, idx) else {
                 return;
             };
-            let ch = char::from_u32(m.codepoint).unwrap_or('?');
+            let ch = char::from_u32(codepoint).unwrap_or('?');
             crate::image_viewer::ui::widgets::section_card(ui, "Selected Glyph", |ui| {
-                ui.heading(format!("Glyph #{}: '{}' (U+{:04X})", idx, ch, m.codepoint));
+                ui.heading(format!("Glyph #{}: '{}' (U+{:04X})", idx, ch, codepoint));
                 ui.label(format!(
-                    "advance: {}  bearing: ({}, {})",
-                    m.advance, m.bearing_x, m.bearing_y
+                    "advance: {:.2}  bearing: ({:.2}, {:.2})",
+                    metrics.advance().to_f32(),
+                    metrics.bearing_x().to_f32(),
+                    metrics.bearing_y().to_f32()
                 ));
                 ui.label("bbox: n/a  outline cmds: 0");
                 let big_key = format!("{grid_key}_{idx}_mirx_cell_raster_128_v1");
@@ -955,11 +1029,11 @@ fn render_source_glyph(
 
 fn glyph_count(font_data: &FontData, bundle_index: usize) -> usize {
     match font_data {
-        FontData::Mirx(font) => font.metrics.len(),
+        FontData::Mirx(font) => font.codepoints().len(),
         FontData::MirxBundle(fonts) => fonts
             .get(bundle_index)
             .or_else(|| fonts.first())
-            .map(|font| font.metrics.len())
+            .map(|font| font.codepoints().len())
             .unwrap_or(0),
         FontData::FreeType(font) => font.glyphs.len(),
     }
@@ -968,12 +1042,13 @@ fn glyph_count(font_data: &FontData, bundle_index: usize) -> usize {
 fn glyph_codepoint(font_data: &FontData, bundle_index: usize, index: usize) -> Option<u32> {
     match font_data {
         FontData::FreeType(font) => font.glyphs.get(index).map(|g| g.codepoint),
-        FontData::Mirx(font) => font.metrics.get(index).map(|m| m.codepoint),
+        FontData::Mirx(font) => font.codepoints().get(index).copied().map(u32::from),
         FontData::MirxBundle(fonts) => fonts
             .get(bundle_index)
             .or_else(|| fonts.first())
-            .and_then(|font| font.metrics.get(index))
-            .map(|m| m.codepoint),
+            .and_then(|font| font.codepoints().get(index))
+            .copied()
+            .map(u32::from),
     }
 }
 
@@ -988,7 +1063,7 @@ fn render_glyph_grid_texture(
     let ch = char::from_u32(glyph_codepoint(font_data, bundle_index, glyph_index)?).unwrap_or('?');
     let image = match font_data {
         FontData::Mirx(font) => {
-            let raster_size = u32::from(font.atlas.source_size);
+            let raster_size = mirx_font_design_ppem(font).max(1);
             let raster = icu_lib::endecoder::mirui::font_render::render_mirx_glyph_cell(
                 font,
                 ch,
@@ -1000,7 +1075,7 @@ fn render_glyph_grid_texture(
         }
         FontData::MirxBundle(_) => {
             let font = selected_mirx_font(font_data, bundle_index)?;
-            let raster_size = u32::from(font.atlas.source_size);
+            let raster_size = mirx_font_design_ppem(font).max(1);
             let raster = icu_lib::endecoder::mirui::font_render::render_mirx_glyph_cell(
                 font,
                 ch,
@@ -1034,20 +1109,14 @@ fn glyph_grid_cache_key(
 ) -> String {
     let (font_kind, raster_size, canvas_size) = match font_data {
         FontData::Mirx(font) => {
-            let raster_size = u32::from(font.atlas.source_size);
-            let kind = match font.chunk_header.kind {
-                icu_lib::mirx::FontChunkKind::Sdf => "mirx-sdf",
-                icu_lib::mirx::FontChunkKind::Grayscale => "mirx-gray",
-            };
+            let raster_size = mirx_font_design_ppem(font);
+            let kind = mirx_font_kind(font);
             (kind, raster_size, raster_size.saturating_add(4))
         }
         FontData::MirxBundle(_) => selected_mirx_font(font_data, bundle_index)
             .map(|font| {
-                let raster_size = u32::from(font.atlas.source_size);
-                let kind = match font.chunk_header.kind {
-                    icu_lib::mirx::FontChunkKind::Sdf => "mirx-sdf",
-                    icu_lib::mirx::FontChunkKind::Grayscale => "mirx-gray",
-                };
+                let raster_size = mirx_font_design_ppem(font);
+                let kind = mirx_font_kind(font);
                 (kind, raster_size, raster_size.saturating_add(4))
             })
             .unwrap_or(("mirx-empty", 0, 0)),
@@ -1066,9 +1135,9 @@ fn diff_cell_size(left: &FontData, right: &FontData, bundle_index: usize) -> u32
 
 fn preferred_glyph_cell(font_data: &FontData, bundle_index: usize) -> u32 {
     match font_data {
-        FontData::Mirx(font) => font.atlas.source_size as u32,
+        FontData::Mirx(font) => mirx_font_design_ppem(font),
         FontData::MirxBundle(_) => selected_mirx_font(font_data, bundle_index)
-            .map(|font| font.atlas.source_size as u32)
+            .map(mirx_font_design_ppem)
             .unwrap_or(0),
         FontData::FreeType(_) => 64,
     }
@@ -1328,9 +1397,14 @@ fn draw_merge_fonts_section(
                 .iter()
                 .filter_map(|p| std::fs::read(p).ok())
                 .collect();
-            let merged = icu_lib::endecoder::mirui::font_bake::merge_font_chunks(&inputs);
-            if let Some(path) = super::pick_save_file(&[("mirx", &["mirx"])], "bundle.mirx") {
-                let _ = std::fs::write(&path, merged);
+            match icu_lib::endecoder::mirui::font_bake::merge_font_chunks(&inputs) {
+                Ok(merged) => {
+                    if let Some(path) = super::pick_save_file(&[("mirx", &["mirx"])], "bundle.mirx")
+                    {
+                        let _ = std::fs::write(&path, merged);
+                    }
+                }
+                Err(error) => log::error!("failed to merge MIRX fonts: {error}"),
             }
         }
     });
@@ -1414,9 +1488,9 @@ fn draw_font_bake_section(
             .clicked()
         {
             let kind = if state.font_bake_format == "gray" {
-                icu_lib::mirx::FontChunkKind::Grayscale
+                icu_lib::endecoder::mirui::font_bake::FontBakeKind::Coverage
             } else {
-                icu_lib::mirx::FontChunkKind::Sdf
+                icu_lib::endecoder::mirui::font_bake::FontBakeKind::SignedDistance
             };
             let charset = collect_charset(state);
             if charset.is_empty() {
@@ -1428,22 +1502,30 @@ fn draw_font_bake_section(
                 source_size: state.font_bake_size,
                 bit_depth: state.font_bake_bit_depth as u8,
                 spread: (state.font_bake_size / 4).max(1),
+                min_ppem: None,
+                max_ppem: None,
                 charset,
             };
             let raw = std::fs::read(&image.path).unwrap_or_default();
-            if let Some(font) = icu_lib::endecoder::mirui::font_bake::bake_font(&raw, &params) {
-                let payload = font.encode();
-                let bytes = icu_lib::mirx::encode_chunk_generic(
-                    icu_lib::mirx::chunk_type::FONT,
-                    icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
-                    &payload,
-                );
-                if let Some(path) = super::pick_save_file(
-                    &[("mirx", &["mirx"])],
-                    &format!("{}_{}.mirx", f.family, state.font_bake_format),
-                ) {
-                    let _ = std::fs::write(&path, bytes);
+            match icu_lib::endecoder::mirui::font_bake::bake_font(&raw, &params) {
+                Ok(font) => {
+                    let Ok(payload) = font.encode() else {
+                        log::error!("failed to encode baked MIRX font");
+                        return;
+                    };
+                    let bytes = icu_lib::mirx::encode_chunk_generic(
+                        icu_lib::mirx::chunk_type::FONT,
+                        icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
+                        &payload,
+                    );
+                    if let Some(path) = super::pick_save_file(
+                        &[("mirx", &["mirx"])],
+                        &format!("{}_{}.mirx", f.family, state.font_bake_format),
+                    ) {
+                        let _ = std::fs::write(&path, bytes);
+                    }
                 }
+                Err(error) => log::error!("failed to bake MIRX font: {error}"),
             }
         }
     });
@@ -1485,11 +1567,11 @@ pub fn font_vector_has_outline(state: &crate::image_viewer::model::ViewerState) 
             .glyphs
             .get(index)
             .map(|glyph| !glyph.outline.is_empty()),
-        FontData::Mirx(font) => font.metrics.get(index).map(|_| false),
+        FontData::Mirx(font) => font.codepoints().get(index).map(|_| false),
         FontData::MirxBundle(fonts) => fonts
             .get(state.font_bundle_index)
             .or_else(|| fonts.first())
-            .and_then(|font| font.metrics.get(index))
+            .and_then(|font| font.codepoints().get(index))
             .map(|_| false),
     }
 }
@@ -1553,7 +1635,7 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
         FontMode::Rendered => {
             if state.font_rendered_preview.is_none() {
                 if let Some(font) = selected_mirx_font(font_data, state.font_bundle_index) {
-                    let preview_h = font.atlas.line_height.max(1) as u32 * 2;
+                    let preview_h = mirx_font_line_height(font).saturating_mul(2);
                     let img = icu_lib::endecoder::mirui::font_render::render_font_text(
                         font,
                         &state.font_preview_text,
@@ -1666,11 +1748,11 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
             }
 
             let cell = match font_data {
-                FontData::Mirx(font) => font.atlas.source_size as f32 + 4.0,
+                FontData::Mirx(font) => mirx_font_design_ppem(font) as f32 + 4.0,
                 FontData::MirxBundle(fonts) => fonts
                     .get(state.font_bundle_index)
                     .or_else(|| fonts.first())
-                    .map(|font| font.atlas.source_size as f32 + 4.0)
+                    .map(|font| mirx_font_design_ppem(font) as f32 + 4.0)
                     .unwrap_or(48.0),
                 FontData::FreeType(_) => 48.0,
             };
@@ -1817,17 +1899,17 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                     }),
                 FontData::Mirx(font) => state
                     .selected_glyph
-                    .and_then(|idx| font.metrics.get(idx))
-                    .map(|m| {
+                    .and_then(|idx| mirx_glyph(font, idx))
+                    .map(|(codepoint, metrics)| {
                         (
-                            m.codepoint,
-                            m.advance,
-                            m.bearing_x as i16,
-                            m.bearing_y as i16,
+                            codepoint,
+                            fixed_u16(metrics.advance()),
+                            fixed_i16(metrics.bearing_x()),
+                            fixed_i16(metrics.bearing_y()),
                             (0, 0, 0, 0),
                             Vec::new(),
                             true,
-                            format!("{:?}", font.chunk_header.kind),
+                            mirx_font_kind(font).to_owned(),
                         )
                     }),
                 FontData::MirxBundle(fonts) => fonts
@@ -1835,16 +1917,16 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
                     .or_else(|| fonts.first())
                     .and_then(|font| {
                         state.selected_glyph.and_then(|idx| {
-                            font.metrics.get(idx).map(|m| {
+                            mirx_glyph(font, idx).map(|(codepoint, metrics)| {
                                 (
-                                    m.codepoint,
-                                    m.advance,
-                                    m.bearing_x as i16,
-                                    m.bearing_y as i16,
+                                    codepoint,
+                                    fixed_u16(metrics.advance()),
+                                    fixed_i16(metrics.bearing_x()),
+                                    fixed_i16(metrics.bearing_y()),
                                     (0, 0, 0, 0),
                                     Vec::new(),
                                     true,
-                                    format!("{:?}", font.chunk_header.kind),
+                                    mirx_font_kind(font).to_owned(),
                                 )
                             })
                         })
@@ -1989,10 +2071,10 @@ fn build_opened_glyph(
             })
         }
         FontData::Mirx(font) => {
-            let m = font.metrics.get(idx)?;
-            let ch = char::from_u32(m.codepoint).unwrap_or('?');
+            let (codepoint, metrics) = mirx_glyph(font, idx)?;
+            let ch = char::from_u32(codepoint).unwrap_or('?');
             let outline =
-                icu_lib::endecoder::mirui::font_contour::approximate_glyph_contour(font, idx)
+                icu_lib::endecoder::mirui::font_contour::approximate_glyph_contour(font, 0, idx)
                     .unwrap_or_default();
             let bbox = glyph_outline_bounds(&outline)
                 .map(|(min_x, min_y, max_x, max_y)| {
@@ -2005,25 +2087,28 @@ fn build_opened_glyph(
                 })
                 .unwrap_or((0, 0, 0, 0));
             Some(OpenedGlyph {
-                name: format!("glyph_{} (U+{:04X})", ch, m.codepoint),
-                codepoint: m.codepoint,
+                name: format!("glyph_{} (U+{:04X})", ch, codepoint),
+                codepoint,
                 char_repr: ch.to_string(),
-                advance: m.advance,
-                bearing: (m.bearing_x as i16, m.bearing_y as i16),
+                advance: fixed_u16(metrics.advance()),
+                bearing: (
+                    fixed_i16(metrics.bearing_x()),
+                    fixed_i16(metrics.bearing_y()),
+                ),
                 bbox,
                 outline,
                 outline_approximate: true,
-                source_font: format!("{:?}", font.chunk_header.kind),
-                source_is_sdf: matches!(font.chunk_header.kind, mirx::FontChunkKind::Sdf),
+                source_font: mirx_font_kind(font).to_owned(),
+                source_is_sdf: mirx_font_is_sdf(font),
                 editor: crate::image_viewer::model::GlyphEditorState::default(),
             })
         }
         FontData::MirxBundle(fonts) => {
             let font = fonts.get(bundle_index).or_else(|| fonts.first())?;
-            let m = font.metrics.get(idx)?;
-            let ch = char::from_u32(m.codepoint).unwrap_or('?');
+            let (codepoint, metrics) = mirx_glyph(font, idx)?;
+            let ch = char::from_u32(codepoint).unwrap_or('?');
             let outline =
-                icu_lib::endecoder::mirui::font_contour::approximate_glyph_contour(font, idx)
+                icu_lib::endecoder::mirui::font_contour::approximate_glyph_contour(font, 0, idx)
                     .unwrap_or_default();
             let bbox = glyph_outline_bounds(&outline)
                 .map(|(min_x, min_y, max_x, max_y)| {
@@ -2036,16 +2121,19 @@ fn build_opened_glyph(
                 })
                 .unwrap_or((0, 0, 0, 0));
             Some(OpenedGlyph {
-                name: format!("glyph_{} (U+{:04X})", ch, m.codepoint),
-                codepoint: m.codepoint,
+                name: format!("glyph_{} (U+{:04X})", ch, codepoint),
+                codepoint,
                 char_repr: ch.to_string(),
-                advance: m.advance,
-                bearing: (m.bearing_x as i16, m.bearing_y as i16),
+                advance: fixed_u16(metrics.advance()),
+                bearing: (
+                    fixed_i16(metrics.bearing_x()),
+                    fixed_i16(metrics.bearing_y()),
+                ),
                 bbox,
                 outline,
                 outline_approximate: true,
-                source_font: format!("{:?}", font.chunk_header.kind),
-                source_is_sdf: matches!(font.chunk_header.kind, mirx::FontChunkKind::Sdf),
+                source_font: mirx_font_kind(font).to_owned(),
+                source_is_sdf: mirx_font_is_sdf(font),
                 editor: crate::image_viewer::model::GlyphEditorState::default(),
             })
         }

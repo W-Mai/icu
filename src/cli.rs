@@ -398,8 +398,7 @@ fn bake_font_command(
     output_folder: Option<&str>,
     override_output: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use icu_lib::endecoder::mirui::font_bake::{FontBakeParams, bake_font};
-    use icu_lib::mirx::FontChunkKind;
+    use icu_lib::endecoder::mirui::font_bake::{FontBakeKind, FontBakeParams, bake_font};
 
     let ttf_bytes = fs::read(ttf)?;
     let charset_str = match charset_file {
@@ -411,12 +410,12 @@ fn bake_font_command(
     chars.dedup();
 
     let kind = match format {
-        crate::arguments::BakeFormat::Sdf => FontChunkKind::Sdf,
-        crate::arguments::BakeFormat::Gray => FontChunkKind::Grayscale,
+        crate::arguments::BakeFormat::Sdf => FontBakeKind::SignedDistance,
+        crate::arguments::BakeFormat::Gray => FontBakeKind::Coverage,
     };
     let valid_bd = match kind {
-        FontChunkKind::Sdf => bit_depth == 4 || bit_depth == 8,
-        FontChunkKind::Grayscale => matches!(bit_depth, 1 | 2 | 4 | 8),
+        FontBakeKind::SignedDistance => bit_depth == 4 || bit_depth == 8,
+        FontBakeKind::Coverage => matches!(bit_depth, 1 | 2 | 4 | 8),
     };
     if !valid_bd {
         return Err(format!(
@@ -432,10 +431,14 @@ fn bake_font_command(
         source_size: size,
         bit_depth,
         spread,
+        min_ppem: None,
+        max_ppem: None,
         charset: chars,
     };
-    let font = bake_font(&ttf_bytes, &params).ok_or("bake failed")?;
-    let payload = font.encode();
+    let font = bake_font(&ttf_bytes, &params)?;
+    let payload = font
+        .encode()
+        .map_err(|error| format!("failed to encode MIRX font: {error:?}"))?;
     let mirx_bytes = icu_lib::mirx::encode_chunk_generic(
         icu_lib::mirx::chunk_type::FONT,
         icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
@@ -445,8 +448,8 @@ fn bake_font_command(
     let ttf_path = Path::new(ttf);
     let stem = ttf_path.file_stem().unwrap_or_default().to_string_lossy();
     let suffix = match kind {
-        FontChunkKind::Sdf => "sdf",
-        FontChunkKind::Grayscale => "gray",
+        FontBakeKind::SignedDistance => "sdf",
+        FontBakeKind::Coverage => "coverage",
     };
     let out_name = format!("{stem}_{suffix}_{size}.mirx");
     let out_path = match output_folder {
@@ -465,7 +468,7 @@ fn bake_font_command(
         "wrote {} bytes to {} ({} glyphs, format={:?}, source_size={}, bit_depth={})",
         mirx_bytes.len(),
         out_path.display(),
-        font.metrics.len(),
+        font.codepoints().len(),
         kind,
         size,
         bit_depth,
@@ -479,7 +482,7 @@ fn merge_fonts_command(inputs: &[String], output: &str) -> Result<(), Box<dyn st
     for path in inputs {
         input_bytes.push(fs::read(path)?);
     }
-    let merged = merge_font_chunks(&input_bytes);
+    let merged = merge_font_chunks(&input_bytes)?;
     fs::write(output, &merged)?;
     println!(
         "merged {} fonts into {} ({} bytes)",

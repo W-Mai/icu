@@ -12,25 +12,25 @@ pub mod scene_render;
 
 pub struct Mirx;
 
-fn bpp_for(cf: MirxColorFormat) -> usize {
-    match cf {
-        MirxColorFormat::RGB565 | MirxColorFormat::RGB565Swapped => 2,
-        MirxColorFormat::RGB888 => 3,
-        MirxColorFormat::RGBA8888 | MirxColorFormat::BGRA8888 | MirxColorFormat::XRGB8888 => 4,
-        _ => 0,
-    }
+fn bytes_per_pixel(format: MirxColorFormat) -> Option<usize> {
+    let bits = format.bits_per_pixel();
+    bits.is_multiple_of(8).then(|| usize::from(bits / 8))
+}
+
+fn aligned_stride(format: MirxColorFormat, width: u32, alignment: u32) -> Option<u32> {
+    let minimum = format.minimum_stride(width)?;
+    let alignment = alignment.max(1);
+    minimum
+        .checked_add(alignment - 1)?
+        .checked_div(alignment)?
+        .checked_mul(alignment)
 }
 
 fn rgba_to_mirx_pixels(img: &RgbaImage, cf: MirxColorFormat, stride: u32) -> Option<Vec<u8>> {
     let (w, h) = img.dimensions();
     let raw = img.as_raw();
-    let bpp = match cf {
-        MirxColorFormat::RGB565 | MirxColorFormat::RGB565Swapped => 2,
-        MirxColorFormat::RGB888 => 3,
-        MirxColorFormat::RGBA8888 | MirxColorFormat::BGRA8888 | MirxColorFormat::XRGB8888 => 4,
-        _ => return None,
-    };
-    let row_bytes = w as usize * bpp;
+    let bpp = bytes_per_pixel(cf)?;
+    let row_bytes = usize::try_from(cf.minimum_stride(w)?).ok()?;
     let stride = stride as usize;
     let mut out = vec![0u8; stride * h as usize];
     for y in 0..h as usize {
@@ -92,7 +92,7 @@ fn mirx_pixels_to_rgba(
     let mut out = vec![0u8; w * h * 4];
     for y in 0..h {
         for x in 0..w {
-            let si = y * stride + x * bpp_for(cf);
+            let si = y * stride + x * bytes_per_pixel(cf)?;
             let di = (y * w + x) * 4;
             match cf {
                 MirxColorFormat::RGBA8888 | MirxColorFormat::XRGB8888 => {
@@ -144,9 +144,10 @@ impl EnDecoder for Mirx {
                     None => return Vec::new(),
                 };
                 let (w, h) = img.dimensions();
-                let stride = (w as usize * bpp_for(mirx_cf))
-                    .next_multiple_of(params.stride_align.max(1) as usize)
-                    as u32;
+                let stride = match aligned_stride(mirx_cf, w, params.stride_align) {
+                    Some(stride) => stride,
+                    None => return Vec::new(),
+                };
                 let main = match rgba_to_mirx_pixels(img, mirx_cf, stride) {
                     Some(v) => v,
                     None => return Vec::new(),
@@ -174,7 +175,9 @@ impl EnDecoder for Mirx {
             }
             MiData::FONT(font_data) => match font_data {
                 FontData::Mirx(f) => {
-                    let payload = f.encode();
+                    let Ok(payload) = f.encode() else {
+                        return Vec::new();
+                    };
                     mirx::encode_chunk_generic(
                         mirx::chunk_type::FONT,
                         mirx::ChunkEntry::FLAG_CRITICAL,
@@ -182,16 +185,19 @@ impl EnDecoder for Mirx {
                     )
                 }
                 FontData::MirxBundle(fonts) => {
-                    let chunks: Vec<(u16, u16, Vec<u8>)> = fonts
+                    let chunks: Option<Vec<(u16, u16, Vec<u8>)>> = fonts
                         .iter()
                         .map(|f| {
-                            (
+                            Some((
                                 mirx::chunk_type::FONT,
                                 mirx::ChunkEntry::FLAG_CRITICAL,
-                                f.encode(),
-                            )
+                                f.encode().ok()?,
+                            ))
                         })
                         .collect();
+                    let Some(chunks) = chunks else {
+                        return Vec::new();
+                    };
                     let refs: Vec<(u16, u16, &[u8])> = chunks
                         .iter()
                         .map(|(t, f, p)| (*t, *f, p.as_slice()))
@@ -279,13 +285,26 @@ impl EnDecoder for Mirx {
                         }
                         mirx::chunk_type::FONT => {
                             if let Ok(font) = mirx::Font::decode(payload) {
+                                let representations = (0..font.representation_count())
+                                    .filter_map(|index| font.representation(index))
+                                    .map(|representation| {
+                                        let metadata = representation.metadata();
+                                        json!({
+                                            "kind": format!("{:?}", metadata.kind()),
+                                            "design_ppem": metadata.design_ppem(),
+                                            "min_ppem": metadata.min_ppem(),
+                                            "max_ppem": metadata.max_ppem(),
+                                            "surface": representation.surface_index(),
+                                        })
+                                    })
+                                    .collect::<Vec<_>>();
                                 chunks_info.insert(
                                     "font".into(),
                                     json!({
-                                        "kind": format!("{:?}", font.chunk_header.kind),
-                                        "glyph_count": font.atlas.glyph_count,
-                                        "source_size": font.atlas.source_size,
-                                        "bit_depth": font.atlas.bit_depth,
+                                        "glyph_count": font.codepoints().len(),
+                                        "representation_count": font.representation_count(),
+                                        "surface_count": font.surface_count(),
+                                        "representations": representations,
                                     }),
                                 );
                             }
@@ -309,7 +328,7 @@ impl EnDecoder for Mirx {
                     width: file.header.primary_width,
                     height: file.header.primary_height,
                     data_size: data.len() as u32,
-                    format: format!("{:?}", file.header.primary_color_format),
+                    format: format!("{:#06x}", file.header.primary_sample_layout),
                     other_info: json!({"layout": "chunk", "chunks": chunks_info}),
                 }
             }
@@ -443,44 +462,45 @@ mod tests {
     }
 
     #[test]
-    fn roundtrip_font_chunk_preserves_atlas() {
-        let font = mirx::Font {
-            chunk_header: mirx::FontChunkHeader {
-                kind: mirx::FontChunkKind::Sdf,
-                format: 4,
-                size: 24,
-            },
-            atlas: mirx::AtlasHeader {
-                version: mirx::SUPPORTED_VERSION,
-                bit_depth: 4,
-                _pad0: 0,
-                source_size: 4,
-                spread: 1,
-                glyph_count: 2,
-                metric_offset: mirx::HEADER_LEN as u32,
-                data_offset: (mirx::HEADER_LEN + 2 * mirx::METRIC_LEN) as u32,
-                bytes_per_glyph: 8,
-                ascender: 3,
-                descender: 1,
-                line_height: 4,
-                _pad1: 0,
-            },
-            metrics: vec![
-                mirx::GlyphMetric {
-                    codepoint: 'A' as u32,
-                    advance: 4,
-                    bearing_x: 0,
-                    bearing_y: 3,
-                },
-                mirx::GlyphMetric {
-                    codepoint: 'B' as u32,
-                    advance: 4,
-                    bearing_x: 0,
-                    bearing_y: 3,
-                },
-            ],
-            data: vec![0u8; 16],
+    fn roundtrip_font_chunk_preserves_face() {
+        use mirx::font::{
+            FontAsset, GlyphMap, GlyphMetrics, GlyphSurfaceAsset, LineMetrics, RawGlyphs,
+            RepresentationAsset,
         };
+        use mirx::image::SampleLayout;
+
+        let codepoints = ['A', 'B'];
+        let map = GlyphMap::glyph_major(4, 4, codepoints.len()).unwrap();
+        let data = [0u8; 16];
+        let surface = RawGlyphs::builder(map, SampleLayout::A4)
+            .build(&data)
+            .unwrap();
+        let metrics = [GlyphMetrics::new(
+            mirx::Fixed::from_int(4),
+            mirx::Fixed::ZERO,
+            mirx::Fixed::from_int(3),
+        ); 2];
+        let line = LineMetrics::new(
+            mirx::Fixed::from_int(3),
+            mirx::Fixed::from_int(-1),
+            mirx::Fixed::from_int(4),
+        )
+        .unwrap();
+        let representation = RepresentationAsset::new(
+            mirx::FontRepresentation::signed_distance(4, 1, 4, 2, 16, 16).unwrap(),
+            0,
+            line,
+            &metrics,
+        );
+        let font = mirx::Font::from_asset(
+            FontAsset::new(
+                &codepoints,
+                &[representation],
+                &[GlyphSurfaceAsset::raw(surface)],
+            ),
+            &mirx::PayloadLimits::HOST,
+        )
+        .unwrap();
         let ed = Mirx;
         let bytes = ed.encode(
             &MiData::FONT(FontData::Mirx(font.clone())),
@@ -489,9 +509,9 @@ mod tests {
         assert!(ed.can_decode(&bytes));
         match ed.decode(bytes) {
             MiData::FONT(FontData::Mirx(back)) => {
-                assert_eq!(back.atlas.glyph_count, 2);
-                assert_eq!(back.metrics.len(), 2);
-                assert_eq!(back.metrics[0].codepoint, 'A' as u32);
+                assert_eq!(back.codepoints(), ['A', 'B']);
+                assert_eq!(back.representation_count(), 1);
+                assert_eq!(back.surface_count(), 1);
             }
             other => panic!("expected FONT Mirx, got {}", other.variant_name()),
         }

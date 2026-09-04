@@ -153,40 +153,73 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                 match font_data {
                     icu_lib::midata::FontData::Mirx(font) => {
                         widgets::section_card(ui, t!("section_font_metadata").as_ref(), |ui| {
-                            widgets::info_row(
-                                ui,
-                                t!("kind").as_ref(),
-                                &format!("{:?}", font.chunk_header.kind),
-                            );
+                            let representation = font.representation(0);
+                            let kind = representation
+                                .map(|value| match value.metadata().kind() {
+                                    icu_lib::mirx::FontRepresentationKind::Coverage { .. } => {
+                                        "coverage"
+                                    }
+                                    icu_lib::mirx::FontRepresentationKind::SignedDistance {
+                                        ..
+                                    } => "sdf",
+                                    icu_lib::mirx::FontRepresentationKind::Application(_) => {
+                                        "application"
+                                    }
+                                    _ => "unknown",
+                                })
+                                .unwrap_or("empty");
+                            let design_ppem = representation
+                                .map(|value| value.metadata().design_ppem())
+                                .unwrap_or(0);
+                            let bit_depth = representation
+                                .map(|value| match value.metadata().kind() {
+                                    icu_lib::mirx::FontRepresentationKind::Coverage { bits }
+                                    | icu_lib::mirx::FontRepresentationKind::SignedDistance {
+                                        bits,
+                                        ..
+                                    } => bits,
+                                    _ => 0,
+                                })
+                                .unwrap_or(0);
+                            let line = representation.map(|value| value.line_metrics());
+                            widgets::info_row(ui, t!("kind").as_ref(), kind);
                             widgets::info_row(
                                 ui,
                                 t!("source_size").as_ref(),
-                                &font.atlas.source_size.to_string(),
+                                &design_ppem.to_string(),
                             );
-                            widgets::info_row(
-                                ui,
-                                t!("bit_depth").as_ref(),
-                                &font.atlas.bit_depth.to_string(),
-                            );
+                            widgets::info_row(ui, t!("bit_depth").as_ref(), &bit_depth.to_string());
                             widgets::info_row(
                                 ui,
                                 t!("glyphs").as_ref(),
-                                &font.atlas.glyph_count.to_string(),
+                                &font.codepoints().len().to_string(),
                             );
                             widgets::info_row(
                                 ui,
+                                "representations",
+                                &font.representation_count().to_string(),
+                            );
+                            widgets::info_row(ui, "surfaces", &font.surface_count().to_string());
+                            widgets::info_row(
+                                ui,
                                 t!("ascender").as_ref(),
-                                &font.atlas.ascender.to_string(),
+                                &line
+                                    .map(|value| format!("{:.2}", value.ascent().to_f32()))
+                                    .unwrap_or_default(),
                             );
                             widgets::info_row(
                                 ui,
                                 t!("descender").as_ref(),
-                                &font.atlas.descender.to_string(),
+                                &line
+                                    .map(|value| format!("{:.2}", value.descent().to_f32()))
+                                    .unwrap_or_default(),
                             );
                             widgets::info_row(
                                 ui,
                                 t!("line_height").as_ref(),
-                                &font.atlas.line_height.to_string(),
+                                &line
+                                    .map(|value| format!("{:.2}", value.line_height().to_f32()))
+                                    .unwrap_or_default(),
                             );
                         });
                     }
