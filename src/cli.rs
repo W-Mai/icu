@@ -64,6 +64,7 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
             output_color_format,
             output_compressed_method,
             mirx_coding,
+            mirx_quality,
             stdout,
             dither,
             lvgl_version,
@@ -135,7 +136,7 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
                                     .map(|t| t.into())
                                     .unwrap_or_default(),
                             )
-                            .with_mirx_coding((*mirx_coding).into())
+                            .with_mirx_coding((*mirx_coding).into_coding(*mirx_quality))
                             .with_lvgl_version((*lvgl_version).into())
                             .with_png_color_mode(match png_mode.unwrap_or(PngMode::Rgba) {
                                 PngMode::Rgba => icu_lib::PngColorMode::Rgba,

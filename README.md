@@ -160,6 +160,13 @@ MIRX flat-image output accepts `rgb565`, `rgb565-swapped`, `rgb888`, `rgba8888`,
 icu convert res/img_0.png -O output -F mirx -C rgba8888
 ```
 
+MIRX chunk-image output supports native pixel, RLE, LZ4, reversible frequency, and quantized frequency coding. Frequency coding accepts `rgb888`, `rgba8888`, `bgra8888`, and `i8`; quantized output keeps alpha and indexes exact. `--mirx-quality` is valid only with `frequency-quantized` and defaults to 75.
+
+```shell
+icu convert res/img_0.png -O output -F mirx -C rgba8888 --mirx-coding frequency-reversible
+icu convert res/img_0.png -O output -F mirx -C rgba8888 --mirx-coding frequency-quantized --mirx-quality 75
+```
+
 The Viewer imports animated WebP and exports multi-frame sources or workspace groups as lossless animated WebP. The same pure-Rust path is used on native and WebAssembly builds. CLI `convert` continues to process WebP inputs independently as static files.
 
 `--output-category c-array` is reserved by the CLI but is not implemented.

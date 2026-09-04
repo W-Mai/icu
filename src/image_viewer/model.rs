@@ -935,15 +935,19 @@ pub enum MirxCoding {
     Pixel,
     Rle,
     Lz4,
+    FrequencyReversible,
+    FrequencyQuantized,
 }
 
-impl From<MirxCoding> for icu_lib::MirxCoding {
-    fn from(coding: MirxCoding) -> Self {
-        match coding {
-            MirxCoding::Raw => Self::Raw,
-            MirxCoding::Pixel => Self::Pixel,
-            MirxCoding::Rle => Self::Rle,
-            MirxCoding::Lz4 => Self::Lz4,
+impl MirxCoding {
+    pub fn into_coding(self, quality: u8) -> icu_lib::MirxCoding {
+        match self {
+            Self::Raw => icu_lib::MirxCoding::Raw,
+            Self::Pixel => icu_lib::MirxCoding::Pixel,
+            Self::Rle => icu_lib::MirxCoding::Rle,
+            Self::Lz4 => icu_lib::MirxCoding::Lz4,
+            Self::FrequencyReversible => icu_lib::MirxCoding::FrequencyReversible,
+            Self::FrequencyQuantized => icu_lib::MirxCoding::FrequencyQuantized(quality),
         }
     }
 }
@@ -956,6 +960,8 @@ pub struct ConvertParams {
     pub compression: LvglCompression,
     #[serde(default)]
     pub mirx_coding: MirxCoding,
+    #[serde(default = "default_mirx_quality")]
+    pub mirx_quality: u8,
     pub stride_align: u8,
     pub dither: bool,
     pub dither_level: u32,
@@ -981,6 +987,7 @@ impl Default for ConvertParams {
             color_format: LvglColorFormat::RGB565,
             compression: LvglCompression::None,
             mirx_coding: MirxCoding::default(),
+            mirx_quality: default_mirx_quality(),
             stride_align: 1,
             dither: false,
             dither_level: 10,
@@ -996,6 +1003,10 @@ impl Default for ConvertParams {
 
 fn default_jpeg_quality() -> u8 {
     85
+}
+
+fn default_mirx_quality() -> u8 {
+    75
 }
 
 fn default_jpeg_background() -> [u8; 3] {

@@ -117,19 +117,6 @@ pub(crate) fn draw_lvgl_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                             }
                         });
                 });
-                param_row(ui, "coding", |ui| {
-                    egui::ComboBox::from_id_salt("mirx_coding")
-                        .selected_text(format!("{:?}", state.context.convert_params.mirx_coding))
-                        .show_ui(ui, |ui| {
-                            for &coding in MirxCoding::value_variants() {
-                                ui.selectable_value(
-                                    &mut state.context.convert_params.mirx_coding,
-                                    coding,
-                                    format!("{coding:?}"),
-                                );
-                            }
-                        });
-                });
                 param_row(ui, t!("stride_align").as_ref(), |ui| {
                     ui.add(egui::DragValue::new(
                         &mut state.context.convert_params.stride_align,
@@ -160,7 +147,12 @@ pub(crate) fn draw_mirx_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                         .selected_text(format!("{:?}", state.context.convert_params.color_format))
                         .show_ui(ui, |ui| {
                             for &format in LvglColorFormat::value_variants() {
-                                if matches!(
+                                let frequency = matches!(
+                                    state.context.convert_params.mirx_coding,
+                                    MirxCoding::FrequencyReversible
+                                        | MirxCoding::FrequencyQuantized
+                                );
+                                let admitted = matches!(
                                     format,
                                     LvglColorFormat::RGB565
                                         | LvglColorFormat::RGB565Swapped
@@ -172,7 +164,15 @@ pub(crate) fn draw_mirx_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                                         | LvglColorFormat::I2
                                         | LvglColorFormat::I4
                                         | LvglColorFormat::I8
-                                ) {
+                                ) && (!frequency
+                                    || matches!(
+                                        format,
+                                        LvglColorFormat::RGB888
+                                            | LvglColorFormat::RGBA8888
+                                            | LvglColorFormat::BGRA8888
+                                            | LvglColorFormat::I8
+                                    ));
+                                if admitted {
                                     ui.selectable_value(
                                         &mut state.context.convert_params.color_format,
                                         format,
@@ -182,6 +182,45 @@ pub(crate) fn draw_mirx_options(ui: &mut egui::Ui, state: &mut ViewerState) {
                             }
                         });
                 });
+                param_row(ui, "coding", |ui| {
+                    egui::ComboBox::from_id_salt("mirx_coding")
+                        .selected_text(format!("{:?}", state.context.convert_params.mirx_coding))
+                        .show_ui(ui, |ui| {
+                            for &coding in MirxCoding::value_variants() {
+                                if ui
+                                    .selectable_value(
+                                        &mut state.context.convert_params.mirx_coding,
+                                        coding,
+                                        format!("{coding:?}"),
+                                    )
+                                    .changed()
+                                    && matches!(
+                                        coding,
+                                        MirxCoding::FrequencyReversible
+                                            | MirxCoding::FrequencyQuantized
+                                    )
+                                    && !matches!(
+                                        state.context.convert_params.color_format,
+                                        LvglColorFormat::RGB888
+                                            | LvglColorFormat::RGBA8888
+                                            | LvglColorFormat::BGRA8888
+                                            | LvglColorFormat::I8
+                                    )
+                                {
+                                    state.context.convert_params.color_format =
+                                        LvglColorFormat::RGBA8888;
+                                }
+                            }
+                        });
+                });
+                if state.context.convert_params.mirx_coding == MirxCoding::FrequencyQuantized {
+                    param_row(ui, "quality", |ui| {
+                        ui.add(
+                            egui::DragValue::new(&mut state.context.convert_params.mirx_quality)
+                                .range(1..=100),
+                        );
+                    });
+                }
                 param_row(ui, t!("stride_align").as_ref(), |ui| {
                     ui.add(egui::DragValue::new(
                         &mut state.context.convert_params.stride_align,

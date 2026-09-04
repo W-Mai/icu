@@ -32,6 +32,8 @@ pub enum MirxCoding {
     Pixel,
     Rle,
     Lz4,
+    FrequencyReversible,
+    FrequencyQuantized(u8),
 }
 
 pub struct EncoderParams {

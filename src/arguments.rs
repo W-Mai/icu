@@ -91,6 +91,10 @@ pub(crate) enum SubCommands {
         #[arg(long, value_enum, default_value = "raw")]
         mirx_coding: MirxCodingMode,
 
+        /// MIRX quantized-frequency quality from 1 to 100
+        #[arg(long, value_parser = clap::value_parser!(u8).range(1..=100))]
+        mirx_quality: Option<u8>,
+
         /// Output converted result to stdout
         #[arg(long)]
         stdout: bool,
@@ -186,16 +190,26 @@ pub(crate) enum MirxCodingMode {
     Pixel,
     Rle,
     Lz4,
+    FrequencyReversible,
+    FrequencyQuantized,
 }
 
-impl From<MirxCodingMode> for icu_lib::MirxCoding {
-    fn from(coding: MirxCodingMode) -> Self {
-        match coding {
-            MirxCodingMode::Raw => Self::Raw,
-            MirxCodingMode::Pixel => Self::Pixel,
-            MirxCodingMode::Rle => Self::Rle,
-            MirxCodingMode::Lz4 => Self::Lz4,
+impl MirxCodingMode {
+    pub(crate) fn into_coding(self, quality: Option<u8>) -> icu_lib::MirxCoding {
+        match self {
+            Self::Raw => icu_lib::MirxCoding::Raw,
+            Self::Pixel => icu_lib::MirxCoding::Pixel,
+            Self::Rle => icu_lib::MirxCoding::Rle,
+            Self::Lz4 => icu_lib::MirxCoding::Lz4,
+            Self::FrequencyReversible => icu_lib::MirxCoding::FrequencyReversible,
+            Self::FrequencyQuantized => {
+                icu_lib::MirxCoding::FrequencyQuantized(quality.unwrap_or(75))
+            }
         }
+    }
+
+    const fn is_frequency(self) -> bool {
+        matches!(self, Self::FrequencyReversible | Self::FrequencyQuantized)
     }
 }
 
@@ -238,6 +252,7 @@ pub fn parse_args() -> Args {
                 output_color_format,
                 output_compressed_method,
                 mirx_coding,
+                mirx_quality,
                 dither,
                 png_mode,
                 png_compression,
@@ -281,6 +296,33 @@ pub fn parse_args() -> Args {
                         .error(
                             ErrorKind::InvalidValue,
                             "MIRX Pixel coding requires RGB888 or RGBA8888 output samples.",
+                        )
+                        .exit();
+                }
+                if mirx_quality.is_some() && *mirx_coding != MirxCodingMode::FrequencyQuantized {
+                    command
+                        .error(
+                            ErrorKind::InvalidValue,
+                            "--mirx-quality requires --mirx-coding frequency-quantized.",
+                        )
+                        .exit();
+                }
+                if output_format == &ImageFormats::MIRX
+                    && mirx_coding.is_frequency()
+                    && !matches!(
+                        output_color_format,
+                        Some(
+                            OutputColorFormats::RGB888
+                                | OutputColorFormats::RGBA8888
+                                | OutputColorFormats::BGRA8888
+                                | OutputColorFormats::I8
+                        )
+                    )
+                {
+                    command
+                        .error(
+                            ErrorKind::InvalidValue,
+                            "MIRX frequency coding requires RGB888, RGBA8888, BGRA8888, or I8 output samples.",
                         )
                         .exit();
                 }

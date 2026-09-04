@@ -1240,6 +1240,30 @@ pub fn convert_image(
     {
         return Err("MIRX Pixel coding requires RGB888 or RGBA8888 samples".to_string());
     }
+    if output_format == ImageFormat::MIRX
+        && matches!(
+            params.mirx_coding,
+            crate::image_viewer::model::MirxCoding::FrequencyReversible
+                | crate::image_viewer::model::MirxCoding::FrequencyQuantized
+        )
+        && !matches!(
+            params.color_format,
+            crate::image_viewer::model::LvglColorFormat::RGB888
+                | crate::image_viewer::model::LvglColorFormat::RGBA8888
+                | crate::image_viewer::model::LvglColorFormat::BGRA8888
+                | crate::image_viewer::model::LvglColorFormat::I8
+        )
+    {
+        return Err(
+            "MIRX frequency coding requires RGB888, RGBA8888, BGRA8888, or I8 samples".to_string(),
+        );
+    }
+    if output_format == ImageFormat::MIRX
+        && params.mirx_coding == crate::image_viewer::model::MirxCoding::FrequencyQuantized
+        && !(1..=100).contains(&params.mirx_quality)
+    {
+        return Err("MIRX frequency quality must be between 1 and 100".to_string());
+    }
     let preserve_indexed = output_format == ImageFormat::LVGL
         || (output_format == ImageFormat::MIRX
             && matches!(
@@ -1284,7 +1308,7 @@ pub fn convert_image(
             None
         },
         compress: params.compression.into(),
-        mirx_coding: params.mirx_coding.into(),
+        mirx_coding: params.mirx_coding.into_coding(params.mirx_quality),
         png_color_mode: match params.png_color_mode {
             crate::image_viewer::model::PngColorMode::Rgba => icu_lib::PngColorMode::Rgba,
             crate::image_viewer::model::PngColorMode::Rgb => icu_lib::PngColorMode::Rgb,
@@ -2341,6 +2365,63 @@ mod tests {
         assert_eq!(
             convert_image(&item, &params).unwrap_err(),
             "MIRX Pixel coding requires RGB888 or RGBA8888 samples"
+        );
+    }
+
+    #[test]
+    fn mirx_viewer_exports_quantized_frequency_with_exact_alpha() {
+        let item = image_item_from_midata(
+            "frequency.png".to_string(),
+            ImageInfo {
+                width: 8,
+                height: 8,
+                data_size: 0,
+                format: "rgba".to_string(),
+                other_info: serde_json::Value::Null,
+            },
+            MiData::RGBA(image::RgbaImage::from_fn(8, 8, |x, y| {
+                image::Rgba([
+                    (x * 29 + y * 5) as u8,
+                    (x * 7 + y * 41) as u8,
+                    (x * 13 + y * 19) as u8,
+                    (x * 17 + y * 23) as u8,
+                ])
+            })),
+        )
+        .unwrap();
+        let mut params = ConvertParams::default();
+        params.output_format = ImageFormat::MIRX;
+        params.color_format = crate::image_viewer::model::LvglColorFormat::RGBA8888;
+        params.mirx_coding = crate::image_viewer::model::MirxCoding::FrequencyQuantized;
+        params.mirx_quality = 60;
+        let before = item.current_pixels().0;
+        let (bytes, extension) = convert_image(&item, &params).unwrap();
+        assert_eq!(extension, "mirx");
+        let MiData::RGBA(decoded) = icu_lib::endecoder::mirui::Mirx {}.decode(bytes) else {
+            panic!("expected RGBA image");
+        };
+        for (before, after) in before.iter().zip(decoded.pixels()) {
+            assert_eq!(before.a(), after[3]);
+        }
+    }
+
+    #[test]
+    fn mirx_viewer_rejects_invalid_frequency_layout_and_quality() {
+        let item = semi_transparent_indexed_item();
+        let mut params = ConvertParams::default();
+        params.output_format = ImageFormat::MIRX;
+        params.color_format = crate::image_viewer::model::LvglColorFormat::I1;
+        params.mirx_coding = crate::image_viewer::model::MirxCoding::FrequencyReversible;
+        assert_eq!(
+            convert_image(&item, &params).unwrap_err(),
+            "MIRX frequency coding requires RGB888, RGBA8888, BGRA8888, or I8 samples"
+        );
+        params.color_format = crate::image_viewer::model::LvglColorFormat::RGBA8888;
+        params.mirx_coding = crate::image_viewer::model::MirxCoding::FrequencyQuantized;
+        params.mirx_quality = 0;
+        assert_eq!(
+            convert_image(&item, &params).unwrap_err(),
+            "MIRX frequency quality must be between 1 and 100"
         );
     }
 

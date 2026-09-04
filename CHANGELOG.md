@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - 🐛 Serve the latest stable shell installer at `https://i.to01.icu/install.sh` after successful Release and site deployments.
+- ✨ Encode and inspect MIRX reversible and quantized frequency images from the library, CLI, and Viewer with explicit quality and sample-layout validation.
 
 ## [v0.10.0] - 2026-08-29
 

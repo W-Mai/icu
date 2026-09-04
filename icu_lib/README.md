@@ -48,7 +48,7 @@ fn main() {
 }
 ```
 
-`EncoderParams` also supports dithering, LVGL compression, and raw image header options. See the public API and the main repository README for the current CLI-level examples.
+`EncoderParams` also supports dithering, format-specific compression, MIRX sample coding, and raw image header options. `MirxCoding::FrequencyReversible` preserves supported samples exactly; `MirxCoding::FrequencyQuantized(quality)` accepts qualities from 1 through 100 and preserves alpha/index components exactly. See the public API and the main repository README for CLI-level examples.
 
 ## Architecture
 

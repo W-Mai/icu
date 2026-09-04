@@ -212,11 +212,35 @@ fn surface_to_rgba(surface: mirx::image::SurfaceView<'_>) -> Option<RgbaImage> {
     )
 }
 
+struct EncodedStream {
+    id: mirx::CodingId,
+    revision: u16,
+    params: Vec<u8>,
+    bytes: Vec<u8>,
+}
+
+impl EncodedStream {
+    fn new(record: mirx::media::CodingRecord<'_>, bytes: Vec<u8>) -> Self {
+        Self {
+            id: record.id(),
+            revision: record.revision(),
+            params: record.params().to_vec(),
+            bytes,
+        }
+    }
+
+    fn record(&self) -> mirx::media::CodingRecord<'_> {
+        mirx::media::CodingRecord::new(self.id, self.revision, &self.params)
+    }
+}
+
 fn encode_stream(
     samples: &[u8],
     layout: mirx::image::SampleLayout,
+    width: u32,
+    height: u32,
     coding: MirxCoding,
-) -> Option<(mirx::media::CodingRecord<'static>, Vec<u8>)> {
+) -> Option<EncodedStream> {
     match coding {
         MirxCoding::Raw => None,
         MirxCoding::Pixel => {
@@ -227,7 +251,7 @@ fn encode_stream(
             let mut output = vec![0; codec.encoded_bound(pixels).ok()?];
             let len = codec.encode_into(samples, &mut output).ok()?;
             output.truncate(len);
-            Some((codec.record(), output))
+            Some(EncodedStream::new(codec.record(), output))
         }
         MirxCoding::Rle => {
             let element = bytes_per_pixel(layout.color_format()?).unwrap_or(1) as u8;
@@ -235,7 +259,7 @@ fn encode_stream(
             let mut output = vec![0; codec.encoded_bound(samples.len()).ok()?];
             let len = codec.encode_into(samples, &mut output).ok()?;
             output.truncate(len);
-            Some((codec.record(), output))
+            Some(EncodedStream::new(codec.record(), output))
         }
         MirxCoding::Lz4 => {
             let codec = mirx::coding::Lz4::new();
@@ -244,7 +268,23 @@ fn encode_stream(
             let mut output = vec![0; codec.encoded_bound(samples.len()).ok()?];
             let len = encoder.encode_into(samples, &mut output).ok()?;
             output.truncate(len);
-            Some((codec.record(), output))
+            Some(EncodedStream::new(codec.record(), output))
+        }
+        MirxCoding::FrequencyReversible | MirxCoding::FrequencyQuantized(_) => {
+            let geometry =
+                mirx::coding::FrequencyGeometry::for_plane(layout, 0, width, height).ok()?;
+            let codec = match coding {
+                MirxCoding::FrequencyReversible => mirx::coding::Frequency::reversible(),
+                MirxCoding::FrequencyQuantized(quality) => {
+                    mirx::coding::Frequency::quantized(quality).ok()?
+                }
+                _ => unreachable!("frequency coding selected above"),
+            };
+            let mut output = vec![0; codec.encoded_bound(geometry).ok()?];
+            let len = codec.encode_into(geometry, samples, &mut output).ok()?;
+            output.truncate(len);
+            let mut params = [0];
+            Some(EncodedStream::new(codec.record_into(&mut params), output))
         }
     }
 }
@@ -264,8 +304,8 @@ fn encode_coded_image(
     let surface = mirx::image::SurfaceDescriptor::new(width, height, layout, color).ok()?;
     let stride = format.minimum_stride(width)?;
     let samples = rgba_to_mirx_pixels(img, format, stride)?;
-    let (record, stream) = encode_stream(&samples, layout, coding)?;
-    let asset = mirx::image::EncodedImageAsset::new(surface, record, &stream);
+    let stream = encode_stream(&samples, layout, width, height, coding)?;
+    let asset = mirx::image::EncodedImageAsset::new(surface, stream.record(), &stream.bytes);
     asset.preflight(&mirx::PayloadLimits::HOST).ok()?;
     let mut document = mirx::Document::new_with_limits(mirx::PayloadLimits::HOST);
     let id = document.push_encoded_image(&asset).ok()?;
@@ -302,9 +342,9 @@ fn encode_indexed_image(
     }
     let stride = format.minimum_stride(image.width)?;
     let samples = indexed_to_mirx_pixels(image, format, stride)?;
-    let (record, stream) = encode_stream(&samples, layout, coding)?;
-    let asset =
-        mirx::image::EncodedImageAsset::new(surface, record, &stream).with_color_table(&palette);
+    let stream = encode_stream(&samples, layout, image.width, image.height, coding)?;
+    let asset = mirx::image::EncodedImageAsset::new(surface, stream.record(), &stream.bytes)
+        .with_color_table(&palette);
     asset.preflight(&mirx::PayloadLimits::HOST).ok()?;
     let mut document = mirx::Document::new_with_limits(mirx::PayloadLimits::HOST);
     let id = document.push_encoded_image(&asset).ok()?;
@@ -342,6 +382,10 @@ fn coding_label(id: mirx::CodingId) -> String {
         "RLE".to_owned()
     } else if id == mirx::CodingId::LZ4 {
         "LZ4".to_owned()
+    } else if id == mirx::CodingId::FREQUENCY_REVERSIBLE {
+        "FREQUENCY_REVERSIBLE".to_owned()
+    } else if id == mirx::CodingId::FREQUENCY_QUANTIZED {
+        "FREQUENCY_QUANTIZED".to_owned()
     } else if id == mirx::CodingId::RAW {
         "RAW".to_owned()
     } else {
@@ -716,6 +760,47 @@ mod tests {
     }
 
     #[test]
+    fn reversible_frequency_roundtrip_uses_mirx_frequency_coding() {
+        roundtrip_coding(
+            MirxCoding::FrequencyReversible,
+            mirx::CodingId::FREQUENCY_REVERSIBLE,
+        );
+    }
+
+    #[test]
+    fn quantized_frequency_preserves_alpha_and_reports_its_profile() {
+        let img = RgbaImage::from_fn(13, 9, |x, y| {
+            Rgba([
+                (x * 31 + y * 7) as u8,
+                (x * 3 + y * 47) as u8,
+                (x * 19 + y * 23) as u8,
+                (x * 17 + y * 29) as u8,
+            ])
+        });
+        let bytes = Mirx.encode(
+            &MiData::RGBA(img.clone()),
+            EncoderParams::default()
+                .with_color_format(ColorFormat::RGBA8888)
+                .with_mirx_coding(MirxCoding::FrequencyQuantized(55)),
+        );
+        let info = Mirx.info(&bytes);
+        assert_eq!(
+            info.other_info["chunks"]["image"]["coding"][0],
+            "FREQUENCY_QUANTIZED"
+        );
+        let MiData::RGBA(decoded) = Mirx.decode(bytes) else {
+            panic!("expected RGBA image");
+        };
+        assert_eq!(decoded.dimensions(), img.dimensions());
+        let mut changed = false;
+        for (before, after) in img.pixels().zip(decoded.pixels()) {
+            assert_eq!(before[3], after[3]);
+            changed |= before.0[..3] != after.0[..3];
+        }
+        assert!(changed);
+    }
+
+    #[test]
     fn native_pixel_rejects_unsupported_sample_layout() {
         let bytes = Mirx.encode(
             &MiData::RGBA(sample_rgba(2, 2)),
@@ -747,12 +832,46 @@ mod tests {
     }
 
     #[test]
+    fn indexed_i8_frequency_profiles_preserve_indexes_and_color_table() {
+        for coding in [
+            MirxCoding::FrequencyReversible,
+            MirxCoding::FrequencyQuantized(25),
+        ] {
+            let mut indexed = sample_indexed();
+            indexed.bpp = 8;
+            let expected = indexed.rgba.clone();
+            let bytes = Mirx.encode(
+                &MiData::INDEXED(indexed),
+                EncoderParams::default()
+                    .with_color_format(ColorFormat::I8)
+                    .with_mirx_coding(coding),
+            );
+            assert!(!bytes.is_empty(), "{coding:?}");
+            match Mirx.decode(bytes) {
+                MiData::RGBA(decoded) => assert_eq!(decoded, expected, "{coding:?}"),
+                other => panic!("expected RGBA, got {}", other.variant_name()),
+            }
+        }
+    }
+
+    #[test]
     fn indexed_pixel_profile_is_rejected_without_raw_fallback() {
         let bytes = Mirx.encode(
             &MiData::INDEXED(sample_indexed()),
             EncoderParams::default()
                 .with_color_format(ColorFormat::I2)
                 .with_mirx_coding(MirxCoding::Pixel),
+        );
+        assert!(bytes.is_empty());
+    }
+
+    #[test]
+    fn frequency_profile_rejects_packed_indexes_without_raw_fallback() {
+        let bytes = Mirx.encode(
+            &MiData::INDEXED(sample_indexed()),
+            EncoderParams::default()
+                .with_color_format(ColorFormat::I2)
+                .with_mirx_coding(MirxCoding::FrequencyReversible),
         );
         assert!(bytes.is_empty());
     }
