@@ -8,6 +8,7 @@ use serde_json::json;
 pub mod font_bake;
 pub mod font_contour;
 pub mod font_render;
+pub mod frames;
 pub mod scene_render;
 
 pub struct Mirx;
@@ -26,7 +27,11 @@ fn aligned_stride(format: MirxColorFormat, width: u32, alignment: u32) -> Option
         .checked_mul(alignment)
 }
 
-fn rgba_to_mirx_pixels(img: &RgbaImage, cf: MirxColorFormat, stride: u32) -> Option<Vec<u8>> {
+pub(super) fn rgba_to_mirx_pixels(
+    img: &RgbaImage,
+    cf: MirxColorFormat,
+    stride: u32,
+) -> Option<Vec<u8>> {
     let (w, h) = img.dimensions();
     let raw = img.as_raw();
     let bpp = bytes_per_pixel(cf)?;
