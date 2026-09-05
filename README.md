@@ -93,6 +93,7 @@ Run `icu --help` or `icu <command> --help` for the complete, version-specific op
 | `icu info <FILE>` | Print detected file metadata as YAML. |
 | `icu show [FILES]...` | Open the native viewer. With no files, it opens an empty viewer. |
 | `icu convert <INPUTS>... -F <FORMAT>` | Convert files or a directory to another format. |
+| `icu encode-frames <INPUT> -O <OUTPUT>` | Encode an animated GIF, APNG, or WebP as a MIRX FRAMES timeline. |
 | `icu bake-font <TTF>` | Bake a TTF/OTF font into a MIRX SDF or grayscale atlas. |
 | `icu merge-fonts <INPUTS>... -O <OUTPUT>` | Merge MIRX font files into one multi-font bundle. |
 
@@ -167,7 +168,17 @@ icu convert res/img_0.png -O output -F mirx -C rgba8888 --mirx-coding frequency-
 icu convert res/img_0.png -O output -F mirx -C rgba8888 --mirx-coding frequency-quantized --mirx-quality 75
 ```
 
-The Viewer imports animated WebP and exports multi-frame sources or workspace groups as lossless animated WebP. The same pure-Rust path is used on native and WebAssembly builds. CLI `convert` continues to process WebP inputs independently as static files.
+Encode a complete animation timeline while retaining source frame timing:
+
+```shell
+icu encode-frames motion.webp -O motion.mirx --format rgba8888 --input-align 64
+```
+
+MIRX FRAMES output compares RAW, native pixel, RLE, LZ4, reversible frequency, frame residual, omitted-frame, and sparse-tile representations by their complete stored size. `--quality 1..100` explicitly admits quantized frequency candidates; without it, every selected representation is lossless. `--max-delta-frames` bounds recovery work, `--tile WIDTHxHEIGHT` controls sparse regions, and `--tile none` disables them. `--input-align` aligns encoded DATA addresses independently from the runtime output stride and address requirements.
+
+A zero source-frame duration uses `--default-duration`; positive durations are converted to `--timebase` ticks and remain at least one tick. `--play-count 0` means unbounded repetition.
+
+The Viewer imports animated WebP and exports multi-frame sources or workspace groups as lossless animated WebP. The same pure-Rust path is used on native and WebAssembly builds. CLI `convert` processes WebP inputs as static files, while `encode-frames` preserves an animated timeline.
 
 `--output-category c-array` is reserved by the CLI but is not implemented.
 
@@ -267,7 +278,7 @@ The library converts external formats through the shared `MiData` model:
 input bytes -> EnDecoder::decode -> MiData -> EnDecoder::encode -> output bytes
 ```
 
-`MiData` represents RGBA images, grayscale images, vector scenes, fonts, and indexed images. Format-specific implementations live under [`icu_lib/src/endecoder`](icu_lib/src/endecoder), while [`icu_lib/src/midata`](icu_lib/src/midata) defines the intermediate model. See [`icu_lib/README.md`](icu_lib/README.md) for a library example.
+`MiData` represents RGBA images, grayscale images, vector scenes, fonts, and indexed images. Animation timelines use `endecoder::common::animation`; MIRX FRAMES authoring uses `endecoder::mirui::frames`. Format-specific implementations live under [`icu_lib/src/endecoder`](icu_lib/src/endecoder), while [`icu_lib/src/midata`](icu_lib/src/midata) defines the static intermediate model. See [`icu_lib/README.md`](icu_lib/README.md) for library examples.
 
 ## Repository layout
 

@@ -7,6 +7,7 @@ Image Converter Ultra Library (ICU-LIB) is the reusable format and image-process
 - Decode and encode common raster image formats.
 - Decode and encode LVGL v8/v9 image data.
 - Decode and encode MIRX flat images, scenes, indexed images, and font chunks.
+- Decode GIF, APNG, and animated WebP timelines and encode MIRX FRAMES containers.
 - Parse TTF, OTF, and TTC font outlines and metadata.
 - Import and export SVG scene data.
 - Provide reusable image post-processing, quantization, dithering, and diff helpers.
@@ -47,6 +48,29 @@ fn main() {
     fs::write("output.bin", output).expect("failed to write output");
 }
 ```
+
+Encode an animation with lossless profile selection and 64-byte encoded-input alignment:
+
+```rust
+use icu_lib::endecoder::common::animation;
+use icu_lib::endecoder::mirui::frames::{self, FramesOptions};
+use std::fs;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let source = fs::read("input.webp")?;
+    let animation = animation::decode(&source)?.ok_or("input is not animated")?;
+    let output = frames::encode(
+        &animation,
+        FramesOptions::new()
+            .with_input_alignment(64)
+            .with_max_delta_frames(8),
+    )?;
+    fs::write("output.mirx", output.bytes())?;
+    Ok(())
+}
+```
+
+`FramesOptions` enables only lossless candidates by default. `with_quality` explicitly adds quantized frequency candidates. Encoded-input alignment controls every stored DATA address; decoded output stride and address alignment remain runtime requirements.
 
 `EncoderParams` also supports dithering, format-specific compression, MIRX sample coding, and raw image header options. `MirxCoding::FrequencyReversible` preserves supported samples exactly; `MirxCoding::FrequencyQuantized(quality)` accepts qualities from 1 through 100 and preserves alpha/index components exactly. See the public API and the main repository README for CLI-level examples.
 

@@ -126,6 +126,9 @@ pub(crate) enum SubCommands {
         background: Option<[u8; 3]>,
     },
 
+    /// Encode an animated GIF, APNG, or WebP as a MIRX FRAMES timeline
+    EncodeFrames(EncodeFramesArgs),
+
     /// Bake a TTF/OTF font into a mirx FONT chunk (SDF or grayscale atlas)
     BakeFont {
         #[arg(value_hint = clap::ValueHint::FilePath)]
@@ -164,6 +167,53 @@ pub(crate) enum SubCommands {
         #[arg(short = 'O', long, value_hint = clap::ValueHint::FilePath)]
         output: String,
     },
+}
+
+#[derive(clap::Args, Debug)]
+pub(crate) struct EncodeFramesArgs {
+    /// Animated GIF, APNG, or WebP source
+    #[arg(value_hint = clap::ValueHint::FilePath)]
+    pub(crate) input: String,
+
+    /// MIRX output file
+    #[arg(short = 'O', long, value_hint = clap::ValueHint::FilePath)]
+    pub(crate) output: String,
+
+    /// Decoded frame sample format
+    #[arg(long, value_enum, default_value = "rgba8888")]
+    pub(crate) format: MirxFrameFormat,
+
+    /// Timeline ticks per second
+    #[arg(long, default_value_t = 1_000, value_parser = clap::value_parser!(u32).range(1..=1_000_000))]
+    pub(crate) timebase: u32,
+
+    /// Duration in ticks used when a source frame has zero duration
+    #[arg(long, default_value_t = 100, value_parser = clap::value_parser!(u32).range(1..))]
+    pub(crate) default_duration: u32,
+
+    /// Total play count; zero repeats without a limit
+    #[arg(long, default_value_t = 0)]
+    pub(crate) play_count: u32,
+
+    /// Maximum dependent frames between independently decodable frames
+    #[arg(long, default_value_t = 8)]
+    pub(crate) max_delta_frames: u16,
+
+    /// Sparse tile geometry as WIDTHxHEIGHT, or none
+    #[arg(long, default_value = "32x32")]
+    pub(crate) tile: FramesTile,
+
+    /// Required alignment for every encoded DATA input address
+    #[arg(long, default_value = "1", value_parser = parse_power_of_two)]
+    pub(crate) input_align: u32,
+
+    /// Enable quantized frequency candidates with a quality from 1 to 100
+    #[arg(long, value_parser = clap::value_parser!(u8).range(1..=100))]
+    pub(crate) quality: Option<u8>,
+
+    /// Replace an existing output file
+    #[arg(short = 'r', long)]
+    pub(crate) override_output: bool,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
@@ -211,6 +261,72 @@ impl MirxCodingMode {
     const fn is_frequency(self) -> bool {
         matches!(self, Self::FrequencyReversible | Self::FrequencyQuantized)
     }
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MirxFrameFormat {
+    Rgb565,
+    Rgb565Swapped,
+    Rgb888,
+    Xrgb8888,
+    Rgba8888,
+    Bgra8888,
+}
+
+impl MirxFrameFormat {
+    pub(crate) const fn color_format(self) -> icu_lib::endecoder::ColorFormat {
+        match self {
+            Self::Rgb565 => icu_lib::endecoder::ColorFormat::RGB565,
+            Self::Rgb565Swapped => icu_lib::endecoder::ColorFormat::RGB565Swapped,
+            Self::Rgb888 => icu_lib::endecoder::ColorFormat::RGB888,
+            Self::Xrgb8888 => icu_lib::endecoder::ColorFormat::XRGB8888,
+            Self::Rgba8888 => icu_lib::endecoder::ColorFormat::RGBA8888,
+            Self::Bgra8888 => icu_lib::endecoder::ColorFormat::BGRA8888,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct FramesTile(Option<(u32, u32)>);
+
+impl FramesTile {
+    pub(crate) const fn dimensions(self) -> Option<(u32, u32)> {
+        self.0
+    }
+}
+
+impl std::str::FromStr for FramesTile {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        if value.eq_ignore_ascii_case("none") {
+            return Ok(Self(None));
+        }
+        let (width, height) = value
+            .split_once('x')
+            .or_else(|| value.split_once('X'))
+            .ok_or_else(|| "tile must use WIDTHxHEIGHT or none".to_string())?;
+        let width = width
+            .parse::<u32>()
+            .map_err(|_| "tile width must be positive".to_string())?;
+        let height = height
+            .parse::<u32>()
+            .map_err(|_| "tile height must be positive".to_string())?;
+        if width == 0 || height == 0 {
+            return Err("tile dimensions must be positive".to_string());
+        }
+        Ok(Self(Some((width, height))))
+    }
+}
+
+fn parse_power_of_two(value: &str) -> Result<u32, String> {
+    let alignment = value
+        .parse::<u32>()
+        .map_err(|_| "alignment must be a positive power of two".to_string())?;
+    if !alignment.is_power_of_two() {
+        return Err("alignment must be a positive power of two".to_string());
+    }
+    Ok(alignment)
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
@@ -366,7 +482,9 @@ pub fn parse_args() -> Args {
                         .exit();
                 }
             }
-            SubCommands::BakeFont { .. } | SubCommands::MergeFonts { .. } => {}
+            SubCommands::EncodeFrames(_)
+            | SubCommands::BakeFont { .. }
+            | SubCommands::MergeFonts { .. } => {}
         }
     } else {
         command.flatten_help(true).print_long_help().unwrap();
@@ -374,4 +492,71 @@ pub fn parse_args() -> Args {
     }
 
     args
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_mirx_frame_options() {
+        let args = Args::try_parse_from([
+            "icu",
+            "encode-frames",
+            "motion.webp",
+            "-O",
+            "motion.mirx",
+            "--format",
+            "rgb565-swapped",
+            "--tile",
+            "16x8",
+            "--input-align",
+            "64",
+            "--quality",
+            "75",
+        ])
+        .unwrap();
+        let Some(SubCommands::EncodeFrames(EncodeFramesArgs {
+            format,
+            tile,
+            input_align,
+            quality,
+            ..
+        })) = args.commands
+        else {
+            panic!("expected encode-frames command");
+        };
+        assert_eq!(format, MirxFrameFormat::Rgb565Swapped);
+        assert_eq!(tile.dimensions(), Some((16, 8)));
+        assert_eq!(input_align, 64);
+        assert_eq!(quality, Some(75));
+    }
+
+    #[test]
+    fn rejects_invalid_frame_geometry_and_alignment() {
+        assert!(
+            Args::try_parse_from([
+                "icu",
+                "encode-frames",
+                "motion.gif",
+                "-O",
+                "motion.mirx",
+                "--tile",
+                "0x32",
+            ])
+            .is_err()
+        );
+        assert!(
+            Args::try_parse_from([
+                "icu",
+                "encode-frames",
+                "motion.gif",
+                "-O",
+                "motion.mirx",
+                "--input-align",
+                "3",
+            ])
+            .is_err()
+        );
+    }
 }

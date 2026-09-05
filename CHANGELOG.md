@@ -4,6 +4,7 @@
 
 - 🐛 Serve the latest stable shell installer at `https://i.to01.icu/install.sh` after successful Release and site deployments.
 - ✨ Encode and inspect MIRX reversible and quantized frequency images from the library, CLI, and Viewer with explicit quality and sample-layout validation.
+- ✨ Decode GIF, APNG, and animated WebP timelines through one library API and encode MIRX FRAMES containers with automatic lossless profile selection, optional quantized frequency candidates, bounded frame dependencies, sparse tiles, per-frame timing, and encoded-input alignment.
 
 ## [v0.10.0] - 2026-08-29
 

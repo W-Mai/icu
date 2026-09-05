@@ -1,4 +1,4 @@
-use crate::arguments::{PngCompressionMode, PngMode, SubCommands, parse_args};
+use crate::arguments::{EncodeFramesArgs, PngCompressionMode, PngMode, SubCommands, parse_args};
 use crate::converter::{ImageFormatCategory, ImageFormats, OutputFileFormatCategory};
 use crate::image_viewer::show_image;
 use eframe::egui::DroppedFile;
@@ -265,6 +265,7 @@ pub fn process() -> Result<(), Box<dyn std::error::Error>> {
                 duration.as_secs_f64() - user_duration
             );
         }
+        SubCommands::EncodeFrames(args) => encode_frames_command(args)?,
         SubCommands::BakeFont {
             ttf,
             charset,
@@ -406,6 +407,64 @@ fn get_info_with(
         ImageFormatCategory::Common => Ok(common::AutoDetect {}.info(&data)),
         ImageFormatCategory::LVGL_V9 => Ok(lvgl::LVGL {}.info(&data)),
     }
+}
+
+fn encode_frames_command(args: &EncodeFramesArgs) -> Result<(), Box<dyn std::error::Error>> {
+    use icu_lib::endecoder::common::animation;
+    use icu_lib::endecoder::mirui::frames::{self, FramesOptions};
+
+    let output = Path::new(&args.output);
+    if output.exists() && !args.override_output {
+        return Err(format!(
+            "output file already exists: {} (use --override-output to replace it)",
+            output.display()
+        )
+        .into());
+    }
+    let source = fs::read(&args.input)?;
+    let animation =
+        animation::decode(&source)?.ok_or("input is not an animated GIF, APNG, or WebP")?;
+    let mut options = FramesOptions::new()
+        .with_format(args.format.color_format())
+        .with_timebase(args.timebase)
+        .with_default_duration(args.default_duration)
+        .with_play_count(args.play_count)
+        .with_max_delta_frames(args.max_delta_frames)
+        .with_input_alignment(args.input_align);
+    options = match args.tile.dimensions() {
+        Some((width, height)) => options.with_tiles(width, height),
+        None => options.without_tiles(),
+    };
+    if let Some(quality) = args.quality {
+        options = options.with_quality(quality);
+    }
+    let encoded = frames::encode(&animation, options)?;
+    if let Some(parent) = output.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(output, encoded.bytes())?;
+    println!(
+        "generated {} ({} frames, {}x{}, {} bytes)",
+        output.display(),
+        animation.frames().len(),
+        animation.width(),
+        animation.height(),
+        encoded.bytes().len()
+    );
+    for report in encoded.reports() {
+        println!(
+            "  frame {}: {:?} / {:?}, body {} B, stored {} B, recovery {}",
+            report.frame(),
+            report.storage(),
+            report.encoding(),
+            report.encoded_bytes(),
+            report.stored_bytes(),
+            report.delta_frames()
+        );
+    }
+    Ok(())
 }
 
 fn bake_font_command(
