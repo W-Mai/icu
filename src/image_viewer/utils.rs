@@ -5,11 +5,10 @@ use crate::image_viewer::model::{
 };
 use eframe::egui::{Color32, DroppedFile};
 use icu_lib::EncoderParams;
+use icu_lib::endecoder::common::animation;
 use icu_lib::endecoder::{EnDecoder, ImageInfo};
-use icu_lib::image::AnimationDecoder;
 use icu_lib::midata::MiData;
 use image::codecs::gif::{GifEncoder, Repeat};
-use image::codecs::webp::WebPDecoder;
 use image::{Delay, Frame as EncodedFrame, RgbaImage};
 #[cfg(not(target_arch = "wasm32"))]
 use std::collections::HashSet;
@@ -112,39 +111,29 @@ fn decode_dropped_file(file: &DroppedFile, input_format: ImageFormatCategory) ->
     image_item_from_midata(file_path_info, coder.info(&data), mi_data)
 }
 
-fn is_webp(data: &[u8]) -> bool {
-    data.get(..4) == Some(b"RIFF") && data.get(8..12) == Some(b"WEBP")
-}
-
 fn decode_animation(path: &str, data: &[u8]) -> Option<ImageItem> {
-    let frames = if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
-        let decoder =
-            icu_lib::image::codecs::gif::GifDecoder::new(Cursor::new(data.to_vec())).ok()?;
-        decoder.into_frames().collect_frames().ok()?
-    } else if data.starts_with(&[137, 80, 78, 71, 13, 10, 26, 10]) {
-        let decoder =
-            icu_lib::image::codecs::png::PngDecoder::new(Cursor::new(data.to_vec())).ok()?;
-        if !decoder.is_apng().ok()? {
-            return None;
-        }
-        decoder.apng().ok()?.into_frames().collect_frames().ok()?
-    } else if is_webp(data) {
-        let decoder = WebPDecoder::new(Cursor::new(data)).ok()?;
-        if !decoder.has_animation() {
-            return None;
-        }
-        decoder.into_frames().collect_frames().ok()?
-    } else {
-        return None;
-    };
-
-    if frames.len() <= 1 {
+    let animation = animation::decode(data).ok()??;
+    if animation.frames().len() <= 1 {
         return None;
     }
 
-    let frames = frames
+    let frames = animation
+        .into_frames()
         .into_iter()
-        .map(frame_from_image_frame)
+        .map(|frame| {
+            let delay = frame.duration().as_duration();
+            let buffer = frame.into_pixels();
+            let width = buffer.width();
+            let height = buffer.height();
+            Frame {
+                pixels: color32_from_rgba(buffer.chunks(4)),
+                width,
+                height,
+                left: 0,
+                top: 0,
+                delay,
+            }
+        })
         .collect::<Vec<_>>();
     let width = frames.first().map(|f| f.width).unwrap_or(0);
     let height = frames.first().map(|f| f.height).unwrap_or(0);
@@ -257,33 +246,6 @@ pub(crate) fn straight_rgba_from_color32(pixels: &[Color32]) -> Vec<u8> {
         .iter()
         .flat_map(Color32::to_srgba_unmultiplied)
         .collect()
-}
-
-fn frame_from_image_frame(frame: icu_lib::image::Frame) -> Frame {
-    let delay = delay_to_duration(frame.delay());
-    let left = frame.left();
-    let top = frame.top();
-    let buffer = frame.into_buffer();
-    let width = buffer.width();
-    let height = buffer.height();
-    let pixels = color32_from_rgba(buffer.chunks(4));
-    Frame {
-        pixels,
-        width,
-        height,
-        left,
-        top,
-        delay,
-    }
-}
-
-fn delay_to_duration(delay: icu_lib::image::Delay) -> Duration {
-    let (numer, denom) = delay.numer_denom_ms();
-    if denom == 0 {
-        Duration::ZERO
-    } else {
-        Duration::from_secs_f64(numer as f64 / denom as f64 / 1000.0)
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

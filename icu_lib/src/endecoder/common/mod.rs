@@ -1,3 +1,5 @@
+pub mod animation;
+
 use crate::{EncoderParams, PngColorMode, PngCompression};
 use png;
 use std::io::Cursor;
