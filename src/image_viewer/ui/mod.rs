@@ -156,13 +156,13 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                             let representation = font.representation(0);
                             let kind = representation
                                 .map(|value| match value.metadata().kind() {
-                                    icu_lib::mirx::FontRepresentationKind::Coverage { .. } => {
+                                    icu_lib::mirx::font::FontRepresentationKind::Coverage { .. } => {
                                         "coverage"
                                     }
-                                    icu_lib::mirx::FontRepresentationKind::SignedDistance {
+                                    icu_lib::mirx::font::FontRepresentationKind::SignedDistance {
                                         ..
                                     } => "sdf",
-                                    icu_lib::mirx::FontRepresentationKind::Application(_) => {
+                                    icu_lib::mirx::font::FontRepresentationKind::Application(_) => {
                                         "application"
                                     }
                                     _ => "unknown",
@@ -172,16 +172,26 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                                 .map(|value| value.metadata().design_ppem())
                                 .unwrap_or(0);
                             let bit_depth = representation
-                                .map(|value| match value.metadata().kind() {
-                                    icu_lib::mirx::FontRepresentationKind::Coverage { bits }
-                                    | icu_lib::mirx::FontRepresentationKind::SignedDistance {
+                                .map(|value| {
+                                    match value.metadata().kind() {
+                                    icu_lib::mirx::font::FontRepresentationKind::Coverage { bits }
+                                    | icu_lib::mirx::font::FontRepresentationKind::SignedDistance {
                                         bits,
                                         ..
                                     } => bits,
                                     _ => 0,
+                                }
                                 })
                                 .unwrap_or(0);
-                            let line = representation.map(|value| value.line_metrics());
+                            let face = font.face();
+                            let metric_scale =
+                                f32::from(design_ppem) / f32::from(face.units_per_em()).max(1.0);
+                            let ascender = face.ascender().to_f32() * metric_scale;
+                            let descender = face.descender().to_f32() * metric_scale;
+                            let line_height = (face.ascender().to_f32()
+                                - face.descender().to_f32()
+                                + face.line_gap().to_f32())
+                                * metric_scale;
                             widgets::info_row(ui, t!("kind").as_ref(), kind);
                             widgets::info_row(
                                 ui,
@@ -192,7 +202,7 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                             widgets::info_row(
                                 ui,
                                 t!("glyphs").as_ref(),
-                                &font.codepoints().len().to_string(),
+                                &font.cmap().len().to_string(),
                             );
                             widgets::info_row(
                                 ui,
@@ -203,23 +213,17 @@ fn draw_info_tab(ui: &mut egui::Ui, state: &mut ViewerState) {
                             widgets::info_row(
                                 ui,
                                 t!("ascender").as_ref(),
-                                &line
-                                    .map(|value| format!("{:.2}", value.ascent().to_f32()))
-                                    .unwrap_or_default(),
+                                &format!("{ascender:.2}"),
                             );
                             widgets::info_row(
                                 ui,
                                 t!("descender").as_ref(),
-                                &line
-                                    .map(|value| format!("{:.2}", value.descent().to_f32()))
-                                    .unwrap_or_default(),
+                                &format!("{descender:.2}"),
                             );
                             widgets::info_row(
                                 ui,
                                 t!("line_height").as_ref(),
-                                &line
-                                    .map(|value| format!("{:.2}", value.line_height().to_f32()))
-                                    .unwrap_or_default(),
+                                &format!("{line_height:.2}"),
                             );
                         });
                     }

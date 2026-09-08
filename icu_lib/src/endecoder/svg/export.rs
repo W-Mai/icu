@@ -1,9 +1,9 @@
-use mirx::{
-    Color, FillRule, GradientUnits, LineCap, LineJoin, Paint, Path, PathCmd, Scene, SceneOp,
-    SpreadMode, Transform,
+use mirx::scene::{
+    FillRule, GradientUnits, LineCap, LineJoin, Paint, Path, PathCmd, Scene, SceneOp, SpreadMode,
 };
+use mirx::types::{Color, Transform};
 
-fn fixed_f(v: mirx::Fixed) -> f32 {
+fn fixed_f(v: mirx::types::Fixed) -> f32 {
     v.to_f32()
 }
 
@@ -170,7 +170,7 @@ fn transform_attr_named(name: &str, tf: &Transform) -> String {
     )
 }
 
-fn push_gradient_stops(out: &mut String, stops: &[mirx::GradientStop]) {
+fn push_gradient_stops(out: &mut String, stops: &[mirx::scene::GradientStop]) {
     for stop in stops {
         out.push_str(&format!(
             "<stop offset=\"{}\" stop-color=\"{}\" stop-opacity=\"{:.3}\"/>",
@@ -363,7 +363,7 @@ pub fn scene_to_svg(scene: &Scene, width: u32, height: u32) -> String {
                     color_hex(color),
                     *opa as f32 / 255.0
                 );
-                if *radius != mirx::Fixed::from_int(0) {
+                if *radius != mirx::types::Fixed::from_int(0) {
                     attrs.push_str(&format!(
                         " rx=\"{}\" ry=\"{}\"",
                         fixed_f(*radius),
@@ -394,7 +394,7 @@ pub fn scene_to_svg(scene: &Scene, width: u32, height: u32) -> String {
                     fixed_f(*width),
                     *opa as f32 / 255.0
                 );
-                if *radius != mirx::Fixed::from_int(0) {
+                if *radius != mirx::types::Fixed::from_int(0) {
                     attrs.push_str(&format!(
                         " rx=\"{}\" ry=\"{}\"",
                         fixed_f(*radius),
@@ -484,7 +484,8 @@ fn cmd_endpoint(cmd: &PathCmd) -> Option<(f32, f32)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mirx::{Fixed, GradientStop, LinearGradient, Point};
+    use mirx::scene::{GradientStop, LinearGradient};
+    use mirx::types::{Fixed, Point};
 
     #[test]
     fn empty_scene_produces_minimal_svg() {
@@ -604,7 +605,7 @@ mod tests {
     fn fill_rect_emits_rect_element() {
         let scene = Scene {
             ops: vec![SceneOp::FillRect {
-                area: mirx::Rect::new(
+                area: mirx::types::Rect::new(
                     Fixed::from_int(5),
                     Fixed::from_int(5),
                     Fixed::from_int(15),

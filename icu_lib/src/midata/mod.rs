@@ -25,13 +25,13 @@ impl MiData {
 
 #[derive(Clone, PartialEq)]
 pub struct SceneData {
-    pub scene: mirx::Scene,
+    pub scene: mirx::scene::Scene,
 }
 
 #[derive(Clone, PartialEq)]
 pub enum FontData {
-    Mirx(mirx::Font),
-    MirxBundle(Vec<mirx::Font>),
+    Mirx(mirx::font::Font),
+    MirxBundle(Vec<mirx::font::Font>),
     FreeType(FreeTypeFontData),
 }
 
@@ -54,7 +54,7 @@ pub struct FreeTypeGlyph {
     pub bearing_x: i16,
     pub bearing_y: i16,
     pub bbox: (i16, i16, i16, i16),
-    pub outline: Vec<mirx::PathCmd>,
+    pub outline: Vec<mirx::scene::PathCmd>,
 }
 
 #[derive(Clone, PartialEq)]

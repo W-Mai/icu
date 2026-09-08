@@ -187,7 +187,7 @@ fn image_item_from_midata(path: String, info: ImageInfo, mi_data: MiData) -> Opt
                 icu_lib::midata::FontData::FreeType(f) => {
                     icu_lib::endecoder::mirui::font_render::render_freetype_glyphs(
                         &f,
-                        icu_lib::mirx::Color {
+                        icu_lib::mirx::types::Color {
                             r: 200,
                             g: 200,
                             b: 200,

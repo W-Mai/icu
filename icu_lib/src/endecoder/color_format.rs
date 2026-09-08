@@ -21,31 +21,31 @@ pub enum ColorFormat {
 }
 
 impl ColorFormat {
-    pub fn to_mirx(self) -> Option<mirx::ColorFormat> {
+    pub fn to_mirx(self) -> Option<mirx::image::ColorFormat> {
         match self {
-            Self::I1 => Some(mirx::ColorFormat::I1),
-            Self::I2 => Some(mirx::ColorFormat::I2),
-            Self::I4 => Some(mirx::ColorFormat::I4),
-            Self::I8 => Some(mirx::ColorFormat::I8),
-            Self::A1 => Some(mirx::ColorFormat::A1),
-            Self::A2 => Some(mirx::ColorFormat::A2),
-            Self::A4 => Some(mirx::ColorFormat::A4),
-            Self::A8 => Some(mirx::ColorFormat::A8),
-            Self::L8 => Some(mirx::ColorFormat::L8),
-            Self::RGB565 => Some(mirx::ColorFormat::RGB565),
-            Self::RGB565Swapped => Some(mirx::ColorFormat::RGB565Swapped),
-            Self::RGB888 => Some(mirx::ColorFormat::RGB888),
-            Self::XRGB8888 => Some(mirx::ColorFormat::XRGB8888),
-            Self::RGBA8888 => Some(mirx::ColorFormat::RGBA8888),
-            Self::BGRA8888 => Some(mirx::ColorFormat::BGRA8888),
+            Self::I1 => Some(mirx::image::ColorFormat::I1),
+            Self::I2 => Some(mirx::image::ColorFormat::I2),
+            Self::I4 => Some(mirx::image::ColorFormat::I4),
+            Self::I8 => Some(mirx::image::ColorFormat::I8),
+            Self::A1 => Some(mirx::image::ColorFormat::A1),
+            Self::A2 => Some(mirx::image::ColorFormat::A2),
+            Self::A4 => Some(mirx::image::ColorFormat::A4),
+            Self::A8 => Some(mirx::image::ColorFormat::A8),
+            Self::L8 => Some(mirx::image::ColorFormat::L8),
+            Self::RGB565 => Some(mirx::image::ColorFormat::RGB565),
+            Self::RGB565Swapped => Some(mirx::image::ColorFormat::RGB565Swapped),
+            Self::RGB888 => Some(mirx::image::ColorFormat::RGB888),
+            Self::XRGB8888 => Some(mirx::image::ColorFormat::XRGB8888),
+            Self::RGBA8888 => Some(mirx::image::ColorFormat::RGBA8888),
+            Self::BGRA8888 => Some(mirx::image::ColorFormat::BGRA8888),
             Self::RGB565A8 | Self::ARGB8888 => None,
         }
     }
 }
 
-impl From<ColorFormat> for mirx::ColorFormat {
+impl From<ColorFormat> for mirx::image::ColorFormat {
     fn from(cf: ColorFormat) -> Self {
-        cf.to_mirx().unwrap_or(mirx::ColorFormat::RGB565)
+        cf.to_mirx().unwrap_or(mirx::image::ColorFormat::RGB565)
     }
 }
 

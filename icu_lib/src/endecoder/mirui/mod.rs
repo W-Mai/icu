@@ -2,8 +2,9 @@ use crate::endecoder::{EnDecoder, ImageInfo};
 use crate::midata::{FontData, IndexedImageData, MiData, SceneData};
 use crate::{EncoderParams, MirxCoding};
 use image::RgbaImage;
-use mirx::{ColorFormat as MirxColorFormat, FlatImageInput};
+use mirx::image::ColorFormat as MirxColorFormat;
 use serde_json::json;
+use std::borrow::Cow;
 
 pub mod font_bake;
 pub mod font_contour;
@@ -220,14 +221,14 @@ fn surface_to_rgba(surface: mirx::image::SurfaceView<'_>) -> Option<RgbaImage> {
 }
 
 struct EncodedStream {
-    id: mirx::CodingId,
+    id: mirx::coding::CodingId,
     revision: u16,
     params: Vec<u8>,
     bytes: Vec<u8>,
 }
 
 impl EncodedStream {
-    fn new(record: mirx::media::CodingRecord<'_>, bytes: Vec<u8>) -> Self {
+    fn new(record: mirx::coding::CodingRecord<'_>, bytes: Vec<u8>) -> Self {
         Self {
             id: record.id(),
             revision: record.revision(),
@@ -236,8 +237,8 @@ impl EncodedStream {
         }
     }
 
-    fn record(&self) -> mirx::media::CodingRecord<'_> {
-        mirx::media::CodingRecord::new(self.id, self.revision, &self.params)
+    fn record(&self) -> mirx::coding::CodingRecord<'_> {
+        mirx::coding::CodingRecord::new(self.id, self.revision, &self.params)
     }
 }
 
@@ -313,11 +314,11 @@ fn encode_coded_image(
     let samples = rgba_to_mirx_pixels(img, format, stride)?;
     let stream = encode_stream(&samples, layout, width, height, coding)?;
     let asset = mirx::image::EncodedImageAsset::new(surface, stream.record(), &stream.bytes);
-    asset.preflight(&mirx::PayloadLimits::HOST).ok()?;
-    let mut document = mirx::Document::new_with_limits(mirx::PayloadLimits::HOST);
+    asset.preflight(&mirx::reader::PayloadLimits::HOST).ok()?;
+    let mut document = mirx::Document::new_with_limits(mirx::reader::PayloadLimits::HOST);
     let id = document.push_encoded_image(&asset).ok()?;
     document.set_primary(id).ok()?;
-    document.encode(&mirx::EncodeOptions::new()).ok()
+    document.encode(&mirx::document::EncodeOptions::new()).ok()
 }
 
 fn encode_indexed_image(
@@ -338,35 +339,56 @@ fn encode_indexed_image(
     if coding == MirxCoding::Raw {
         let stride = aligned_stride(format, image.width, stride_alignment)?;
         let samples = indexed_to_mirx_pixels(image, format, stride)?;
-        return Some(mirx::encode_flat(&FlatImageInput {
-            width: image.width,
-            height: image.height,
-            stride,
+        let asset = mirx::image::ImageAsset::new(
+            image.width,
+            image.height,
             format,
-            main: &samples,
-            extra: Some(&palette),
-        }));
+            stride,
+            Cow::Borrowed(&samples),
+        )
+        .with_extra(Cow::Borrowed(&palette));
+        let document =
+            mirx::Document::new_flat_with_limits(asset, mirx::reader::PayloadLimits::HOST).ok()?;
+        return document.encode(&mirx::document::EncodeOptions::new()).ok();
     }
     let stride = format.minimum_stride(image.width)?;
     let samples = indexed_to_mirx_pixels(image, format, stride)?;
     let stream = encode_stream(&samples, layout, image.width, image.height, coding)?;
     let asset = mirx::image::EncodedImageAsset::new(surface, stream.record(), &stream.bytes)
         .with_color_table(&palette);
-    asset.preflight(&mirx::PayloadLimits::HOST).ok()?;
-    let mut document = mirx::Document::new_with_limits(mirx::PayloadLimits::HOST);
+    asset.preflight(&mirx::reader::PayloadLimits::HOST).ok()?;
+    let mut document = mirx::Document::new_with_limits(mirx::reader::PayloadLimits::HOST);
     let id = document.push_encoded_image(&asset).ok()?;
     document.set_primary(id).ok()?;
-    document.encode(&mirx::EncodeOptions::new()).ok()
+    document.encode(&mirx::document::EncodeOptions::new()).ok()
+}
+
+fn encode_fonts(fonts: &[mirx::font::Font]) -> Vec<u8> {
+    let mut document = mirx::Document::new_with_limits(mirx::reader::PayloadLimits::HOST);
+    let mut primary = None;
+    for font in fonts {
+        let Ok(id) = document.push_font_with_flags(font, mirx::ChunkFlags::CRITICAL) else {
+            return Vec::new();
+        };
+        primary.get_or_insert(id);
+    }
+    if primary.is_some_and(|id| document.set_primary(id).is_err()) {
+        return Vec::new();
+    }
+    document
+        .encode(&mirx::document::EncodeOptions::new())
+        .unwrap_or_default()
 }
 
 fn decode_coded_image(image: mirx::image::EncodedImageView<'_>) -> Option<RgbaImage> {
     let mut slots = vec![None; image.group_count()];
-    let mut budget = mirx::image::CoverageBudget::new(mirx::PayloadLimits::HOST.max_raster_work());
+    let mut budget =
+        mirx::image::CoverageBudget::new(mirx::reader::PayloadLimits::HOST.max_raster_work());
     let groups = image.groups_into(&mut slots, &mut budget).ok()?;
     let plan = groups
         .decode_plan(
             mirx::image::SurfaceRequirements::new(),
-            &mirx::PayloadLimits::HOST,
+            &mirx::reader::PayloadLimits::HOST,
         )
         .ok()?;
     let mut output = vec![0; plan.memory_plan().byte_len() as usize];
@@ -382,18 +404,18 @@ fn decode_image(image: mirx::image::ImageRef<'_>) -> Option<RgbaImage> {
     }
 }
 
-fn coding_label(id: mirx::CodingId) -> String {
-    if id == mirx::CodingId::PIXEL {
+fn coding_label(id: mirx::coding::CodingId) -> String {
+    if id == mirx::coding::CodingId::PIXEL {
         "PIXEL".to_owned()
-    } else if id == mirx::CodingId::RLE {
+    } else if id == mirx::coding::CodingId::RLE {
         "RLE".to_owned()
-    } else if id == mirx::CodingId::LZ4 {
+    } else if id == mirx::coding::CodingId::LZ4 {
         "LZ4".to_owned()
-    } else if id == mirx::CodingId::FREQUENCY_REVERSIBLE {
+    } else if id == mirx::coding::CodingId::FREQUENCY_REVERSIBLE {
         "FREQUENCY_REVERSIBLE".to_owned()
-    } else if id == mirx::CodingId::FREQUENCY_QUANTIZED {
+    } else if id == mirx::coding::CodingId::FREQUENCY_QUANTIZED {
         "FREQUENCY_QUANTIZED".to_owned()
-    } else if id == mirx::CodingId::RAW {
+    } else if id == mirx::coding::CodingId::RAW {
         "RAW".to_owned()
     } else {
         format!("{}", id.raw())
@@ -423,61 +445,44 @@ impl EnDecoder for Mirx {
                             Some(v) => v,
                             None => return Vec::new(),
                         };
-                        let input = FlatImageInput {
-                            width: w,
-                            height: h,
+                        let asset = mirx::image::ImageAsset::new(
+                            w,
+                            h,
+                            mirx_cf,
                             stride,
-                            format: mirx_cf,
-                            main: &main,
-                            extra: None,
+                            Cow::Borrowed(&main),
+                        );
+                        let Ok(document) = mirx::Document::new_flat_with_limits(
+                            asset,
+                            mirx::reader::PayloadLimits::HOST,
+                        ) else {
+                            return Vec::new();
                         };
-                        mirx::encode_flat(&input)
+                        document
+                            .encode(&mirx::document::EncodeOptions::new())
+                            .unwrap_or_default()
                     }
                     coding => encode_coded_image(img, mirx_cf, coding).unwrap_or_default(),
                 }
             }
             MiData::PATH(scene_data) => {
-                let payload = match scene_data.scene.encode() {
-                    Ok(p) => p,
-                    Err(_) => return Vec::new(),
+                let mut document =
+                    mirx::Document::new_with_limits(mirx::reader::PayloadLimits::HOST);
+                let Ok(id) =
+                    document.push_vector_with_flags(&scene_data.scene, mirx::ChunkFlags::CRITICAL)
+                else {
+                    return Vec::new();
                 };
-                mirx::encode_chunk_generic(
-                    mirx::chunk_type::VECTOR,
-                    mirx::ChunkEntry::FLAG_CRITICAL,
-                    &payload,
-                )
+                if document.set_primary(id).is_err() {
+                    return Vec::new();
+                }
+                document
+                    .encode(&mirx::document::EncodeOptions::new())
+                    .unwrap_or_default()
             }
             MiData::FONT(font_data) => match font_data {
-                FontData::Mirx(f) => {
-                    let Ok(payload) = f.encode() else {
-                        return Vec::new();
-                    };
-                    mirx::encode_chunk_generic(
-                        mirx::chunk_type::FONT,
-                        mirx::ChunkEntry::FLAG_CRITICAL,
-                        &payload,
-                    )
-                }
-                FontData::MirxBundle(fonts) => {
-                    let chunks: Option<Vec<(u16, u16, Vec<u8>)>> = fonts
-                        .iter()
-                        .map(|f| {
-                            Some((
-                                mirx::chunk_type::FONT,
-                                mirx::ChunkEntry::FLAG_CRITICAL,
-                                f.encode().ok()?,
-                            ))
-                        })
-                        .collect();
-                    let Some(chunks) = chunks else {
-                        return Vec::new();
-                    };
-                    let refs: Vec<(u16, u16, &[u8])> = chunks
-                        .iter()
-                        .map(|(t, f, p)| (*t, *f, p.as_slice()))
-                        .collect();
-                    mirx::encode_chunks(&refs)
-                }
+                FontData::Mirx(font) => encode_fonts(core::slice::from_ref(font)),
+                FontData::MirxBundle(fonts) => encode_fonts(fonts),
                 FontData::FreeType(_) => Vec::new(),
             },
             MiData::GRAY(_) => Vec::new(),
@@ -492,7 +497,8 @@ impl EnDecoder for Mirx {
     }
 
     fn decode(&self, data: Vec<u8>) -> MiData {
-        let options = mirx::ReadOptions::new().with_payload_limits(mirx::PayloadLimits::HOST);
+        let options =
+            mirx::reader::ReadOptions::new().with_payload_limits(mirx::reader::PayloadLimits::HOST);
         let reader = match mirx::Reader::open_with(&data, &options) {
             Ok(reader) => reader,
             Err(_) => return MiData::RGBA(RgbaImage::new(0, 0)),
@@ -517,7 +523,7 @@ impl EnDecoder for Mirx {
                 );
             }
             if primary.chunk_type() == mirx::ChunkType::VECTOR {
-                if let Ok(scene) = mirx::Scene::decode(primary.payload()) {
+                if let Ok(scene) = mirx::scene::Scene::decode(primary.payload()) {
                     return MiData::PATH(SceneData { scene });
                 }
             }
@@ -526,14 +532,14 @@ impl EnDecoder for Mirx {
             .chunks()
             .find(|chunk| chunk.chunk_type() == mirx::ChunkType::VECTOR)
         {
-            if let Ok(scene) = mirx::Scene::decode(chunk.payload()) {
+            if let Ok(scene) = mirx::scene::Scene::decode(chunk.payload()) {
                 return MiData::PATH(SceneData { scene });
             }
         }
-        let fonts: Vec<mirx::Font> = reader
+        let fonts: Vec<mirx::font::Font> = reader
             .chunks()
             .filter(|chunk| chunk.chunk_type() == mirx::ChunkType::FONT)
-            .filter_map(|chunk| mirx::Font::decode(chunk.payload()).ok())
+            .filter_map(|chunk| mirx::font::Font::decode(chunk.payload()).ok())
             .collect();
         if fonts.len() == 1 {
             return MiData::FONT(FontData::Mirx(fonts.into_iter().next().unwrap()));
@@ -552,7 +558,8 @@ impl EnDecoder for Mirx {
     }
 
     fn info(&self, data: &[u8]) -> ImageInfo {
-        let options = mirx::ReadOptions::new().with_payload_limits(mirx::PayloadLimits::HOST);
+        let options =
+            mirx::reader::ReadOptions::new().with_payload_limits(mirx::reader::PayloadLimits::HOST);
         match mirx::Reader::open_with(data, &options) {
             Ok(reader) if reader.flat_image().is_some() => {
                 let image = reader.flat_image().unwrap();
@@ -569,30 +576,48 @@ impl EnDecoder for Mirx {
                 for chunk in reader.chunks() {
                     match chunk.chunk_type() {
                         mirx::ChunkType::VECTOR => {
-                            if let Ok(scene) = mirx::Scene::decode(chunk.payload()) {
+                            if let Ok(scene) = mirx::scene::Scene::decode(chunk.payload()) {
                                 chunks_info
                                     .insert("vector".into(), json!({"op_count": scene.ops.len()}));
                             }
                         }
                         mirx::ChunkType::FONT => {
-                            if let Ok(font) = mirx::Font::decode(chunk.payload()) {
+                            if let Ok(font) = mirx::font::Font::decode(chunk.payload()) {
                                 let representations = (0..font.representation_count())
                                     .filter_map(|index| font.representation(index))
                                     .map(|representation| {
                                         let metadata = representation.metadata();
+                                        let surface = font
+                                            .surface(usize::from(representation.surface_index()));
+                                        let map = surface.map(|surface| surface.map());
                                         json!({
                                             "kind": format!("{:?}", metadata.kind()),
                                             "design_ppem": metadata.design_ppem(),
                                             "min_ppem": metadata.min_ppem(),
                                             "max_ppem": metadata.max_ppem(),
                                             "surface": representation.surface_index(),
+                                            "surface_width": map.map(|map| map.width()),
+                                            "surface_height": map.map(|map| map.height()),
+                                            "packing": map.map(|map| format!("{:?}", map.packing())),
                                         })
                                     })
                                     .collect::<Vec<_>>();
+                                let (advance_source, shaping_bytes) = match font.advance_source() {
+                                    mirx::font::FontAdvanceSource::Advances(_) => {
+                                        ("advances", None)
+                                    }
+                                    mirx::font::FontAdvanceSource::Shaping(bytes) => {
+                                        ("shaping", Some(bytes.len()))
+                                    }
+                                };
                                 chunks_info.insert(
                                     "font".into(),
                                     json!({
-                                        "glyph_count": font.codepoints().len(),
+                                        "raster_glyph_count": font.face().raster_count(),
+                                        "mapped_scalar_count": font.cmap().len(),
+                                        "glyph_id_map": if font.glyph_ids().is_some() { "sparse" } else { "identity" },
+                                        "advance_source": advance_source,
+                                        "shaping_bytes": shaping_bytes,
                                         "representation_count": font.representation_count(),
                                         "surface_count": font.surface_count(),
                                         "representations": representations,
@@ -696,14 +721,15 @@ mod tests {
         }
     }
 
-    fn roundtrip_coding(coding: MirxCoding, expected: mirx::CodingId) {
+    fn roundtrip_coding(coding: MirxCoding, expected: mirx::coding::CodingId) {
         let img = sample_rgba(12, 5);
         let ed = Mirx;
         let params = EncoderParams::default()
             .with_color_format(ColorFormat::RGBA8888)
             .with_mirx_coding(coding);
         let bytes = ed.encode(&MiData::RGBA(img.clone()), params);
-        let options = mirx::ReadOptions::new().with_payload_limits(mirx::PayloadLimits::HOST);
+        let options =
+            mirx::reader::ReadOptions::new().with_payload_limits(mirx::reader::PayloadLimits::HOST);
         let reader = mirx::Reader::open_with(&bytes, &options).unwrap();
         let image = reader
             .primary()
@@ -753,24 +779,24 @@ mod tests {
 
     #[test]
     fn native_pixel_roundtrip_uses_mirx_pixel_coding() {
-        roundtrip_coding(MirxCoding::Pixel, mirx::CodingId::PIXEL);
+        roundtrip_coding(MirxCoding::Pixel, mirx::coding::CodingId::PIXEL);
     }
 
     #[test]
     fn rle_roundtrip_uses_mirx_rle_coding() {
-        roundtrip_coding(MirxCoding::Rle, mirx::CodingId::RLE);
+        roundtrip_coding(MirxCoding::Rle, mirx::coding::CodingId::RLE);
     }
 
     #[test]
     fn lz4_roundtrip_uses_mirx_lz4_coding() {
-        roundtrip_coding(MirxCoding::Lz4, mirx::CodingId::LZ4);
+        roundtrip_coding(MirxCoding::Lz4, mirx::coding::CodingId::LZ4);
     }
 
     #[test]
     fn reversible_frequency_roundtrip_uses_mirx_frequency_coding() {
         roundtrip_coding(
             MirxCoding::FrequencyReversible,
-            mirx::CodingId::FREQUENCY_REVERSIBLE,
+            mirx::coding::CodingId::FREQUENCY_REVERSIBLE,
         );
     }
 
@@ -911,34 +937,34 @@ mod tests {
 
     #[test]
     fn roundtrip_vector_chunk_preserves_ops() {
-        let scene = mirx::Scene {
-            ops: vec![mirx::SceneOp::FillPath {
-                path: mirx::Path {
+        let scene = mirx::scene::Scene {
+            ops: vec![mirx::scene::SceneOp::FillPath {
+                path: mirx::scene::Path {
                     cmds: vec![
-                        mirx::PathCmd::MoveTo(mirx::Point::new(
-                            mirx::Fixed::from_int(0),
-                            mirx::Fixed::from_int(0),
+                        mirx::scene::PathCmd::MoveTo(mirx::types::Point::new(
+                            mirx::types::Fixed::from_int(0),
+                            mirx::types::Fixed::from_int(0),
                         )),
-                        mirx::PathCmd::LineTo(mirx::Point::new(
-                            mirx::Fixed::from_int(10),
-                            mirx::Fixed::from_int(0),
+                        mirx::scene::PathCmd::LineTo(mirx::types::Point::new(
+                            mirx::types::Fixed::from_int(10),
+                            mirx::types::Fixed::from_int(0),
                         )),
-                        mirx::PathCmd::LineTo(mirx::Point::new(
-                            mirx::Fixed::from_int(10),
-                            mirx::Fixed::from_int(10),
+                        mirx::scene::PathCmd::LineTo(mirx::types::Point::new(
+                            mirx::types::Fixed::from_int(10),
+                            mirx::types::Fixed::from_int(10),
                         )),
-                        mirx::PathCmd::Close,
+                        mirx::scene::PathCmd::Close,
                     ],
                 },
-                transform: mirx::Transform::IDENTITY,
-                paint: mirx::Paint::Color(mirx::Color {
+                transform: mirx::types::Transform::IDENTITY,
+                paint: mirx::scene::Paint::Color(mirx::types::Color {
                     r: 255,
                     g: 128,
                     b: 0,
                     a: 255,
                 }),
                 opa: 200,
-                fill_rule: mirx::FillRule::EvenOdd,
+                fill_rule: mirx::scene::FillRule::EvenOdd,
             }],
         };
         let ed = Mirx;
@@ -958,41 +984,44 @@ mod tests {
     #[test]
     fn roundtrip_font_chunk_preserves_face() {
         use mirx::font::{
-            FontAsset, GlyphMap, GlyphMetrics, GlyphSurfaceAsset, LineMetrics, RawGlyphs,
-            RepresentationAsset,
+            CmapEntry, FontAdvanceSource, FontAsset, FontFace, GlyphId, GlyphMap,
+            GlyphSurfaceAsset, RasterMetrics, RawGlyphs, RepresentationAsset,
         };
         use mirx::image::SampleLayout;
 
-        let codepoints = ['A', 'B'];
-        let map = GlyphMap::glyph_major(4, 4, codepoints.len()).unwrap();
+        let cmap = [
+            CmapEntry::new('A', GlyphId::new(0)),
+            CmapEntry::new('B', GlyphId::new(1)),
+        ];
+        let map = GlyphMap::cells(4, 4, cmap.len()).unwrap();
         let data = [0u8; 16];
         let surface = RawGlyphs::builder(map, SampleLayout::A4)
             .build(&data)
             .unwrap();
-        let metrics = [GlyphMetrics::new(
-            mirx::Fixed::from_int(4),
-            mirx::Fixed::ZERO,
-            mirx::Fixed::from_int(3),
-        ); 2];
-        let line = LineMetrics::new(
-            mirx::Fixed::from_int(3),
-            mirx::Fixed::from_int(-1),
-            mirx::Fixed::from_int(4),
+        let face = FontFace::new(
+            4,
+            GlyphId::NOTDEF,
+            2,
+            mirx::types::Fixed::from_int(3),
+            mirx::types::Fixed::from_int(-1),
+            mirx::types::Fixed::ZERO,
         )
         .unwrap();
-        let representation = RepresentationAsset::new(
-            mirx::FontRepresentation::signed_distance(4, 1, 4, 2, 16, 16).unwrap(),
+        let advances = [mirx::types::Fixed::from_int(4); 2];
+        let metrics =
+            [RasterMetrics::new(mirx::types::Fixed::ZERO, mirx::types::Fixed::from_int(3)); 2];
+        let representations = [RepresentationAsset::new(
+            mirx::font::FontRepresentation::signed_distance(4, 1, 4, 2, 16, 16).unwrap(),
             0,
-            line,
-            &metrics,
-        );
-        let font = mirx::Font::from_asset(
-            FontAsset::new(
-                &codepoints,
-                &[representation],
-                &[GlyphSurfaceAsset::raw(surface)],
+        )];
+        let surfaces = [GlyphSurfaceAsset::raw(surface)];
+        let font = mirx::font::Font::from_asset(
+            FontAsset::new(face, &cmap, FontAdvanceSource::Advances(&advances)).with_rasters(
+                &representations,
+                &metrics,
+                &surfaces,
             ),
-            &mirx::PayloadLimits::HOST,
+            &mirx::reader::PayloadLimits::HOST,
         )
         .unwrap();
         let ed = Mirx;
@@ -1001,9 +1030,45 @@ mod tests {
             EncoderParams::default(),
         );
         assert!(ed.can_decode(&bytes));
+        let info = ed.info(&bytes);
+        let font_info = info
+            .other_info
+            .get("chunks")
+            .and_then(|chunks| chunks.get("font"))
+            .unwrap();
+        assert_eq!(
+            font_info
+                .get("raster_glyph_count")
+                .and_then(|value| value.as_u64()),
+            Some(2)
+        );
+        assert_eq!(
+            font_info
+                .get("mapped_scalar_count")
+                .and_then(|value| value.as_u64()),
+            Some(2)
+        );
+        assert_eq!(
+            font_info
+                .get("glyph_id_map")
+                .and_then(|value| value.as_str()),
+            Some("identity")
+        );
+        assert_eq!(
+            font_info
+                .get("advance_source")
+                .and_then(|value| value.as_str()),
+            Some("advances")
+        );
         match ed.decode(bytes) {
             MiData::FONT(FontData::Mirx(back)) => {
-                assert_eq!(back.codepoints(), ['A', 'B']);
+                assert_eq!(
+                    back.cmap()
+                        .iter()
+                        .map(|entry| entry.scalar())
+                        .collect::<Vec<_>>(),
+                    ['A', 'B']
+                );
                 assert_eq!(back.representation_count(), 1);
                 assert_eq!(back.surface_count(), 1);
             }
@@ -1013,20 +1078,20 @@ mod tests {
 
     #[test]
     fn info_reports_vector_chunk_op_count() {
-        let scene = mirx::Scene {
-            ops: vec![mirx::SceneOp::FillPath {
-                path: mirx::Path {
-                    cmds: vec![mirx::PathCmd::Close],
+        let scene = mirx::scene::Scene {
+            ops: vec![mirx::scene::SceneOp::FillPath {
+                path: mirx::scene::Path {
+                    cmds: vec![mirx::scene::PathCmd::Close],
                 },
-                transform: mirx::Transform::IDENTITY,
-                paint: mirx::Paint::Color(mirx::Color {
+                transform: mirx::types::Transform::IDENTITY,
+                paint: mirx::scene::Paint::Color(mirx::types::Color {
                     r: 255,
                     g: 255,
                     b: 255,
                     a: 255,
                 }),
                 opa: 255,
-                fill_rule: mirx::FillRule::EvenOdd,
+                fill_rule: mirx::scene::FillRule::EvenOdd,
             }],
         };
         let ed = Mirx;

@@ -1,8 +1,8 @@
-use mirx::{
-    Color, FillRule, Fixed, GradientStop, GradientUnits, LineCap, LineJoin, LinearGradient,
-    Paint as MirxPaint, Path as MirxPath, PathCmd, Point, RadialGradient, ResourceRef, Scene,
-    SceneOp, SpreadMode, Transform,
+use mirx::scene::{
+    FillRule, GradientStop, GradientUnits, LineCap, LineJoin, LinearGradient, Paint as MirxPaint,
+    Path as MirxPath, PathCmd, RadialGradient, ResourceRef, Scene, SceneOp, SpreadMode,
 };
+use mirx::types::{Color, Fixed, Point, Transform};
 use std::borrow::Cow;
 use usvg::tiny_skia_path::Path as SkPath;
 
@@ -254,7 +254,7 @@ fn emit_image(img: &usvg::Image, ops: &mut Vec<SceneOp>) {
         g_sum += px.0[1] as u64;
         b_sum += px.0[2] as u64;
     }
-    let avg = mirx::Color {
+    let avg = mirx::types::Color {
         r: (r_sum / count).min(255) as u8,
         g: (g_sum / count).min(255) as u8,
         b: (b_sum / count).min(255) as u8,
@@ -269,7 +269,7 @@ fn emit_image(img: &usvg::Image, ops: &mut Vec<SceneOp>) {
         transform_from_usvg(abs_tf)
     };
 
-    let area = mirx::Rect::new(
+    let area = mirx::types::Rect::new(
         Fixed::ZERO,
         Fixed::ZERO,
         fixed_from_f32(size.width()),

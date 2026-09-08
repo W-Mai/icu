@@ -1,7 +1,7 @@
 use crate::endecoder::{EnDecoder, ImageInfo};
 use crate::midata::{FontData, FreeTypeFontData, FreeTypeGlyph, MiData};
 use image::RgbaImage;
-use mirx::{PathCmd, Point};
+use mirx::{scene::PathCmd, types::Point};
 use serde_json::json;
 
 fn decompress_woff(data: &[u8]) -> Option<Vec<u8>> {

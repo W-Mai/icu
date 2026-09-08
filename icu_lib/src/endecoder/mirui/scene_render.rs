@@ -5,7 +5,7 @@ use mirui::render::scene::resolver::SliceResolver;
 use mirui::render::texture::{ColorFormat, Texture};
 use mirui::types::{Fixed, Rect};
 
-pub fn scene_dimensions(scene: &mirx::Scene) -> Option<(u32, u32)> {
+pub fn scene_dimensions(scene: &mirx::scene::Scene) -> Option<(u32, u32)> {
     let mut max_x = Fixed::ZERO;
     let mut max_y = Fixed::ZERO;
     let mut any = false;
@@ -29,7 +29,7 @@ pub fn scene_dimensions(scene: &mirx::Scene) -> Option<(u32, u32)> {
     Some((w, h))
 }
 
-pub fn render_scene(scene: &mirx::Scene, width: u32, height: u32) -> RgbaImage {
+pub fn render_scene(scene: &mirx::scene::Scene, width: u32, height: u32) -> RgbaImage {
     if width == 0 || height == 0 {
         return RgbaImage::new(0, 0);
     }
@@ -38,7 +38,7 @@ pub fn render_scene(scene: &mirx::Scene, width: u32, height: u32) -> RgbaImage {
     RgbaImage::from_raw(width, height, buffer).unwrap_or_else(|| RgbaImage::new(0, 0))
 }
 
-pub fn render_scene_into(scene: &mirx::Scene, width: u32, height: u32, buffer: &mut [u8]) {
+pub fn render_scene_into(scene: &mirx::scene::Scene, width: u32, height: u32, buffer: &mut [u8]) {
     let expected = (width * height * 4) as usize;
     if buffer.len() < expected {
         return;
@@ -70,11 +70,12 @@ pub fn render_scene_into(scene: &mirx::Scene, width: u32, height: u32, buffer: &
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mirx::{Color, FillRule, Fixed, Paint, Path, PathCmd, Point, SceneOp, Transform};
+    use mirx::scene::{FillRule, Paint, Path, PathCmd, SceneOp};
+    use mirx::types::{Color, Fixed, Point, Transform};
 
     #[test]
     fn render_empty_scene_is_transparent() {
-        let scene = mirx::Scene { ops: Vec::new() };
+        let scene = mirx::scene::Scene { ops: Vec::new() };
         let img = render_scene(&scene, 4, 4);
         for px in img.pixels() {
             assert_eq!(px.0, [0, 0, 0, 0]);
@@ -91,7 +92,7 @@ mod tests {
             PathCmd::Close,
         ];
         let path = Path { cmds };
-        let scene = mirx::Scene {
+        let scene = mirx::scene::Scene {
             ops: vec![SceneOp::FillPath {
                 path,
                 transform: Transform::IDENTITY,

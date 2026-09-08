@@ -62,12 +62,22 @@ pub fn draw_path_export_section(
                     }
                 }
                 "MIRX" if state.context.mirx_export_kind == "scene" => {
-                    let payload = scene_data.scene.encode().unwrap_or_default();
-                    let bytes = icu_lib::mirx::encode_chunk_generic(
-                        icu_lib::mirx::chunk_type::VECTOR,
-                        icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
-                        &payload,
+                    let mut document = icu_lib::mirx::Document::new_with_limits(
+                        icu_lib::mirx::reader::PayloadLimits::HOST,
                     );
+                    let bytes = (|| {
+                        let id = document
+                            .push_vector_with_flags(
+                                &scene_data.scene,
+                                icu_lib::mirx::ChunkFlags::CRITICAL,
+                            )
+                            .ok()?;
+                        document.set_primary(id).ok()?;
+                        document
+                            .encode(&icu_lib::mirx::document::EncodeOptions::new())
+                            .ok()
+                    })()
+                    .unwrap_or_default();
                     if let Some(path) = super::pick_save_file(&[("mirx", &["mirx"])], "scene.mirx")
                     {
                         let _ = std::fs::write(&path, bytes);
@@ -158,8 +168,8 @@ pub fn draw_path_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
     plotter.show(ui, &Some(image.clone()));
 }
 
-fn op_center(op: &icu_lib::mirx::SceneOp) -> Option<[u32; 2]> {
-    use icu_lib::mirx::SceneOp;
+fn op_center(op: &icu_lib::mirx::scene::SceneOp) -> Option<[u32; 2]> {
+    use icu_lib::mirx::scene::SceneOp;
     match op {
         SceneOp::FillPath { path, .. } | SceneOp::StrokePath { path, .. } => {
             let mut min_x = i32::MAX;
@@ -168,10 +178,11 @@ fn op_center(op: &icu_lib::mirx::SceneOp) -> Option<[u32; 2]> {
             let mut max_y = i32::MIN;
             for cmd in &path.cmds {
                 let p = match cmd {
-                    icu_lib::mirx::PathCmd::MoveTo(p) | icu_lib::mirx::PathCmd::LineTo(p) => *p,
-                    icu_lib::mirx::PathCmd::QuadTo { end, .. } => *end,
-                    icu_lib::mirx::PathCmd::CubicTo { end, .. } => *end,
-                    icu_lib::mirx::PathCmd::Close => continue,
+                    icu_lib::mirx::scene::PathCmd::MoveTo(p)
+                    | icu_lib::mirx::scene::PathCmd::LineTo(p) => *p,
+                    icu_lib::mirx::scene::PathCmd::QuadTo { end, .. } => *end,
+                    icu_lib::mirx::scene::PathCmd::CubicTo { end, .. } => *end,
+                    icu_lib::mirx::scene::PathCmd::Close => continue,
                 };
                 let x = p.x.to_int();
                 let y = p.y.to_int();
@@ -201,25 +212,25 @@ fn op_center(op: &icu_lib::mirx::SceneOp) -> Option<[u32; 2]> {
     }
 }
 
-pub fn op_label(op: &icu_lib::mirx::SceneOp) -> &'static str {
+pub fn op_label(op: &icu_lib::mirx::scene::SceneOp) -> &'static str {
     match op {
-        icu_lib::mirx::SceneOp::GroupBegin { .. } => "GroupBegin",
-        icu_lib::mirx::SceneOp::GroupEnd => "GroupEnd",
-        icu_lib::mirx::SceneOp::FillPath { .. } => "FillPath",
-        icu_lib::mirx::SceneOp::StrokePath { .. } => "StrokePath",
-        icu_lib::mirx::SceneOp::FillRect { .. } => "FillRect",
-        icu_lib::mirx::SceneOp::Border { .. } => "Border",
-        icu_lib::mirx::SceneOp::Line { .. } => "Line",
-        icu_lib::mirx::SceneOp::Arc { .. } => "Arc",
-        icu_lib::mirx::SceneOp::Label { .. } => "Label",
-        icu_lib::mirx::SceneOp::Blit { .. } => "Blit",
-        icu_lib::mirx::SceneOp::PushClip { .. } => "PushClip",
-        icu_lib::mirx::SceneOp::PopClip => "PopClip",
+        icu_lib::mirx::scene::SceneOp::GroupBegin { .. } => "GroupBegin",
+        icu_lib::mirx::scene::SceneOp::GroupEnd => "GroupEnd",
+        icu_lib::mirx::scene::SceneOp::FillPath { .. } => "FillPath",
+        icu_lib::mirx::scene::SceneOp::StrokePath { .. } => "StrokePath",
+        icu_lib::mirx::scene::SceneOp::FillRect { .. } => "FillRect",
+        icu_lib::mirx::scene::SceneOp::Border { .. } => "Border",
+        icu_lib::mirx::scene::SceneOp::Line { .. } => "Line",
+        icu_lib::mirx::scene::SceneOp::Arc { .. } => "Arc",
+        icu_lib::mirx::scene::SceneOp::Label { .. } => "Label",
+        icu_lib::mirx::scene::SceneOp::Blit { .. } => "Blit",
+        icu_lib::mirx::scene::SceneOp::PushClip { .. } => "PushClip",
+        icu_lib::mirx::scene::SceneOp::PopClip => "PopClip",
     }
 }
 
-pub fn op_inspector(ui: &mut egui::Ui, op: &icu_lib::mirx::SceneOp) {
-    use icu_lib::mirx::SceneOp;
+pub fn op_inspector(ui: &mut egui::Ui, op: &icu_lib::mirx::scene::SceneOp) {
+    use icu_lib::mirx::scene::SceneOp;
     match op {
         SceneOp::FillPath {
             paint,

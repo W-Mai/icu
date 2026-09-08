@@ -1,15 +1,25 @@
 use std::fmt;
 
+#[cfg(not(target_arch = "wasm32"))]
 use mirui::render::path::Path as MirPath;
+#[cfg(not(target_arch = "wasm32"))]
 use mirui::render::raster::{flatten_into, scanline_fill, FillRule};
+#[cfg(not(target_arch = "wasm32"))]
 use mirui::types::{Fixed, Point};
+#[cfg(not(target_arch = "wasm32"))]
 use mirx::font::{
-    FontAsset, GlyphMap, GlyphMetrics, GlyphSurfaceAsset, LineMetrics, RawGlyphs,
-    RepresentationAsset,
+    CmapEntry, FontAdvanceSource, FontFace, FontRepresentation, GlyphId, GlyphMap,
+    GlyphSurfaceAsset, RasterMetrics, RawGlyphs,
 };
-use mirx::image::SampleLayout;
-use mirx::{Font, FontRepresentation, PayloadLimits};
-use ttf_parser::{Face, OutlineBuilder};
+use mirx::font::{Font, FontAsset, RepresentationAsset};
+#[cfg(not(target_arch = "wasm32"))]
+use mirx::image::{AtlasMap, Region, SampleLayout};
+use mirx::reader::PayloadLimits;
+#[cfg(not(target_arch = "wasm32"))]
+use ttf_parser::{Face, GlyphId as TtfGlyphId, OutlineBuilder};
+
+#[cfg(not(target_arch = "wasm32"))]
+use super::font_subset::{subset_font, FontSubsetOptions, FontVariation};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FontBakeKind {
@@ -25,6 +35,9 @@ pub struct FontBakeParams {
     pub min_ppem: Option<u16>,
     pub max_ppem: Option<u16>,
     pub charset: Vec<char>,
+    pub face_index: u32,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub variations: Vec<FontVariation>,
 }
 
 impl FontBakeParams {
@@ -33,11 +46,17 @@ impl FontBakeParams {
         Self {
             kind,
             source_size,
-            bit_depth: 4,
+            bit_depth: match kind {
+                FontBakeKind::Coverage => 4,
+                FontBakeKind::SignedDistance => 8,
+            },
             spread: (source_size / 4).max(1),
             min_ppem: None,
             max_ppem: None,
             charset,
+            face_index: 0,
+            #[cfg(not(target_arch = "wasm32"))]
+            variations: Vec::new(),
         }
     }
 
@@ -48,7 +67,7 @@ impl FontBakeParams {
                 self.min_ppem
                     .unwrap_or_else(|| (self.source_size / 2).max(1)),
                 self.max_ppem
-                    .unwrap_or_else(|| self.source_size.saturating_mul(4)),
+                    .unwrap_or_else(|| self.source_size.saturating_mul(2)),
             ),
         }
     }
@@ -65,9 +84,11 @@ pub enum FontBakeError {
     SizeOverflow,
     InvalidStorage,
     InvalidFace,
-    IncompatibleCodepoints,
+    IncompatibleFaces,
     MissingFont,
     Container,
+    Subset,
+    NativeOnly,
 }
 
 impl fmt::Display for FontBakeError {
@@ -82,27 +103,33 @@ impl fmt::Display for FontBakeError {
             Self::SizeOverflow => "font size exceeds MIRX limits",
             Self::InvalidStorage => "invalid glyph surface storage",
             Self::InvalidFace => "invalid MIRX font face",
-            Self::IncompatibleCodepoints => "font faces use different codepoint tables",
+            Self::IncompatibleFaces => "font representations describe different faces",
             Self::MissingFont => "input contains no MIRX font face",
             Self::Container => "invalid MIRX container",
+            Self::Subset => "font subsetting failed",
+            Self::NativeOnly => "font baking requires a native target",
         })
     }
 }
 
 impl std::error::Error for FontBakeError {}
 
+#[cfg(not(target_arch = "wasm32"))]
 struct PathBuilder {
     path: MirPath,
     scale: f32,
-    baseline: f32,
+    left: f32,
+    top: f32,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl PathBuilder {
-    fn new(scale: f32, baseline: f32) -> Self {
+    fn new(scale: f32, left: f32, top: f32) -> Self {
         Self {
             path: MirPath::new(),
             scale,
-            baseline,
+            left,
+            top,
         }
     }
 
@@ -112,12 +139,13 @@ impl PathBuilder {
 
     fn map(&self, x: f32, y: f32) -> Point {
         Point {
-            x: Fixed::from_f32(x * self.scale),
-            y: Fixed::from_f32(self.baseline - y * self.scale),
+            x: Fixed::from_f32(x * self.scale - self.left),
+            y: Fixed::from_f32(self.top - y * self.scale),
         }
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl OutlineBuilder for PathBuilder {
     fn move_to(&mut self, x: f32, y: f32) {
         self.path.move_to(self.map(x, y));
@@ -141,6 +169,16 @@ impl OutlineBuilder for PathBuilder {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone)]
+struct GlyphBitmap {
+    width: u32,
+    height: u32,
+    samples: Vec<u8>,
+    metrics: RasterMetrics,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn sample_layout(bits: u8) -> Option<SampleLayout> {
     Some(match bits {
         1 => SampleLayout::A1,
@@ -151,82 +189,145 @@ fn sample_layout(bits: u8) -> Option<SampleLayout> {
     })
 }
 
-fn fixed(value: f32) -> mirx::Fixed {
+#[cfg(not(target_arch = "wasm32"))]
+fn fixed(value: f32) -> mirx::types::Fixed {
     Fixed::from_f32(value).into()
 }
 
-fn rasterize_to_coverage(path: &MirPath, size: u16) -> Vec<u8> {
+#[cfg(not(target_arch = "wasm32"))]
+fn checked_area(width: u32, height: u32) -> Result<usize, FontBakeError> {
+    usize::try_from(width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or(FontBakeError::SizeOverflow)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn rasterize_to_coverage(
+    path: &MirPath,
+    width: u32,
+    height: u32,
+) -> Result<Vec<u8>, FontBakeError> {
     let mut segments = Vec::new();
     flatten_into(&path.cmds, None, &mut segments);
-    let extent = i32::from(size);
-    let mut samples = vec![0u8; usize::from(size) * usize::from(size)];
+    let mut samples = vec![0u8; checked_area(width, height)?];
     let mut accumulator = Vec::new();
     let mut crossings = Vec::new();
     scanline_fill(
         &segments,
         0,
         0,
-        extent,
-        extent,
+        width as i32,
+        height as i32,
         FillRule::NonZero,
         &mut accumulator,
         &mut crossings,
         |x, y, coverage| {
-            if (0..extent).contains(&x) && (0..extent).contains(&y) {
-                samples[(y * extent + x) as usize] =
+            if x >= 0 && y >= 0 && x < width as i32 && y < height as i32 {
+                samples[y as usize * width as usize + x as usize] =
                     (coverage * Fixed::from_int(255)).to_int().clamp(0, 255) as u8;
             }
         },
     );
-    samples
+    Ok(samples)
 }
 
-fn euclidean_distance_transform(coverage: &[u8], size: u16, spread: u16) -> Vec<f32> {
-    let extent = i32::from(size);
-    let mut output = vec![0.0; coverage.len()];
-    let cap = f32::from(spread);
-    let cap_squared = cap * cap;
+#[cfg(not(target_arch = "wasm32"))]
+fn distance_transform_1d(input: &[f32], output: &mut [f32]) {
+    let count = input.len();
+    if count == 0 {
+        return;
+    }
+    let mut locations = vec![0usize; count];
+    let mut boundaries = vec![0.0f32; count + 1];
+    let mut last = 0usize;
+    boundaries[0] = f32::NEG_INFINITY;
+    boundaries[1] = f32::INFINITY;
+    for position in 1..count {
+        let mut previous = locations[last];
+        let mut boundary = ((input[position] + (position * position) as f32)
+            - (input[previous] + (previous * previous) as f32))
+            / (2.0 * (position - previous) as f32);
+        while boundary <= boundaries[last] {
+            last -= 1;
+            previous = locations[last];
+            boundary = ((input[position] + (position * position) as f32)
+                - (input[previous] + (previous * previous) as f32))
+                / (2.0 * (position - previous) as f32);
+        }
+        last += 1;
+        locations[last] = position;
+        boundaries[last] = boundary;
+        boundaries[last + 1] = f32::INFINITY;
+    }
+    last = 0;
+    for (position, value) in output.iter_mut().enumerate().take(count) {
+        while boundaries[last + 1] < position as f32 {
+            last += 1;
+        }
+        let delta = position as f32 - locations[last] as f32;
+        *value = delta * delta + input[locations[last]];
+    }
+}
 
-    for y in 0..extent {
-        for x in 0..extent {
-            let inside = coverage[(y * extent + x) as usize] >= 128;
-            let mut best_squared = cap_squared + 1.0;
-            let min_x = (x - cap as i32).max(0);
-            let max_x = (x + cap as i32 + 1).min(extent);
-            let min_y = (y - cap as i32).max(0);
-            let max_y = (y + cap as i32 + 1).min(extent);
-            for sample_y in min_y..max_y {
-                for sample_x in min_x..max_x {
-                    let sample_inside = coverage[(sample_y * extent + sample_x) as usize] >= 128;
-                    if sample_inside == inside {
-                        continue;
-                    }
-                    let dx = (sample_x - x) as f32;
-                    let dy = (sample_y - y) as f32;
-                    best_squared = best_squared.min(dx * dx + dy * dy);
-                }
-            }
-            let distance = best_squared.sqrt().min(cap);
-            output[(y * extent + x) as usize] = if inside { distance } else { -distance };
+#[cfg(not(target_arch = "wasm32"))]
+fn distance_transform(
+    mask: impl Fn(u8) -> bool,
+    coverage: &[u8],
+    width: u32,
+    height: u32,
+) -> Vec<f32> {
+    let width = width as usize;
+    let height = height as usize;
+    let mut rows = vec![0.0; coverage.len()];
+    let mut input = vec![0.0; width.max(height)];
+    let mut output = vec![0.0; width.max(height)];
+    for y in 0..height {
+        for x in 0..width {
+            input[x] = if mask(coverage[y * width + x]) {
+                0.0
+            } else {
+                1.0e20
+            };
+        }
+        distance_transform_1d(&input[..width], &mut output[..width]);
+        rows[y * width..(y + 1) * width].copy_from_slice(&output[..width]);
+    }
+    let mut result = vec![0.0; coverage.len()];
+    for x in 0..width {
+        for y in 0..height {
+            input[y] = rows[y * width + x];
+        }
+        distance_transform_1d(&input[..height], &mut output[..height]);
+        for y in 0..height {
+            result[y * width + x] = output[y];
         }
     }
-    output
+    result
 }
 
-fn quantize_distance(distance: &[f32], bits: u8, spread: f32) -> Vec<u8> {
-    let max = if bits == 4 { 15.0 } else { 255.0 };
-    let midpoint = max / 2.0;
-    let scale = midpoint / spread;
-    distance
+#[cfg(not(target_arch = "wasm32"))]
+fn signed_distance(coverage: &[u8], width: u32, height: u32, spread: f32) -> Vec<u8> {
+    let to_ink = distance_transform(|sample| sample != 0, coverage, width, height);
+    let to_clear = distance_transform(|sample| sample != 255, coverage, width, height);
+    coverage
         .iter()
-        .map(|value| {
-            (value.clamp(-spread, spread) * scale + midpoint)
+        .zip(to_ink.iter().zip(to_clear.iter()))
+        .map(|(coverage, (ink, clear))| {
+            let edge = f32::from(*coverage) / 255.0 - 0.5;
+            let distance = (clear.sqrt() - ink.sqrt() + edge).clamp(-spread, spread);
+            ((distance / spread * 127.5) + 127.5)
                 .round()
-                .clamp(0.0, max) as u8
+                .clamp(0.0, 255.0) as u8
         })
         .collect()
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn quantize_coverage(coverage: &[u8], bits: u8) -> Vec<u8> {
     let max = (1u16 << bits) - 1;
     coverage
@@ -235,107 +336,203 @@ fn quantize_coverage(coverage: &[u8], bits: u8) -> Vec<u8> {
         .collect()
 }
 
-fn pack_rows(samples: &[u8], width: u16, height: u16, bits: u8) -> Option<Vec<u8>> {
+#[cfg(not(target_arch = "wasm32"))]
+fn pack_rows(samples: &[u8], width: u32, height: u32, bits: u8) -> Option<Vec<u8>> {
     if !matches!(bits, 1 | 2 | 4 | 8)
-        || samples.len() != usize::from(width).checked_mul(usize::from(height))?
+        || samples.len() != (width as usize).checked_mul(height as usize)?
     {
         return None;
     }
-    let stride = usize::from(width)
-        .checked_mul(usize::from(bits))?
-        .div_ceil(8);
-    let mut output = vec![0u8; stride.checked_mul(usize::from(height))?];
-    let mask = (1u16 << bits) as u8 - 1;
-    for y in 0..usize::from(height) {
-        for x in 0..usize::from(width) {
-            let bit = y * stride * 8 + x * usize::from(bits);
+    let stride = (width as usize).checked_mul(bits as usize)?.div_ceil(8);
+    let mut output = vec![0u8; stride.checked_mul(height as usize)?];
+    let mask = ((1u16 << bits) - 1) as u8;
+    for y in 0..height as usize {
+        for x in 0..width as usize {
+            let bit = y * stride * 8 + x * bits as usize;
             let shift = 8 - bits - (bit % 8) as u8;
-            output[bit / 8] |= (samples[y * usize::from(width) + x] & mask) << shift;
+            output[bit / 8] |= (samples[y * width as usize + x] & mask) << shift;
         }
     }
     Some(output)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+fn rasterize_glyph(
+    face: &Face<'_>,
+    glyph_id: TtfGlyphId,
+    params: &FontBakeParams,
+) -> Result<GlyphBitmap, FontBakeError> {
+    let Some(bounds) = face.glyph_bounding_box(glyph_id) else {
+        return Ok(GlyphBitmap {
+            width: 0,
+            height: 0,
+            samples: Vec::new(),
+            metrics: RasterMetrics::default(),
+        });
+    };
+    let scale = f32::from(params.source_size) / f32::from(face.units_per_em());
+    let padding = match params.kind {
+        FontBakeKind::Coverage => 1i64,
+        FontBakeKind::SignedDistance => i64::from(params.spread) + 1,
+    };
+    let left = ((f32::from(bounds.x_min) * scale).floor() as i64)
+        .checked_sub(padding)
+        .ok_or(FontBakeError::SizeOverflow)?;
+    let right = ((f32::from(bounds.x_max) * scale).ceil() as i64)
+        .checked_add(padding)
+        .ok_or(FontBakeError::SizeOverflow)?;
+    let top = ((f32::from(bounds.y_max) * scale).ceil() as i64)
+        .checked_add(padding)
+        .ok_or(FontBakeError::SizeOverflow)?;
+    let bottom = ((f32::from(bounds.y_min) * scale).floor() as i64)
+        .checked_sub(padding)
+        .ok_or(FontBakeError::SizeOverflow)?;
+    let width = u32::try_from(right.checked_sub(left).ok_or(FontBakeError::SizeOverflow)?)
+        .map_err(|_| FontBakeError::SizeOverflow)?;
+    let height = u32::try_from(top.checked_sub(bottom).ok_or(FontBakeError::SizeOverflow)?)
+        .map_err(|_| FontBakeError::SizeOverflow)?;
+    let min_metric = i64::from(Fixed::MIN.to_int());
+    let max_metric = i64::from(Fixed::MAX.to_int());
+    if left < min_metric
+        || left > max_metric
+        || top < min_metric
+        || top > max_metric
+        || width > max_metric as u32
+        || height > max_metric as u32
+    {
+        return Err(FontBakeError::SizeOverflow);
+    }
+    let area = checked_area(width, height)?;
+    let mut builder = PathBuilder::new(scale, left as f32, top as f32);
+    let coverage = if face.outline_glyph(glyph_id, &mut builder).is_some() {
+        rasterize_to_coverage(&builder.finish(), width, height)?
+    } else {
+        vec![0; area]
+    };
+    let samples = match params.kind {
+        FontBakeKind::Coverage => quantize_coverage(&coverage, params.bit_depth),
+        FontBakeKind::SignedDistance => {
+            signed_distance(&coverage, width, height, f32::from(params.spread))
+        }
+    };
+    Ok(GlyphBitmap {
+        width,
+        height,
+        samples,
+        metrics: RasterMetrics::new(fixed(left as f32), fixed(top as f32)),
+    })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn pack_atlas(glyphs: &[GlyphBitmap]) -> Result<(u32, u32, Vec<Region>, Vec<u8>), FontBakeError> {
+    let max_width = glyphs.iter().map(|glyph| glyph.width).max().unwrap_or(0);
+    let area = glyphs.iter().try_fold(0u64, |area, glyph| {
+        let width = glyph
+            .width
+            .checked_add(1)
+            .ok_or(FontBakeError::SizeOverflow)?;
+        let height = glyph
+            .height
+            .checked_add(1)
+            .ok_or(FontBakeError::SizeOverflow)?;
+        let padded = u64::from(width)
+            .checked_mul(u64::from(height))
+            .ok_or(FontBakeError::SizeOverflow)?;
+        area.checked_add(padded).ok_or(FontBakeError::SizeOverflow)
+    })?;
+    let estimated = (area as f64).sqrt().ceil() as u32;
+    let width = estimated
+        .max(max_width)
+        .max(1)
+        .checked_next_power_of_two()
+        .ok_or(FontBakeError::SizeOverflow)?;
+    let mut x = 0u32;
+    let mut y = 0u32;
+    let mut row_height = 0u32;
+    let mut regions = Vec::with_capacity(glyphs.len());
+    for glyph in glyphs {
+        if glyph.width == 0 || glyph.height == 0 {
+            regions.push(Region::new(0, 0, 0, 0).map_err(|_| FontBakeError::SizeOverflow)?);
+            continue;
+        }
+        if x != 0 && x.checked_add(glyph.width).is_none_or(|right| right > width) {
+            y = y
+                .checked_add(row_height)
+                .and_then(|value| value.checked_add(1))
+                .ok_or(FontBakeError::SizeOverflow)?;
+            x = 0;
+            row_height = 0;
+        }
+        regions.push(
+            Region::new(x, y, glyph.width, glyph.height)
+                .map_err(|_| FontBakeError::SizeOverflow)?,
+        );
+        x = x
+            .checked_add(glyph.width)
+            .and_then(|value| value.checked_add(1))
+            .ok_or(FontBakeError::SizeOverflow)?;
+        row_height = row_height.max(glyph.height);
+    }
+    let height = y
+        .checked_add(row_height)
+        .ok_or(FontBakeError::SizeOverflow)?
+        .max(1);
+    let mut samples = vec![0; checked_area(width, height)?];
+    for (glyph, region) in glyphs.iter().zip(&regions) {
+        for row in 0..glyph.height as usize {
+            let source =
+                &glyph.samples[row * glyph.width as usize..(row + 1) * glyph.width as usize];
+            let start = (region.y() as usize + row) * width as usize + region.x() as usize;
+            samples[start..start + source.len()].copy_from_slice(source);
+        }
+    }
+    Ok((width, height, regions, samples))
+}
+
 pub fn bake_font(ttf_bytes: &[u8], params: &FontBakeParams) -> Result<Font, FontBakeError> {
+    bake_font_impl(ttf_bytes, params)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn bake_font_impl(_: &[u8], _: &FontBakeParams) -> Result<Font, FontBakeError> {
+    Err(FontBakeError::NativeOnly)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn bake_font_impl(ttf_bytes: &[u8], params: &FontBakeParams) -> Result<Font, FontBakeError> {
     if params.source_size == 0 {
         return Err(FontBakeError::InvalidSize);
     }
+    if params.kind == FontBakeKind::SignedDistance {
+        if params.bit_depth != 8 {
+            return Err(FontBakeError::InvalidBitDepth);
+        }
+        if params.spread == 0 {
+            return Err(FontBakeError::InvalidSpread);
+        }
+    }
     let layout = sample_layout(params.bit_depth).ok_or(FontBakeError::InvalidBitDepth)?;
-    if params.kind == FontBakeKind::SignedDistance && params.spread == 0 {
-        return Err(FontBakeError::InvalidSpread);
+    let mut options = FontSubsetOptions::new().with_face_index(params.face_index);
+    for variation in &params.variations {
+        options = options.with_variation(variation.tag(), variation.value());
     }
-    let face = Face::parse(ttf_bytes, 0).map_err(|_| FontBakeError::InvalidFont)?;
-    let mut requested = params.charset.clone();
-    requested.sort_unstable();
-    requested.dedup();
-    if requested.is_empty() {
+    let subset = subset_font(ttf_bytes, params.charset.iter().copied(), &options)
+        .map_err(|_| FontBakeError::Subset)?;
+    let face = Face::parse(subset.bytes(), 0).map_err(|_| FontBakeError::InvalidFont)?;
+    let glyph_count = subset.glyph_count();
+    if glyph_count == 0 {
         return Err(FontBakeError::EmptyCharset);
     }
-
-    let units_per_em = f32::from(face.units_per_em());
-    let scale = f32::from(params.source_size) / units_per_em;
-    let baseline = (f32::from(params.source_size) * 0.8).round();
-    let line = LineMetrics::new(
-        fixed((f32::from(face.ascender()) * scale).max(0.0)),
-        fixed((f32::from(face.descender()) * scale).min(0.0)),
-        fixed((f32::from(face.height()) * scale).max(1.0)),
-    )
-    .map_err(|_| FontBakeError::InvalidFace)?;
-
-    let mut codepoints = Vec::with_capacity(requested.len());
-    let mut metrics = Vec::with_capacity(requested.len());
-    let mut data = Vec::new();
-    for character in requested {
-        let Some(glyph_id) = face.glyph_index(character) else {
-            continue;
-        };
-        let advance = face
-            .glyph_hor_advance(glyph_id)
-            .map_or(f32::from(params.source_size) / 2.0, |value| {
-                f32::from(value) * scale
-            });
-        metrics.push(GlyphMetrics::new(
-            fixed(advance),
-            mirx::Fixed::ZERO,
-            fixed(baseline),
-        ));
-        codepoints.push(character);
-
-        let mut builder = PathBuilder::new(scale, baseline);
-        let coverage = if face.outline_glyph(glyph_id, &mut builder).is_some() {
-            rasterize_to_coverage(&builder.finish(), params.source_size)
-        } else {
-            vec![0; usize::from(params.source_size) * usize::from(params.source_size)]
-        };
-        let quantized = match params.kind {
-            FontBakeKind::Coverage => quantize_coverage(&coverage, params.bit_depth),
-            FontBakeKind::SignedDistance => quantize_distance(
-                &euclidean_distance_transform(&coverage, params.source_size, params.spread),
-                params.bit_depth,
-                f32::from(params.spread),
-            ),
-        };
-        data.extend(
-            pack_rows(
-                &quantized,
-                params.source_size,
-                params.source_size,
-                params.bit_depth,
-            )
-            .ok_or(FontBakeError::SizeOverflow)?,
-        );
-    }
-    if codepoints.is_empty() {
-        return Err(FontBakeError::EmptyCharset);
-    }
-
-    let map = GlyphMap::glyph_major(
-        u32::from(params.source_size),
-        u32::from(params.source_size),
-        codepoints.len(),
-    )
-    .map_err(|_| FontBakeError::SizeOverflow)?;
-    let glyphs = RawGlyphs::builder(map, layout)
+    let glyphs = (0..glyph_count)
+        .map(|id| rasterize_glyph(&face, TtfGlyphId(id), params))
+        .collect::<Result<Vec<_>, _>>()?;
+    let (width, height, regions, samples) = pack_atlas(&glyphs)?;
+    let data =
+        pack_rows(&samples, width, height, params.bit_depth).ok_or(FontBakeError::SizeOverflow)?;
+    let atlas =
+        AtlasMap::new(width, height, &regions).map_err(|_| FontBakeError::InvalidStorage)?;
+    let map = GlyphMap::atlas(atlas);
+    let raw = RawGlyphs::builder(map, layout)
         .build(&data)
         .map_err(|_| FontBakeError::InvalidStorage)?;
     let decoded_bytes = u32::try_from(data.len()).map_err(|_| FontBakeError::SizeOverflow)?;
@@ -346,7 +543,7 @@ pub fn bake_font(ttf_bytes: &[u8], params: &FontBakeParams) -> Result<Font, Font
         FontBakeKind::SignedDistance => {
             let (min_ppem, max_ppem) = params.size_range();
             FontRepresentation::signed_distance(
-                params.bit_depth,
+                8,
                 params.spread,
                 params.source_size,
                 min_ppem,
@@ -356,10 +553,31 @@ pub fn bake_font(ttf_bytes: &[u8], params: &FontBakeParams) -> Result<Font, Font
         }
     }
     .map_err(|_| FontBakeError::InvalidSizeRange)?;
-    let representations = [RepresentationAsset::new(representation, 0, line, &metrics)];
-    let surfaces = [GlyphSurfaceAsset::raw(glyphs)];
+    let face_record = FontFace::new(
+        face.units_per_em(),
+        GlyphId::NOTDEF,
+        glyph_count,
+        fixed(f32::from(face.ascender())),
+        fixed(f32::from(face.descender())),
+        fixed(f32::from(face.line_gap())),
+    )
+    .map_err(|_| FontBakeError::InvalidFace)?;
+    let cmap = subset
+        .cmap()
+        .iter()
+        .map(|entry| CmapEntry::new(entry.character(), GlyphId::new(entry.glyph_id())))
+        .collect::<Vec<_>>();
+    let raster_metrics = glyphs.iter().map(|glyph| glyph.metrics).collect::<Vec<_>>();
+    let representations = [RepresentationAsset::new(representation, 0).with_atlas_map(0)];
+    let surfaces = [GlyphSurfaceAsset::raw(raw)];
     Font::from_asset(
-        FontAsset::new(&codepoints, &representations, &surfaces),
+        FontAsset::new(
+            face_record,
+            &cmap,
+            FontAdvanceSource::Shaping(subset.bytes()),
+        )
+        .with_rasters(&representations, &raster_metrics, &surfaces)
+        .with_atlas_maps(&[atlas]),
         &PayloadLimits::HOST,
     )
     .map_err(|_| FontBakeError::InvalidFace)
@@ -367,28 +585,19 @@ pub fn bake_font(ttf_bytes: &[u8], params: &FontBakeParams) -> Result<Font, Font
 
 pub fn merge_fonts(fonts: &[Font]) -> Result<Font, FontBakeError> {
     let first = fonts.first().ok_or(FontBakeError::MissingFont)?;
-    if fonts
-        .iter()
-        .skip(1)
-        .any(|font| font.codepoints() != first.codepoints())
-    {
-        return Err(FontBakeError::IncompatibleCodepoints);
+    if fonts.iter().skip(1).any(|font| {
+        font.face() != first.face()
+            || font.cmap() != first.cmap()
+            || font.glyph_ids() != first.glyph_ids()
+            || font.advance_source() != first.advance_source()
+    }) {
+        return Err(FontBakeError::IncompatibleFaces);
     }
-
-    let surface_count = fonts.iter().try_fold(0usize, |count, font| {
-        count
-            .checked_add(font.surface_count())
-            .ok_or(FontBakeError::SizeOverflow)
-    })?;
-    let representation_count = fonts.iter().try_fold(0usize, |count, font| {
-        count
-            .checked_add(font.representation_count())
-            .ok_or(FontBakeError::SizeOverflow)
-    })?;
-    let mut surfaces = Vec::with_capacity(surface_count);
-    let mut representations = Vec::with_capacity(representation_count);
+    let glyph_count = usize::from(first.face().raster_count());
+    let mut surfaces = Vec::new();
+    let mut representations = Vec::new();
+    let mut raster_metrics = Vec::new();
     let mut maps = Vec::new();
-
     for font in fonts {
         let surface_base = surfaces.len();
         for index in 0..font.surface_count() {
@@ -402,31 +611,35 @@ pub fn merge_fonts(fonts: &[Font]) -> Result<Font, FontBakeError> {
                 .checked_add(usize::from(source.surface_index()))
                 .and_then(|value| u16::try_from(value).ok())
                 .ok_or(FontBakeError::SizeOverflow)?;
-            let mut representation = RepresentationAsset::new(
-                source.metadata(),
-                surface,
-                source.line_metrics(),
-                source.metrics(),
+            let start = index
+                .checked_mul(glyph_count)
+                .ok_or(FontBakeError::SizeOverflow)?;
+            raster_metrics.extend_from_slice(
+                font.raster_metrics()
+                    .get(start..start + glyph_count)
+                    .ok_or(FontBakeError::InvalidFace)?,
             );
-            if source.map_index().is_some() {
+            let mut representation = RepresentationAsset::new(source.metadata(), surface);
+            if source.atlas_map_index().is_some() {
                 let map = font
                     .surface(usize::from(source.surface_index()))
-                    .ok_or(FontBakeError::InvalidFace)?
-                    .map();
+                    .and_then(|surface| surface.map().atlas_map())
+                    .ok_or(FontBakeError::InvalidFace)?;
                 let map_index =
                     u32::try_from(maps.len()).map_err(|_| FontBakeError::SizeOverflow)?;
                 maps.push(map);
-                representation = representation.with_map(map_index);
+                representation = representation.with_atlas_map(map_index);
             }
             representations.push(representation);
         }
     }
-
-    Font::from_asset(
-        FontAsset::new(first.codepoints(), &representations, &surfaces).with_maps(&maps),
-        &PayloadLimits::HOST,
-    )
-    .map_err(|_| FontBakeError::InvalidFace)
+    let mut asset = FontAsset::new(first.face(), first.cmap(), first.advance_source())
+        .with_rasters(&representations, &raster_metrics, &surfaces)
+        .with_atlas_maps(&maps);
+    if let Some(ids) = first.glyph_ids() {
+        asset = asset.with_glyph_ids(ids);
+    }
+    Font::from_asset(asset, &PayloadLimits::HOST).map_err(|_| FontBakeError::InvalidFace)
 }
 
 pub fn merge_font_chunks(inputs: &[Vec<u8>]) -> Result<Vec<u8>, FontBakeError> {
@@ -441,33 +654,24 @@ pub fn merge_font_chunks(inputs: &[Vec<u8>]) -> Result<Vec<u8>, FontBakeError> {
         }
     }
     let font = merge_fonts(&fonts)?;
-    let payload = font.encode().map_err(|_| FontBakeError::InvalidFace)?;
-    Ok(mirx::encode_chunk_generic(
-        mirx::chunk_type::FONT,
-        mirx::ChunkEntry::FLAG_CRITICAL,
-        &payload,
-    ))
+    let mut document = mirx::Document::new_with_limits(PayloadLimits::HOST);
+    let id = document
+        .push_font_with_flags(&font, mirx::ChunkFlags::CRITICAL)
+        .map_err(|_| FontBakeError::Container)?;
+    document
+        .set_primary(id)
+        .map_err(|_| FontBakeError::Container)?;
+    document
+        .encode(&mirx::document::EncodeOptions::new())
+        .map_err(|_| FontBakeError::Container)
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
 
-    fn load_test_ttf() -> Option<Vec<u8>> {
-        for path in [
-            "/System/Library/Fonts/Supplemental/Arial.ttf",
-            "/System/Library/Fonts/Helvetica.ttc",
-        ] {
-            if let Ok(data) = std::fs::read(path) {
-                if data.len() >= 4
-                    && matches!(&data[..4], [0x00, 0x01, 0x00, 0x00] | b"OTTO" | b"ttcf")
-                {
-                    return Some(data);
-                }
-            }
-        }
-        None
-    }
+    const ARK_PIXEL: &[u8] =
+        include_bytes!("../../../../assets/ark-pixel-12px-monospaced-zh_cn.otf");
 
     fn params(kind: FontBakeKind, source_size: u16, bit_depth: u8) -> FontBakeParams {
         FontBakeParams {
@@ -478,6 +682,9 @@ mod tests {
             min_ppem: None,
             max_ppem: None,
             charset: vec!['A', 'B', 'C'],
+            face_index: 0,
+            #[cfg(not(target_arch = "wasm32"))]
+            variations: Vec::new(),
         }
     }
 
@@ -494,61 +701,83 @@ mod tests {
     }
 
     #[test]
-    fn bake_sdf_writes_one_sectioned_face() {
-        let Some(data) = load_test_ttf() else {
-            return;
+    fn atlas_packing_rejects_padded_dimension_overflow() {
+        let glyph = GlyphBitmap {
+            width: u32::MAX,
+            height: 1,
+            samples: Vec::new(),
+            metrics: RasterMetrics::default(),
         };
-        let font = bake_font(&data, &params(FontBakeKind::SignedDistance, 16, 4)).unwrap();
-        assert_eq!(font.codepoints(), ['A', 'B', 'C']);
-        assert_eq!(font.representation_count(), 1);
-        assert_eq!(font.surface_count(), 1);
-        let representation = font.representation(0).unwrap().metadata();
         assert!(matches!(
-            representation.kind(),
-            mirx::FontRepresentationKind::SignedDistance { bits: 4, spread: 4 }
+            pack_atlas(&[glyph]),
+            Err(FontBakeError::SizeOverflow)
         ));
-        assert_eq!(
-            (representation.min_ppem(), representation.max_ppem()),
-            (8, 64)
-        );
-        let payload = font.encode().unwrap();
-        let decoded = Font::decode(&payload).unwrap();
-        assert_eq!(decoded, font);
     }
 
     #[test]
-    fn bake_coverage_uses_a_fixed_size_representation() {
-        let Some(data) = load_test_ttf() else {
-            return;
-        };
-        let font = bake_font(&data, &params(FontBakeKind::Coverage, 13, 4)).unwrap();
+    fn fractional_coverage_moves_the_distance_edge() {
+        let field = signed_distance(&[0, 64, 192, 255], 4, 1, 2.0);
+        assert!(field[0] < field[1]);
+        assert!(field[1] < 128);
+        assert!(field[2] > 128);
+        assert!(field[2] < field[3]);
+    }
+
+    #[test]
+    fn bake_sdf_keeps_subset_glyph_closure_in_a8_atlas() {
+        let font = bake_font(ARK_PIXEL, &params(FontBakeKind::SignedDistance, 24, 8)).unwrap();
         let representation = font.representation(0).unwrap().metadata();
         assert!(matches!(
             representation.kind(),
-            mirx::FontRepresentationKind::Coverage { bits: 4 }
+            mirx::font::FontRepresentationKind::SignedDistance { bits: 8, spread: 4 }
         ));
         assert_eq!(
             (representation.min_ppem(), representation.max_ppem()),
-            (13, 13)
+            (12, 48)
         );
-        assert_eq!(font.surface(0).unwrap().data().len(), 7 * 13 * 3);
+        let subset = subset_font(ARK_PIXEL, ['A', 'B', 'C'], &FontSubsetOptions::new()).unwrap();
+        assert_eq!(font.face().raster_count(), subset.glyph_count());
+        assert_eq!(
+            font.surface(0).unwrap().map().len(),
+            usize::from(subset.glyph_count())
+        );
+        assert_eq!(font.cmap().len(), 3);
+        assert!(font.glyph_ids().is_none());
+        assert!(matches!(
+            font.advance_source(),
+            FontAdvanceSource::Shaping(_)
+        ));
+    }
+
+    #[test]
+    fn bake_coverage_uses_variable_atlas_regions() {
+        let font = bake_font(ARK_PIXEL, &params(FontBakeKind::Coverage, 13, 4)).unwrap();
+        let surface = font.surface(0).unwrap();
+        let map = surface.map();
+        assert!(map.atlas_map().is_some());
+        let nonempty = map
+            .iter()
+            .filter(|region| region.width() != 0 && region.height() != 0)
+            .collect::<Vec<_>>();
+        assert!(!nonempty.is_empty());
+        assert!(nonempty.iter().all(|region| region.width() < map.width()));
     }
 
     #[test]
     fn merge_two_representations_produces_one_font_chunk() {
-        let Some(data) = load_test_ttf() else {
-            return;
-        };
-        let sdf = bake_font(&data, &params(FontBakeKind::SignedDistance, 16, 4)).unwrap();
-        let coverage = bake_font(&data, &params(FontBakeKind::Coverage, 12, 4)).unwrap();
+        let sdf = bake_font(ARK_PIXEL, &params(FontBakeKind::SignedDistance, 16, 8)).unwrap();
+        let coverage = bake_font(ARK_PIXEL, &params(FontBakeKind::Coverage, 12, 4)).unwrap();
         let inputs = [sdf, coverage]
             .iter()
             .map(|font| {
-                mirx::encode_chunk_generic(
-                    mirx::chunk_type::FONT,
-                    mirx::ChunkEntry::FLAG_CRITICAL,
-                    &font.encode().unwrap(),
-                )
+                let mut document = mirx::Document::new_with_limits(PayloadLimits::HOST);
+                let id = document
+                    .push_font_with_flags(font, mirx::ChunkFlags::CRITICAL)
+                    .unwrap();
+                document.set_primary(id).unwrap();
+                document
+                    .encode(&mirx::document::EncodeOptions::new())
+                    .unwrap()
             })
             .collect::<Vec<_>>();
         let merged = merge_font_chunks(&inputs).unwrap();

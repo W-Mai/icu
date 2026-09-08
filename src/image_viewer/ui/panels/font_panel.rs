@@ -77,7 +77,7 @@ fn collect_charset(state: &crate::image_viewer::model::ViewerState) -> Vec<char>
 fn selected_mirx_font<'a>(
     font_data: &'a FontData,
     index: usize,
-) -> Option<&'a icu_lib::mirx::Font> {
+) -> Option<&'a icu_lib::mirx::font::Font> {
     match font_data {
         FontData::Mirx(font) => Some(font),
         FontData::MirxBundle(fonts) => fonts.get(index).or_else(|| fonts.first()),
@@ -86,70 +86,67 @@ fn selected_mirx_font<'a>(
 }
 
 fn primary_representation(
-    font: &icu_lib::mirx::Font,
-) -> Option<icu_lib::mirx::font::RepresentationAsset<'_>> {
+    font: &icu_lib::mirx::font::Font,
+) -> Option<icu_lib::mirx::font::RepresentationAsset> {
     font.representation(0)
 }
 
 fn mirx_glyph(
-    font: &icu_lib::mirx::Font,
+    font: &icu_lib::mirx::font::Font,
     index: usize,
-) -> Option<(u32, icu_lib::mirx::font::GlyphMetrics)> {
-    let codepoint = u32::from(*font.codepoints().get(index)?);
-    let metrics = *primary_representation(font)?.metrics().get(index)?;
-    Some((codepoint, metrics))
+) -> Option<(u32, icu_lib::endecoder::mirui::font_render::GlyphPlacement)> {
+    let placement = icu_lib::endecoder::mirui::font_render::glyph_placement(font, index, 0)?;
+    Some((u32::from(placement.scalar()), placement))
 }
 
-fn fixed_i16(value: icu_lib::mirx::Fixed) -> i16 {
+fn fixed_i16(value: icu_lib::mirx::types::Fixed) -> i16 {
     value
         .to_f32()
         .round()
         .clamp(f32::from(i16::MIN), f32::from(i16::MAX)) as i16
 }
 
-fn fixed_u16(value: icu_lib::mirx::Fixed) -> u16 {
+fn fixed_u16(value: icu_lib::mirx::types::Fixed) -> u16 {
     value.to_f32().round().clamp(0.0, f32::from(u16::MAX)) as u16
 }
 
-fn representation_kind_label(kind: icu_lib::mirx::FontRepresentationKind) -> &'static str {
+fn representation_kind_label(kind: icu_lib::mirx::font::FontRepresentationKind) -> &'static str {
     match kind {
-        icu_lib::mirx::FontRepresentationKind::Coverage { .. } => "coverage",
-        icu_lib::mirx::FontRepresentationKind::SignedDistance { .. } => "sdf",
-        icu_lib::mirx::FontRepresentationKind::Application(_) => "application",
+        icu_lib::mirx::font::FontRepresentationKind::Coverage { .. } => "coverage",
+        icu_lib::mirx::font::FontRepresentationKind::SignedDistance { .. } => "sdf",
+        icu_lib::mirx::font::FontRepresentationKind::Application(_) => "application",
         _ => "unknown",
     }
 }
 
-fn mirx_font_kind(font: &icu_lib::mirx::Font) -> &'static str {
+fn mirx_font_kind(font: &icu_lib::mirx::font::Font) -> &'static str {
     primary_representation(font)
         .map(|representation| representation_kind_label(representation.metadata().kind()))
         .unwrap_or("empty")
 }
 
-fn mirx_font_design_ppem(font: &icu_lib::mirx::Font) -> u32 {
+fn mirx_font_design_ppem(font: &icu_lib::mirx::font::Font) -> u32 {
     primary_representation(font)
         .map(|representation| u32::from(representation.metadata().design_ppem()))
         .unwrap_or(0)
 }
 
-fn mirx_font_line_height(font: &icu_lib::mirx::Font) -> u32 {
-    primary_representation(font)
-        .map(|representation| {
-            representation
-                .line_metrics()
-                .line_height()
-                .to_f32()
-                .ceil()
-                .max(1.0) as u32
-        })
-        .unwrap_or(1)
+fn mirx_font_line_height(font: &icu_lib::mirx::font::Font) -> u32 {
+    let face = font.face();
+    let design_ppem = mirx_font_design_ppem(font);
+    let units = u32::from(face.units_per_em()).max(1);
+    let line_units =
+        face.ascender().to_f32() - face.descender().to_f32() + face.line_gap().to_f32();
+    (line_units * design_ppem as f32 / units as f32)
+        .ceil()
+        .max(1.0) as u32
 }
 
-fn mirx_font_is_sdf(font: &icu_lib::mirx::Font) -> bool {
+fn mirx_font_is_sdf(font: &icu_lib::mirx::font::Font) -> bool {
     primary_representation(font).is_some_and(|representation| {
         matches!(
             representation.metadata().kind(),
-            icu_lib::mirx::FontRepresentationKind::SignedDistance { .. }
+            icu_lib::mirx::font::FontRepresentationKind::SignedDistance { .. }
         )
     })
 }
@@ -184,7 +181,7 @@ enum GlyphToolbarAction {
 
 fn draw_glyph_toolbar(
     ui: &mut egui::Ui,
-    outline: &[icu_lib::mirx::PathCmd],
+    outline: &[icu_lib::mirx::scene::PathCmd],
     editor: &GlyphEditorState,
 ) -> Option<GlyphToolbarAction> {
     let toolbar_button = |ui: &mut egui::Ui, label: String, enabled: bool, active: bool| {
@@ -448,9 +445,9 @@ pub fn draw_glyph_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mod
     }
 }
 
-fn font_text_color(ctx: &egui::Context) -> icu_lib::mirx::Color {
+fn font_text_color(ctx: &egui::Context) -> icu_lib::mirx::types::Color {
     let fg = ctx.global_style().visuals.text_color();
-    icu_lib::mirx::Color {
+    icu_lib::mirx::types::Color {
         r: fg.r(),
         g: fg.g(),
         b: fg.b(),
@@ -470,7 +467,7 @@ pub fn draw_font_info_section(
         return;
     };
     let fg = ctx.global_style().visuals.text_color();
-    let text_color = icu_lib::mirx::Color {
+    let text_color = icu_lib::mirx::types::Color {
         r: fg.r(),
         g: fg.g(),
         b: fg.b(),
@@ -502,10 +499,11 @@ pub fn draw_font_info_section(
                                 &mut next_index,
                                 idx,
                                 format!(
-                                    "{}: {}, {} glyphs, {} representations",
+                                    "{}: {}, {} raster glyphs, {} mapped scalars, {} representations",
                                     idx + 1,
                                     mirx_font_kind(font),
-                                    font.codepoints().len(),
+                                    font.face().raster_count(),
+                                    font.cmap().len(),
                                     font.representation_count()
                                 ),
                             );
@@ -615,28 +613,37 @@ pub fn draw_glyph_convert_section(
                         }
                     }
                     "MIRX" if state.context.mirx_export_kind == "scene" => {
-                        let scene = icu_lib::mirx::Scene {
-                            ops: vec![icu_lib::mirx::SceneOp::FillPath {
-                                path: icu_lib::mirx::Path {
+                        let scene = icu_lib::mirx::scene::Scene {
+                            ops: vec![icu_lib::mirx::scene::SceneOp::FillPath {
+                                path: icu_lib::mirx::scene::Path {
                                     cmds: glyph.outline.clone(),
                                 },
-                                transform: icu_lib::mirx::Transform::IDENTITY,
-                                paint: icu_lib::mirx::Paint::Color(icu_lib::mirx::Color {
-                                    r: 255,
-                                    g: 255,
-                                    b: 255,
-                                    a: 255,
-                                }),
+                                transform: icu_lib::mirx::types::Transform::IDENTITY,
+                                paint: icu_lib::mirx::scene::Paint::Color(
+                                    icu_lib::mirx::types::Color {
+                                        r: 255,
+                                        g: 255,
+                                        b: 255,
+                                        a: 255,
+                                    },
+                                ),
                                 opa: 255,
-                                fill_rule: icu_lib::mirx::FillRule::NonZero,
+                                fill_rule: icu_lib::mirx::scene::FillRule::NonZero,
                             }],
                         };
-                        let payload = scene.encode().unwrap_or_default();
-                        let bytes = icu_lib::mirx::encode_chunk_generic(
-                            icu_lib::mirx::chunk_type::VECTOR,
-                            icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
-                            &payload,
+                        let mut document = icu_lib::mirx::Document::new_with_limits(
+                            icu_lib::mirx::reader::PayloadLimits::HOST,
                         );
+                        let bytes = (|| {
+                            let id = document
+                                .push_vector_with_flags(&scene, icu_lib::mirx::ChunkFlags::CRITICAL)
+                                .ok()?;
+                            document.set_primary(id).ok()?;
+                            document
+                                .encode(&icu_lib::mirx::document::EncodeOptions::new())
+                                .ok()
+                        })()
+                        .unwrap_or_default();
                         if let Some(path) = super::pick_save_file(
                             &[("mirx", &["mirx"])],
                             &format!("U+{:04X}.mirx", glyph.codepoint),
@@ -724,8 +731,8 @@ pub fn draw_font_convert_section(
 fn draw_font_preview_section(
     ui: &mut egui::Ui,
     state: &mut crate::image_viewer::model::ViewerState,
-    font: &icu_lib::mirx::Font,
-    text_color: icu_lib::mirx::Color,
+    font: &icu_lib::mirx::font::Font,
+    text_color: icu_lib::mirx::types::Color,
 ) {
     crate::image_viewer::ui::widgets::section_card(ui, t!("section_preview").as_ref(), |ui| {
         ui.text_edit_singleline(&mut state.font_preview_text);
@@ -746,7 +753,7 @@ fn draw_freetype_preview_section(
     ui: &mut egui::Ui,
     state: &mut crate::image_viewer::model::ViewerState,
     font: &icu_lib::midata::FreeTypeFontData,
-    text_color: icu_lib::mirx::Color,
+    text_color: icu_lib::mirx::types::Color,
 ) {
     crate::image_viewer::ui::widgets::section_card(ui, t!("section_preview").as_ref(), |ui| {
         ui.text_edit_singleline(&mut state.font_preview_text);
@@ -767,7 +774,7 @@ fn draw_selected_glyph_section(
     ui: &mut egui::Ui,
     state: &mut crate::image_viewer::model::ViewerState,
     font_data: &FontData,
-    text_color: icu_lib::mirx::Color,
+    text_color: icu_lib::mirx::types::Color,
     grid_key: &str,
 ) {
     let Some(idx) = state.selected_glyph else {
@@ -924,7 +931,7 @@ pub fn build_selected_glyph_diff_result(
             }
             _ => None,
         })?;
-    let text_color = icu_lib::mirx::Color {
+    let text_color = icu_lib::mirx::types::Color {
         r: 255,
         g: 255,
         b: 255,
@@ -996,7 +1003,7 @@ fn render_source_glyph(
     bundle_index: usize,
     ch: char,
     cell: u32,
-    text_color: icu_lib::mirx::Color,
+    text_color: icu_lib::mirx::types::Color,
 ) -> Option<icu_lib::image::RgbaImage> {
     match font_data {
         FontData::Mirx(font) => {
@@ -1029,11 +1036,11 @@ fn render_source_glyph(
 
 fn glyph_count(font_data: &FontData, bundle_index: usize) -> usize {
     match font_data {
-        FontData::Mirx(font) => font.codepoints().len(),
+        FontData::Mirx(font) => font.cmap().len(),
         FontData::MirxBundle(fonts) => fonts
             .get(bundle_index)
             .or_else(|| fonts.first())
-            .map(|font| font.codepoints().len())
+            .map(|font| font.cmap().len())
             .unwrap_or(0),
         FontData::FreeType(font) => font.glyphs.len(),
     }
@@ -1042,13 +1049,15 @@ fn glyph_count(font_data: &FontData, bundle_index: usize) -> usize {
 fn glyph_codepoint(font_data: &FontData, bundle_index: usize, index: usize) -> Option<u32> {
     match font_data {
         FontData::FreeType(font) => font.glyphs.get(index).map(|g| g.codepoint),
-        FontData::Mirx(font) => font.codepoints().get(index).copied().map(u32::from),
+        FontData::Mirx(font) => font
+            .cmap()
+            .get(index)
+            .map(|entry| u32::from(entry.scalar())),
         FontData::MirxBundle(fonts) => fonts
             .get(bundle_index)
             .or_else(|| fonts.first())
-            .and_then(|font| font.codepoints().get(index))
-            .copied()
-            .map(u32::from),
+            .and_then(|font| font.cmap().get(index))
+            .map(|entry| u32::from(entry.scalar())),
     }
 }
 
@@ -1058,7 +1067,7 @@ fn render_glyph_grid_texture(
     bundle_index: usize,
     glyph_index: usize,
     canvas_size: u32,
-    text_color: icu_lib::mirx::Color,
+    text_color: icu_lib::mirx::types::Color,
 ) -> Option<egui::TextureHandle> {
     let ch = char::from_u32(glyph_codepoint(font_data, bundle_index, glyph_index)?).unwrap_or('?');
     let image = match font_data {
@@ -1185,7 +1194,7 @@ pub fn export_selected_glyph_svg(state: &mut crate::image_viewer::model::ViewerS
     }
 }
 
-fn glyph_outline_to_svg(outline: &[icu_lib::mirx::PathCmd]) -> String {
+fn glyph_outline_to_svg(outline: &[icu_lib::mirx::scene::PathCmd]) -> String {
     let Some((min_x, min_y, max_x, max_y)) = glyph_outline_bounds(outline) else {
         return "<svg viewBox=\"0 0 1 1\"><path d=\"\" fill=\"black\"/></svg>".to_string();
     };
@@ -1200,17 +1209,17 @@ fn glyph_outline_to_svg(outline: &[icu_lib::mirx::PathCmd]) -> String {
     )
 }
 
-fn glyph_outline_to_path_data(outline: &[icu_lib::mirx::PathCmd]) -> String {
+fn glyph_outline_to_path_data(outline: &[icu_lib::mirx::scene::PathCmd]) -> String {
     let mut d = String::new();
     for cmd in outline {
         match cmd {
-            icu_lib::mirx::PathCmd::MoveTo(p) => {
+            icu_lib::mirx::scene::PathCmd::MoveTo(p) => {
                 push_svg_cmd(&mut d, 'M', &[p.x.to_f32(), p.y.to_f32()]);
             }
-            icu_lib::mirx::PathCmd::LineTo(p) => {
+            icu_lib::mirx::scene::PathCmd::LineTo(p) => {
                 push_svg_cmd(&mut d, 'L', &[p.x.to_f32(), p.y.to_f32()]);
             }
-            icu_lib::mirx::PathCmd::QuadTo { ctrl, end } => {
+            icu_lib::mirx::scene::PathCmd::QuadTo { ctrl, end } => {
                 push_svg_cmd(
                     &mut d,
                     'Q',
@@ -1222,7 +1231,7 @@ fn glyph_outline_to_path_data(outline: &[icu_lib::mirx::PathCmd]) -> String {
                     ],
                 );
             }
-            icu_lib::mirx::PathCmd::CubicTo { ctrl1, ctrl2, end } => {
+            icu_lib::mirx::scene::PathCmd::CubicTo { ctrl1, ctrl2, end } => {
                 push_svg_cmd(
                     &mut d,
                     'C',
@@ -1236,7 +1245,7 @@ fn glyph_outline_to_path_data(outline: &[icu_lib::mirx::PathCmd]) -> String {
                     ],
                 );
             }
-            icu_lib::mirx::PathCmd::Close => {
+            icu_lib::mirx::scene::PathCmd::Close => {
                 if !d.is_empty() {
                     d.push(' ');
                 }
@@ -1269,7 +1278,7 @@ fn format_number(v: f32) -> String {
     if s.is_empty() { "0".to_string() } else { s }
 }
 
-fn glyph_outline_bounds(outline: &[icu_lib::mirx::PathCmd]) -> Option<(f32, f32, f32, f32)> {
+fn glyph_outline_bounds(outline: &[icu_lib::mirx::scene::PathCmd]) -> Option<(f32, f32, f32, f32)> {
     let mut min_x = f32::INFINITY;
     let mut min_y = f32::INFINITY;
     let mut max_x = f32::NEG_INFINITY;
@@ -1277,7 +1286,7 @@ fn glyph_outline_bounds(outline: &[icu_lib::mirx::PathCmd]) -> Option<(f32, f32,
     let mut seen = false;
     for cmd in outline {
         match cmd {
-            icu_lib::mirx::PathCmd::MoveTo(p) | icu_lib::mirx::PathCmd::LineTo(p) => {
+            icu_lib::mirx::scene::PathCmd::MoveTo(p) | icu_lib::mirx::scene::PathCmd::LineTo(p) => {
                 let x = p.x.to_f32();
                 let y = p.y.to_f32();
                 min_x = min_x.min(x);
@@ -1286,7 +1295,7 @@ fn glyph_outline_bounds(outline: &[icu_lib::mirx::PathCmd]) -> Option<(f32, f32,
                 max_y = max_y.max(y);
                 seen = true;
             }
-            icu_lib::mirx::PathCmd::QuadTo { ctrl, end } => {
+            icu_lib::mirx::scene::PathCmd::QuadTo { ctrl, end } => {
                 for p in [ctrl, end] {
                     let x = p.x.to_f32();
                     let y = p.y.to_f32();
@@ -1297,7 +1306,7 @@ fn glyph_outline_bounds(outline: &[icu_lib::mirx::PathCmd]) -> Option<(f32, f32,
                     seen = true;
                 }
             }
-            icu_lib::mirx::PathCmd::CubicTo { ctrl1, ctrl2, end } => {
+            icu_lib::mirx::scene::PathCmd::CubicTo { ctrl1, ctrl2, end } => {
                 for p in [ctrl1, ctrl2, end] {
                     let x = p.x.to_f32();
                     let y = p.y.to_f32();
@@ -1308,13 +1317,15 @@ fn glyph_outline_bounds(outline: &[icu_lib::mirx::PathCmd]) -> Option<(f32, f32,
                     seen = true;
                 }
             }
-            icu_lib::mirx::PathCmd::Close => continue,
+            icu_lib::mirx::scene::PathCmd::Close => continue,
         }
     }
     seen.then_some((min_x, min_y, max_x, max_y))
 }
 
-fn render_glyph_outline_image(outline: &[icu_lib::mirx::PathCmd]) -> icu_lib::image::RgbaImage {
+fn render_glyph_outline_image(
+    outline: &[icu_lib::mirx::scene::PathCmd],
+) -> icu_lib::image::RgbaImage {
     let Some((min_x, min_y, max_x, max_y)) = glyph_outline_bounds(outline) else {
         return icu_lib::image::RgbaImage::new(0, 0);
     };
@@ -1324,50 +1335,55 @@ fn render_glyph_outline_image(outline: &[icu_lib::mirx::PathCmd]) -> icu_lib::im
     let mut cmds = Vec::with_capacity(outline.len());
     for cmd in outline {
         match cmd {
-            icu_lib::mirx::PathCmd::MoveTo(p) => cmds.push(icu_lib::mirx::PathCmd::MoveTo(
-                shift_cmd(*p, min_x, min_y, pad),
-            )),
-            icu_lib::mirx::PathCmd::LineTo(p) => cmds.push(icu_lib::mirx::PathCmd::LineTo(
-                shift_cmd(*p, min_x, min_y, pad),
-            )),
-            icu_lib::mirx::PathCmd::QuadTo { ctrl, end } => {
-                cmds.push(icu_lib::mirx::PathCmd::QuadTo {
+            icu_lib::mirx::scene::PathCmd::MoveTo(p) => cmds.push(
+                icu_lib::mirx::scene::PathCmd::MoveTo(shift_cmd(*p, min_x, min_y, pad)),
+            ),
+            icu_lib::mirx::scene::PathCmd::LineTo(p) => cmds.push(
+                icu_lib::mirx::scene::PathCmd::LineTo(shift_cmd(*p, min_x, min_y, pad)),
+            ),
+            icu_lib::mirx::scene::PathCmd::QuadTo { ctrl, end } => {
+                cmds.push(icu_lib::mirx::scene::PathCmd::QuadTo {
                     ctrl: shift_cmd(*ctrl, min_x, min_y, pad),
                     end: shift_cmd(*end, min_x, min_y, pad),
                 });
             }
-            icu_lib::mirx::PathCmd::CubicTo { ctrl1, ctrl2, end } => {
-                cmds.push(icu_lib::mirx::PathCmd::CubicTo {
+            icu_lib::mirx::scene::PathCmd::CubicTo { ctrl1, ctrl2, end } => {
+                cmds.push(icu_lib::mirx::scene::PathCmd::CubicTo {
                     ctrl1: shift_cmd(*ctrl1, min_x, min_y, pad),
                     ctrl2: shift_cmd(*ctrl2, min_x, min_y, pad),
                     end: shift_cmd(*end, min_x, min_y, pad),
                 });
             }
-            icu_lib::mirx::PathCmd::Close => cmds.push(icu_lib::mirx::PathCmd::Close),
+            icu_lib::mirx::scene::PathCmd::Close => cmds.push(icu_lib::mirx::scene::PathCmd::Close),
         }
     }
-    let scene = mirx::Scene {
-        ops: vec![mirx::SceneOp::FillPath {
-            path: mirx::Path { cmds },
-            transform: mirx::Transform::IDENTITY,
-            paint: mirx::Paint::Color(mirx::Color {
+    let scene = mirx::scene::Scene {
+        ops: vec![mirx::scene::SceneOp::FillPath {
+            path: mirx::scene::Path { cmds },
+            transform: mirx::types::Transform::IDENTITY,
+            paint: mirx::scene::Paint::Color(mirx::types::Color {
                 r: 255,
                 g: 255,
                 b: 255,
                 a: 255,
             }),
             opa: 255,
-            fill_rule: mirx::FillRule::NonZero,
+            fill_rule: mirx::scene::FillRule::NonZero,
         }],
     };
     icu_lib::endecoder::mirui::scene_render::render_scene(&scene, width, height)
 }
 
-fn shift_cmd(p: icu_lib::mirx::Point, min_x: f32, min_y: f32, pad: f32) -> icu_lib::mirx::Point {
+fn shift_cmd(
+    p: icu_lib::mirx::types::Point,
+    min_x: f32,
+    min_y: f32,
+    pad: f32,
+) -> icu_lib::mirx::types::Point {
     let fixed = |value: f32| {
-        icu_lib::mirx::Fixed::from_le_bytes(((value * 256.0).round() as i32).to_le_bytes())
+        icu_lib::mirx::types::Fixed::from_le_bytes(((value * 256.0).round() as i32).to_le_bytes())
     };
-    icu_lib::mirx::Point::new(
+    icu_lib::mirx::types::Point::new(
         fixed(p.x.to_f32() - min_x + pad),
         fixed(p.y.to_f32() - min_y + pad),
     )
@@ -1434,7 +1450,7 @@ fn draw_font_bake_section(
             let valid_depths: &[u8] = if state.font_bake_format == "gray" {
                 &[1, 2, 4, 8]
             } else {
-                &[4, 8]
+                &[8]
             };
             if !valid_depths.contains(&state.font_bake_bit_depth) {
                 state.font_bake_bit_depth = valid_depths[0];
@@ -1508,19 +1524,26 @@ fn draw_font_bake_section(
                 min_ppem: None,
                 max_ppem: None,
                 charset,
+                face_index: 0,
+                #[cfg(not(target_arch = "wasm32"))]
+                variations: Vec::new(),
             };
             let raw = std::fs::read(&image.path).unwrap_or_default();
             match icu_lib::endecoder::mirui::font_bake::bake_font(&raw, &params) {
                 Ok(font) => {
-                    let Ok(payload) = font.encode() else {
-                        log::error!("failed to encode baked MIRX font");
-                        return;
-                    };
-                    let bytes = icu_lib::mirx::encode_chunk_generic(
-                        icu_lib::mirx::chunk_type::FONT,
-                        icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
-                        &payload,
+                    let mut document = icu_lib::mirx::Document::new_with_limits(
+                        icu_lib::mirx::reader::PayloadLimits::HOST,
                     );
+                    let bytes = (|| {
+                        let id = document
+                            .push_font_with_flags(&font, icu_lib::mirx::ChunkFlags::CRITICAL)
+                            .ok()?;
+                        document.set_primary(id).ok()?;
+                        document
+                            .encode(&icu_lib::mirx::document::EncodeOptions::new())
+                            .ok()
+                    })()
+                    .unwrap_or_default();
                     if let Some(path) = super::pick_save_file(
                         &[("mirx", &["mirx"])],
                         &format!("{}_{}.mirx", f.family, state.font_bake_format),
@@ -1570,11 +1593,11 @@ pub fn font_vector_has_outline(state: &crate::image_viewer::model::ViewerState) 
             .glyphs
             .get(index)
             .map(|glyph| !glyph.outline.is_empty()),
-        FontData::Mirx(font) => font.codepoints().get(index).map(|_| false),
+        FontData::Mirx(font) => font.cmap().get(index).map(|_| false),
         FontData::MirxBundle(fonts) => fonts
             .get(state.font_bundle_index)
             .or_else(|| fonts.first())
-            .and_then(|font| font.codepoints().get(index))
+            .and_then(|font| font.cmap().get(index))
             .map(|_| false),
     }
 }
@@ -1590,7 +1613,7 @@ pub fn draw_font_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::mode
 
     let fg = ctx.global_style().visuals.text_color();
     let bg = ctx.global_style().visuals.panel_fill;
-    let text_color = icu_lib::mirx::Color {
+    let text_color = icu_lib::mirx::types::Color {
         r: fg.r(),
         g: fg.g(),
         b: fg.b(),
@@ -2185,7 +2208,7 @@ fn draw_glyph_vector_view(
     bearing_x: i16,
     bearing_y: i16,
     bbox: (i16, i16, i16, i16),
-    outline: &mut [icu_lib::mirx::PathCmd],
+    outline: &mut [icu_lib::mirx::scene::PathCmd],
     approximate: bool,
     source_font: &str,
     view: &mut GlyphCanvasView,
@@ -2377,15 +2400,15 @@ fn draw_glyph_vector_view(
             let handle_color = p.peach.linear_multiply(0.6);
             for cmd in outline.iter() {
                 match cmd {
-                    icu_lib::mirx::PathCmd::MoveTo(pt) => {
+                    icu_lib::mirx::scene::PathCmd::MoveTo(pt) => {
                         current = to_screen(pt.x.to_int(), pt.y.to_int());
                     }
-                    icu_lib::mirx::PathCmd::LineTo(pt) => {
+                    icu_lib::mirx::scene::PathCmd::LineTo(pt) => {
                         let end = to_screen(pt.x.to_int(), pt.y.to_int());
                         painter.line_segment([current, end], path_stroke);
                         current = end;
                     }
-                    icu_lib::mirx::PathCmd::QuadTo { ctrl, end } => {
+                    icu_lib::mirx::scene::PathCmd::QuadTo { ctrl, end } => {
                         let ctrl_p = to_screen(ctrl.x.to_int(), ctrl.y.to_int());
                         let end_p = to_screen(end.x.to_int(), end.y.to_int());
                         let pts = [current, ctrl_p, end_p];
@@ -2401,7 +2424,7 @@ fn draw_glyph_vector_view(
                         painter.circle_filled(ctrl_p, 3.0, p.peach);
                         current = end_p;
                     }
-                    icu_lib::mirx::PathCmd::CubicTo { ctrl1, ctrl2, end } => {
+                    icu_lib::mirx::scene::PathCmd::CubicTo { ctrl1, ctrl2, end } => {
                         let c1 = to_screen(ctrl1.x.to_int(), ctrl1.y.to_int());
                         let c2 = to_screen(ctrl2.x.to_int(), ctrl2.y.to_int());
                         let e = to_screen(end.x.to_int(), end.y.to_int());
@@ -2419,7 +2442,7 @@ fn draw_glyph_vector_view(
                         painter.circle_filled(c2, 3.0, p.peach);
                         current = e;
                     }
-                    icu_lib::mirx::PathCmd::Close => {}
+                    icu_lib::mirx::scene::PathCmd::Close => {}
                 }
             }
 

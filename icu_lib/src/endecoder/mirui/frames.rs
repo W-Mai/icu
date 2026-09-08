@@ -1,12 +1,12 @@
 use super::rgba_to_mirx_pixels;
 use crate::endecoder::common::animation::Animation;
 use crate::endecoder::ColorFormat;
+use mirx::document::EncodeOptions;
+use mirx::frames::{FrameEncodingSet, FramePolicy, FrameSequence, FrameWriteReport, FramesEncoder};
 use mirx::image::{ColorDescription, SampleLayout, SurfaceDescriptor};
-use mirx::payload::frames::FrameWriteReport;
-use mirx::{
-    ByteAlignment, ChunkFlags, Document, EncodeOptions, FrameEncodingSet, FramePolicy,
-    FrameSequence, FramesEncoder, PayloadLimits, ReadOptions, Reader,
-};
+use mirx::reader::{PayloadLimits, ReadOptions};
+use mirx::types::ByteAlignment;
+use mirx::{ChunkFlags, Document, Reader};
 use std::fmt;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -117,7 +117,7 @@ pub enum FramesError {
         height: u32,
         format: ColorFormat,
     },
-    InvalidSequence(mirx::FrameSequenceError),
+    InvalidSequence(mirx::frames::FrameSequenceError),
     InvalidQuality(mirx::coding::FrequencyError),
     FrameDuration {
         frame: usize,
@@ -127,12 +127,12 @@ pub enum FramesError {
         frame: usize,
         format: ColorFormat,
     },
-    Write(mirx::FrameWriteError),
-    Document(mirx::EditError),
-    Encode(mirx::EncodeError),
-    Verify(mirx::ReadError),
+    Write(mirx::frames::FrameWriteError),
+    Document(mirx::document::EditError),
+    Encode(mirx::document::EncodeError),
+    Verify(mirx::reader::ReadError),
     MissingFrames,
-    Frames(mirx::FramesError),
+    Frames(mirx::frames::FramesError),
 }
 
 impl fmt::Display for FramesError {
@@ -201,12 +201,12 @@ pub fn encode(animation: &Animation, options: FramesOptions) -> Result<FramesOut
         .filter(|format| {
             matches!(
                 *format,
-                mirx::ColorFormat::RGB565
-                    | mirx::ColorFormat::RGB565Swapped
-                    | mirx::ColorFormat::RGB888
-                    | mirx::ColorFormat::XRGB8888
-                    | mirx::ColorFormat::RGBA8888
-                    | mirx::ColorFormat::BGRA8888
+                mirx::image::ColorFormat::RGB565
+                    | mirx::image::ColorFormat::RGB565Swapped
+                    | mirx::image::ColorFormat::RGB888
+                    | mirx::image::ColorFormat::XRGB8888
+                    | mirx::image::ColorFormat::RGBA8888
+                    | mirx::image::ColorFormat::BGRA8888
             )
         })
         .ok_or(FramesError::UnsupportedFormat(options.format))?;
@@ -377,7 +377,7 @@ mod tests {
         let animation = animation();
         let lossless = encode(&animation, FramesOptions::new()).unwrap();
         assert!(lossless.reports().iter().all(|report| {
-            report.encoding() != Some(mirx::FrameEncoding::FrequencyQuantized(75))
+            report.encoding() != Some(mirx::frames::FrameEncoding::FrequencyQuantized(75))
         }));
         encode(&animation, FramesOptions::new().with_quality(75)).unwrap();
     }

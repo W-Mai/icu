@@ -412,7 +412,7 @@ fn get_info_with(
 fn encode_frames_command(args: &EncodeFramesArgs) -> Result<(), Box<dyn std::error::Error>> {
     use icu_lib::endecoder::common::animation;
     use icu_lib::endecoder::mirui::frames::{self, FramesOptions};
-    use icu_lib::mirx::ByteAlignment;
+    use icu_lib::mirx::types::ByteAlignment;
 
     let output = Path::new(&args.output);
     if output.exists() && !args.override_output {
@@ -501,12 +501,12 @@ fn bake_font_command(
         crate::arguments::BakeFormat::Gray => FontBakeKind::Coverage,
     };
     let valid_bd = match kind {
-        FontBakeKind::SignedDistance => bit_depth == 4 || bit_depth == 8,
+        FontBakeKind::SignedDistance => bit_depth == 8,
         FontBakeKind::Coverage => matches!(bit_depth, 1 | 2 | 4 | 8),
     };
     if !valid_bd {
         return Err(format!(
-            "bit_depth {bit_depth} invalid for format {:?} (sdf: 4|8, gray: 1|2|4|8)",
+            "bit_depth {bit_depth} invalid for format {:?} (sdf: 8, gray: 1|2|4|8)",
             format
         )
         .into());
@@ -521,16 +521,22 @@ fn bake_font_command(
         min_ppem: None,
         max_ppem: None,
         charset: chars,
+        face_index: 0,
+        #[cfg(not(target_arch = "wasm32"))]
+        variations: Vec::new(),
     };
     let font = bake_font(&ttf_bytes, &params)?;
-    let payload = font
-        .encode()
+    let mut document =
+        icu_lib::mirx::Document::new_with_limits(icu_lib::mirx::reader::PayloadLimits::HOST);
+    let id = document
+        .push_font_with_flags(&font, icu_lib::mirx::ChunkFlags::CRITICAL)
+        .map_err(|error| format!("failed to add MIRX font: {error:?}"))?;
+    document
+        .set_primary(id)
+        .map_err(|error| format!("failed to select MIRX font: {error:?}"))?;
+    let mirx_bytes = document
+        .encode(&icu_lib::mirx::document::EncodeOptions::new())
         .map_err(|error| format!("failed to encode MIRX font: {error:?}"))?;
-    let mirx_bytes = icu_lib::mirx::encode_chunk_generic(
-        icu_lib::mirx::chunk_type::FONT,
-        icu_lib::mirx::ChunkEntry::FLAG_CRITICAL,
-        &payload,
-    );
 
     let ttf_path = Path::new(ttf);
     let stem = ttf_path.file_stem().unwrap_or_default().to_string_lossy();
@@ -552,10 +558,11 @@ fn bake_font_command(
     }
     fs::write(&out_path, &mirx_bytes)?;
     println!(
-        "wrote {} bytes to {} ({} glyphs, format={:?}, source_size={}, bit_depth={})",
+        "wrote {} bytes to {} ({} raster glyphs, {} mapped scalars, format={:?}, source_size={}, bit_depth={})",
         mirx_bytes.len(),
         out_path.display(),
-        font.codepoints().len(),
+        font.face().raster_count(),
+        font.cmap().len(),
         kind,
         size,
         bit_depth,
