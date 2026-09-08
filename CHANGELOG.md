@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - 🐛 Serve the latest stable shell installer at `https://i.to01.icu/install.sh` after successful Release and site deployments.
+- ✨ Add bundled native OpenType subsetting with shaping closure, fixed variation instances, sorted cmap output, and explicit invalid-axis errors.
 - ♻️ Align MIRX and mirui dependencies with 0.43, use opaque fixed-point conversions, and require validated `ByteAlignment` values for frame encoding.
 - ✨ Encode and inspect MIRX reversible and quantized frequency images from the library, CLI, and Viewer with explicit quality and sample-layout validation.
 - ✨ Decode GIF, APNG, and animated WebP timelines through one library API and encode MIRX FRAMES containers with automatic lossless profile selection, optional quantized frequency candidates, bounded frame dependencies, sparse tiles, per-frame timing, and encoded-input alignment.

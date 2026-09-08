@@ -8,6 +8,8 @@ use serde_json::json;
 pub mod font_bake;
 pub mod font_contour;
 pub mod font_render;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod font_subset;
 pub mod frames;
 pub mod scene_render;
 
