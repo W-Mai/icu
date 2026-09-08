@@ -299,8 +299,8 @@ pub fn render_freetype_text(
 
 fn map_freetype_cmd(cmd: &PathCmd, x0: f32, y0: f32, scale: f32, baseline: f32) -> PathCmd {
     let map_pt = |p: mirui::types::Point| -> mirui::types::Point {
-        let raw_x = p.x.raw() as f32 / 256.0;
-        let raw_y = p.y.raw() as f32 / 256.0;
+        let raw_x = p.x.to_f32();
+        let raw_y = p.y.to_f32();
         mirui::types::Point::new(
             Fixed::from_f32(x0 + raw_x * scale),
             Fixed::from_f32(y0 + baseline - raw_y * scale),
@@ -427,7 +427,7 @@ pub fn render_font_text(
     let representation = font.representation(representation_index).unwrap();
     let design = f32::from(representation.metadata().design_ppem());
     let scale = f32::from(requested_size) / design;
-    let baseline = representation.line_metrics().ascent().raw() as f32 / 256.0 * scale;
+    let baseline = representation.line_metrics().ascent().to_f32() * scale;
     let mut output = RgbaImage::new(width, height);
     let mut pen_x = 0.0f32;
     for character in text.chars() {
@@ -452,11 +452,11 @@ pub fn render_font_text(
             target_height,
             color,
         ) {
-            let x = pen_x + metric.bearing_x().raw() as f32 / 256.0 * scale;
-            let y = baseline - metric.bearing_y().raw() as f32 / 256.0 * scale;
+            let x = pen_x + metric.bearing_x().to_f32() * scale;
+            let y = baseline - metric.bearing_y().to_f32() * scale;
             overlay(&mut output, &glyph, x.round() as i64, y.round() as i64);
         }
-        pen_x += metric.advance().raw() as f32 / 256.0 * scale;
+        pen_x += metric.advance().to_f32() * scale;
     }
     output
 }
@@ -498,8 +498,8 @@ pub fn render_font_glyph_on_canvas(
         target_height,
         color,
     ) {
-        let glyph_x = x + metric.bearing_x().raw() as f32 / 256.0 * scale;
-        let glyph_y = baseline_y - metric.bearing_y().raw() as f32 / 256.0 * scale;
+        let glyph_x = x + metric.bearing_x().to_f32() * scale;
+        let glyph_y = baseline_y - metric.bearing_y().to_f32() * scale;
         overlay(
             &mut output,
             &glyph,

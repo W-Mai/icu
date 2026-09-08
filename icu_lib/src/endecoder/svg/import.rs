@@ -7,7 +7,7 @@ use std::borrow::Cow;
 use usvg::tiny_skia_path::Path as SkPath;
 
 fn fixed_from_f32(v: f32) -> Fixed {
-    Fixed::from_raw((v * 256.0).round() as i32)
+    mirui::types::Fixed::from_f32(v).into()
 }
 
 fn color_from_usvg(c: usvg::Color) -> Color {

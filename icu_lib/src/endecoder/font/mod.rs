@@ -1,7 +1,7 @@
 use crate::endecoder::{EnDecoder, ImageInfo};
 use crate::midata::{FontData, FreeTypeFontData, FreeTypeGlyph, MiData};
 use image::RgbaImage;
-use mirx::{Fixed, PathCmd, Point};
+use mirx::{PathCmd, Point};
 use serde_json::json;
 
 fn decompress_woff(data: &[u8]) -> Option<Vec<u8>> {
@@ -28,8 +28,8 @@ impl OutlineCollector {
 
     fn map(&self, x: f32, y: f32) -> Point {
         Point::new(
-            Fixed::from_raw((x * 256.0) as i32),
-            Fixed::from_raw((y * 256.0) as i32),
+            mirui::types::Fixed::from_f32(x).into(),
+            mirui::types::Fixed::from_f32(y).into(),
         )
     }
 }

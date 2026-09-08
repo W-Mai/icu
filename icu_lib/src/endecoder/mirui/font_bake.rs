@@ -152,10 +152,7 @@ fn sample_layout(bits: u8) -> Option<SampleLayout> {
 }
 
 fn fixed(value: f32) -> mirx::Fixed {
-    let raw = (value * 256.0)
-        .round()
-        .clamp(i32::MIN as f32, i32::MAX as f32) as i32;
-    mirx::Fixed::from_raw(raw)
+    Fixed::from_f32(value).into()
 }
 
 fn rasterize_to_coverage(path: &MirPath, size: u16) -> Vec<u8> {

@@ -412,6 +412,7 @@ fn get_info_with(
 fn encode_frames_command(args: &EncodeFramesArgs) -> Result<(), Box<dyn std::error::Error>> {
     use icu_lib::endecoder::common::animation;
     use icu_lib::endecoder::mirui::frames::{self, FramesOptions};
+    use icu_lib::mirx::ByteAlignment;
 
     let output = Path::new(&args.output);
     if output.exists() && !args.override_output {
@@ -424,13 +425,19 @@ fn encode_frames_command(args: &EncodeFramesArgs) -> Result<(), Box<dyn std::err
     let source = fs::read(&args.input)?;
     let animation =
         animation::decode(&source)?.ok_or("input is not an animated GIF, APNG, or WebP")?;
+    let input_alignment = ByteAlignment::new(args.input_align).map_err(|_| {
+        format!(
+            "input alignment must be a nonzero power of two: {}",
+            args.input_align
+        )
+    })?;
     let mut options = FramesOptions::new()
         .with_format(args.format.color_format())
         .with_timebase(args.timebase)
         .with_default_duration(args.default_duration)
         .with_play_count(args.play_count)
         .with_max_delta_frames(args.max_delta_frames)
-        .with_input_alignment(args.input_align);
+        .with_input_alignment(input_alignment);
     options = match args.tile.dimensions() {
         Some((width, height)) => options.with_tiles(width, height),
         None => options.without_tiles(),

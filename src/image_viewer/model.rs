@@ -13,6 +13,18 @@ use std::path::Path;
 use std::time::Duration;
 use web_time::Instant;
 
+fn fixed_bits(value: icu_lib::mirx::Fixed) -> i32 {
+    i32::from_le_bytes(value.to_le_bytes())
+}
+
+fn fixed_from_bits(bits: i32) -> icu_lib::mirx::Fixed {
+    icu_lib::mirx::Fixed::from_le_bytes(bits.to_le_bytes())
+}
+
+fn fixed_midpoint(a: icu_lib::mirx::Fixed, b: icu_lib::mirx::Fixed) -> icu_lib::mirx::Fixed {
+    fixed_from_bits(((i64::from(fixed_bits(a)) + i64::from(fixed_bits(b))) / 2) as i32)
+}
+
 #[derive(Clone, PartialEq)]
 pub struct Frame {
     pub pixels: Vec<Color32>,
@@ -557,8 +569,8 @@ pub fn move_glyph_nodes(
             continue;
         };
         let target = icu_lib::mirx::Point::new(
-            icu_lib::mirx::Fixed::from_raw(point.x.raw().saturating_add(delta.0)),
-            icu_lib::mirx::Fixed::from_raw(point.y.raw().saturating_add(delta.1)),
+            fixed_from_bits(fixed_bits(point.x).saturating_add(delta.0)),
+            fixed_from_bits(fixed_bits(point.y).saturating_add(delta.1)),
         );
         moved |= move_glyph_node(outline, *node, target);
     }
@@ -686,8 +698,8 @@ pub fn curve_glyph_segments(outline: &mut [icu_lib::mirx::PathCmd], nodes: &[Gly
         };
         if matches!(command, icu_lib::mirx::PathCmd::LineTo(_)) {
             let ctrl = icu_lib::mirx::Point::new(
-                icu_lib::mirx::Fixed::from_raw((start.x.raw() + end.x.raw()) / 2),
-                icu_lib::mirx::Fixed::from_raw((start.y.raw() + end.y.raw()) / 2),
+                fixed_midpoint(start.x, end.x),
+                fixed_midpoint(start.y, end.y),
             );
             *command = icu_lib::mirx::PathCmd::QuadTo { ctrl, end };
             changed = true;
@@ -745,8 +757,8 @@ pub fn add_glyph_node(outline: &mut Vec<icu_lib::mirx::PathCmd>, node: GlyphNode
         return false;
     };
     let midpoint = icu_lib::mirx::Point::new(
-        icu_lib::mirx::Fixed::from_raw((current.x.raw() + next.x.raw()) / 2),
-        icu_lib::mirx::Fixed::from_raw((current.y.raw() + next.y.raw()) / 2),
+        fixed_midpoint(current.x, next.x),
+        fixed_midpoint(current.y, next.y),
     );
     outline.insert(
         node.command_index + 1,

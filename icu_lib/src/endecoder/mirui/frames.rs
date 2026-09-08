@@ -2,9 +2,10 @@ use super::rgba_to_mirx_pixels;
 use crate::endecoder::common::animation::Animation;
 use crate::endecoder::ColorFormat;
 use mirx::image::{ColorDescription, SampleLayout, SurfaceDescriptor};
+use mirx::payload::frames::FrameWriteReport;
 use mirx::{
-    ChunkFlags, Document, EncodeOptions, FrameEncodingSet, FramePolicy, FrameSequence,
-    FrameWriteReport, FramesEncoder, PayloadLimits, ReadOptions, Reader,
+    ByteAlignment, ChunkFlags, Document, EncodeOptions, FrameEncodingSet, FramePolicy,
+    FrameSequence, FramesEncoder, PayloadLimits, ReadOptions, Reader,
 };
 use std::fmt;
 
@@ -16,7 +17,7 @@ pub struct FramesOptions {
     play_count: u32,
     max_delta_frames: u16,
     tiles: Option<(u32, u32)>,
-    input_alignment: u32,
+    input_alignment: ByteAlignment,
     quality: Option<u8>,
 }
 
@@ -29,7 +30,7 @@ impl FramesOptions {
             play_count: 0,
             max_delta_frames: 8,
             tiles: Some((32, 32)),
-            input_alignment: 1,
+            input_alignment: ByteAlignment::ONE,
             quality: None,
         }
     }
@@ -69,7 +70,7 @@ impl FramesOptions {
         self
     }
 
-    pub const fn with_input_alignment(mut self, alignment: u32) -> Self {
+    pub const fn with_input_alignment(mut self, alignment: ByteAlignment) -> Self {
         self.input_alignment = alignment;
         self
     }
@@ -349,7 +350,11 @@ mod tests {
 
     #[test]
     fn writes_timing_omission_and_aligned_critical_frames() {
-        let output = encode(&animation(), FramesOptions::new().with_input_alignment(64)).unwrap();
+        let output = encode(
+            &animation(),
+            FramesOptions::new().with_input_alignment(ByteAlignment::new(64).unwrap()),
+        )
+        .unwrap();
         assert_eq!(output.reports().len(), 2);
         assert_eq!(output.reports()[1].encoding(), None);
 

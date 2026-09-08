@@ -1364,9 +1364,12 @@ fn render_glyph_outline_image(outline: &[icu_lib::mirx::PathCmd]) -> icu_lib::im
 }
 
 fn shift_cmd(p: icu_lib::mirx::Point, min_x: f32, min_y: f32, pad: f32) -> icu_lib::mirx::Point {
+    let fixed = |value: f32| {
+        icu_lib::mirx::Fixed::from_le_bytes(((value * 256.0).round() as i32).to_le_bytes())
+    };
     icu_lib::mirx::Point::new(
-        icu_lib::mirx::Fixed::from_raw(((p.x.to_f32() - min_x + pad) * 256.0) as i32),
-        icu_lib::mirx::Fixed::from_raw(((p.y.to_f32() - min_y + pad) * 256.0) as i32),
+        fixed(p.x.to_f32() - min_x + pad),
+        fixed(p.y.to_f32() - min_y + pad),
     )
 }
 
