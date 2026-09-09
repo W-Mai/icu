@@ -22,6 +22,7 @@ mod arguments;
 mod cli;
 pub mod converter;
 mod cus_component;
+mod font_charset;
 mod image_viewer;
 mod utils;
 

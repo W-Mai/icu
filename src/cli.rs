@@ -498,9 +498,7 @@ fn bake_font_command(
         Some(path) => fs::read_to_string(path)?,
         None => charset.to_string(),
     };
-    let mut chars: Vec<char> = charset_str.chars().collect();
-    chars.sort();
-    chars.dedup();
+    let chars = crate::font_charset::parse(&charset_str);
 
     let kind = match format {
         crate::arguments::BakeFormat::Sdf => FontBakeKind::SignedDistance,

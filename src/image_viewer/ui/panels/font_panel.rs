@@ -58,7 +58,7 @@ fn parse_codepoint(s: &str) -> Option<u32> {
 
 fn parse_charset_file(path: &str) -> Vec<char> {
     std::fs::read_to_string(path)
-        .map(|s| s.chars().collect())
+        .map(|text| crate::font_charset::parse(&text))
         .unwrap_or_default()
 }
 
