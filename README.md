@@ -190,12 +190,14 @@ Bake an SDF atlas from an inline character set:
 icu bake-font path/to/font.ttf \
   --charset "Hello 世界" \
   --size 32 \
-  --bit-depth 4 \
+  --bit-depth 8 \
+  --min-ppem 16 \
+  --max-ppem 64 \
   --format sdf \
   -O output
 ```
 
-Use `--charset-file <FILE>` to read the character set from a UTF-8 text file. SDF atlases accept bit depths `4` and `8`; grayscale atlases accept `1`, `2`, `4`, and `8`.
+Use `--charset-file <FILE>` to read the character set from a UTF-8 text file. SDF atlases use 8-bit samples; grayscale atlases accept `1`, `2`, `4`, and `8`. `--min-ppem` and `--max-ppem` define the representation's selection range.
 
 Merge multiple baked font files:
 

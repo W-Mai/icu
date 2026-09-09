@@ -143,11 +143,17 @@ pub(crate) enum SubCommands {
         #[arg(long, default_value_t = 24)]
         size: u16,
 
-        #[arg(long, default_value_t = 4)]
+        #[arg(long, default_value_t = 8)]
         bit_depth: u8,
 
         #[arg(long)]
         spread: Option<u16>,
+
+        #[arg(long)]
+        min_ppem: Option<u16>,
+
+        #[arg(long)]
+        max_ppem: Option<u16>,
 
         #[arg(long, value_enum, default_value = "sdf")]
         format: BakeFormat,
@@ -558,5 +564,37 @@ mod tests {
             ])
             .is_err()
         );
+    }
+
+    #[test]
+    fn parses_font_representation_range() {
+        let args = Args::try_parse_from([
+            "icu",
+            "bake-font",
+            "font.ttf",
+            "--charset",
+            "Hello",
+            "--size",
+            "64",
+            "--min-ppem",
+            "40",
+            "--max-ppem",
+            "128",
+        ])
+        .unwrap();
+        let Some(SubCommands::BakeFont {
+            size,
+            bit_depth,
+            min_ppem,
+            max_ppem,
+            ..
+        }) = args.commands
+        else {
+            panic!("expected bake-font command");
+        };
+        assert_eq!(size, 64);
+        assert_eq!(bit_depth, 8);
+        assert_eq!(min_ppem, Some(40));
+        assert_eq!(max_ppem, Some(128));
     }
 }

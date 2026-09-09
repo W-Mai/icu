@@ -724,6 +724,15 @@ mod tests {
     }
 
     #[test]
+    fn signed_distance_range_uses_explicit_physical_sizes() {
+        let mut params = params(FontBakeKind::SignedDistance, 64, 8);
+        params.min_ppem = Some(40);
+        params.max_ppem = Some(128);
+
+        assert_eq!(params.size_range(), (40, 128));
+    }
+
+    #[test]
     fn bake_sdf_keeps_subset_glyph_closure_in_a8_atlas() {
         let font = bake_font(ARK_PIXEL, &params(FontBakeKind::SignedDistance, 24, 8)).unwrap();
         let representation = font.representation(0).unwrap().metadata();

@@ -4,6 +4,7 @@
 
 - 🐛 Serve the latest stable shell installer at `https://i.to01.icu/install.sh` after successful Release and site deployments.
 - ✨ Bake MIRX FONT assets from native subset faces with dense glyph-ID closure, variable atlas regions, A8 fractional-distance SDFs, conservative size ranges, and deterministic storage inspection.
+- ✨ Expose `--min-ppem` and `--max-ppem` for MIRX FONT representation selection and default SDF output to A8 samples.
 - ♻️ Migrate MIRX authoring, decoding, and Viewer paths to canonical domain modules and typed Document operations.
 - ✨ Add bundled native OpenType subsetting with shaping closure, fixed variation instances, sorted cmap output, and explicit invalid-axis errors.
 - ♻️ Align MIRX and mirui dependencies with 0.43, use opaque fixed-point conversions, and require validated `ByteAlignment` values for frame encoding.
