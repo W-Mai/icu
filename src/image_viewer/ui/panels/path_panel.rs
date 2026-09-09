@@ -222,7 +222,7 @@ pub fn op_label(op: &icu_lib::mirx::scene::SceneOp) -> &'static str {
         icu_lib::mirx::scene::SceneOp::Border { .. } => "Border",
         icu_lib::mirx::scene::SceneOp::Line { .. } => "Line",
         icu_lib::mirx::scene::SceneOp::Arc { .. } => "Arc",
-        icu_lib::mirx::scene::SceneOp::Label { .. } => "Label",
+        icu_lib::mirx::scene::SceneOp::GlyphRun { .. } => "GlyphRun",
         icu_lib::mirx::scene::SceneOp::Blit { .. } => "Blit",
         icu_lib::mirx::scene::SceneOp::PushClip { .. } => "PushClip",
         icu_lib::mirx::scene::SceneOp::PopClip => "PopClip",
@@ -358,12 +358,25 @@ pub fn op_inspector(ui: &mut egui::Ui, op: &icu_lib::mirx::scene::SceneOp) {
             }
             ui.label(format!("opacity: {:?}", opacity));
         }
-        SceneOp::Label {
-            text, color, opa, ..
+        SceneOp::GlyphRun {
+            font,
+            ppem,
+            pos,
+            color,
+            opa,
+            glyphs,
+            ..
         } => {
-            ui.label(format!("text: {:?}", text));
+            ui.label(format!("font: {:?}", font));
+            ui.label(format!("ppem: {}", ppem));
+            ui.label(format!(
+                "position: ({}, {})",
+                pos.x.to_f32(),
+                pos.y.to_f32()
+            ));
             ui.label(format!("color: {:?}", color));
             ui.label(format!("opa: {}", opa));
+            ui.label(format!("glyphs: {}", glyphs.len()));
         }
         SceneOp::PushClip { fill_rule, .. } => {
             ui.label(format!("fill_rule: {:?}", fill_rule));

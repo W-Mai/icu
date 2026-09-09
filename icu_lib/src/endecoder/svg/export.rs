@@ -437,7 +437,7 @@ pub fn scene_to_svg(scene: &Scene, width: u32, height: u32) -> String {
             SceneOp::PopClip => {
                 svg.push_str("</g>");
             }
-            SceneOp::Arc { .. } | SceneOp::Label { .. } | SceneOp::Blit { .. } => {}
+            SceneOp::Arc { .. } | SceneOp::GlyphRun { .. } | SceneOp::Blit { .. } => {}
         }
     }
     svg.push_str("</svg>");
