@@ -3,7 +3,7 @@ use std::fmt;
 #[cfg(not(target_arch = "wasm32"))]
 use mirui::render::path::Path as MirPath;
 #[cfg(not(target_arch = "wasm32"))]
-use mirui::render::raster::{flatten_into, scanline_fill, FillRule};
+use mirui::render::raster::{flatten_into, scanline_fill, FillRule, LineSeg};
 #[cfg(not(target_arch = "wasm32"))]
 use mirui::types::{Fixed, Point};
 #[cfg(not(target_arch = "wasm32"))]
@@ -208,17 +208,15 @@ fn checked_area(width: u32, height: u32) -> Result<usize, FontBakeError> {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn rasterize_to_coverage(
-    path: &MirPath,
+    segments: &[LineSeg],
     width: u32,
     height: u32,
 ) -> Result<Vec<u8>, FontBakeError> {
-    let mut segments = Vec::new();
-    flatten_into(&path.cmds, None, &mut segments);
     let mut samples = vec![0u8; checked_area(width, height)?];
     let mut accumulator = Vec::new();
     let mut crossings = Vec::new();
     scanline_fill(
-        &segments,
+        segments,
         0,
         0,
         width as i32,
@@ -237,94 +235,69 @@ fn rasterize_to_coverage(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn distance_transform_1d(input: &[f32], output: &mut [f32]) {
-    let count = input.len();
-    if count == 0 {
-        return;
+fn point_segment_distance_squared(x: f32, y: f32, segment: &LineSeg) -> f32 {
+    let x1 = segment.p1.x.to_f32();
+    let y1 = segment.p1.y.to_f32();
+    let dx = segment.p2.x.to_f32() - x1;
+    let dy = segment.p2.y.to_f32() - y1;
+    let length_squared = dx * dx + dy * dy;
+    if length_squared <= f32::EPSILON {
+        return (x - x1) * (x - x1) + (y - y1) * (y - y1);
     }
-    let mut locations = vec![0usize; count];
-    let mut boundaries = vec![0.0f32; count + 1];
-    let mut last = 0usize;
-    boundaries[0] = f32::NEG_INFINITY;
-    boundaries[1] = f32::INFINITY;
-    for position in 1..count {
-        let mut previous = locations[last];
-        let mut boundary = ((input[position] + (position * position) as f32)
-            - (input[previous] + (previous * previous) as f32))
-            / (2.0 * (position - previous) as f32);
-        while boundary <= boundaries[last] {
-            last -= 1;
-            previous = locations[last];
-            boundary = ((input[position] + (position * position) as f32)
-                - (input[previous] + (previous * previous) as f32))
-                / (2.0 * (position - previous) as f32);
-        }
-        last += 1;
-        locations[last] = position;
-        boundaries[last] = boundary;
-        boundaries[last + 1] = f32::INFINITY;
-    }
-    last = 0;
-    for (position, value) in output.iter_mut().enumerate().take(count) {
-        while boundaries[last + 1] < position as f32 {
-            last += 1;
-        }
-        let delta = position as f32 - locations[last] as f32;
-        *value = delta * delta + input[locations[last]];
-    }
+    let t = (((x - x1) * dx + (y - y1) * dy) / length_squared).clamp(0.0, 1.0);
+    let nearest_x = x1 + t * dx;
+    let nearest_y = y1 + t * dy;
+    (x - nearest_x) * (x - nearest_x) + (y - nearest_y) * (y - nearest_y)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn distance_transform(
-    mask: impl Fn(u8) -> bool,
-    coverage: &[u8],
+fn contour_sample(segments: &[LineSeg], x: f32, y: f32) -> (f32, bool) {
+    debug_assert!(!segments.is_empty());
+    let mut distance_squared = f32::INFINITY;
+    let mut winding = 0i32;
+    for segment in segments {
+        distance_squared = distance_squared.min(point_segment_distance_squared(x, y, segment));
+        let x1 = segment.p1.x.to_f32();
+        let y1 = segment.p1.y.to_f32();
+        let x2 = segment.p2.x.to_f32();
+        let y2 = segment.p2.y.to_f32();
+        let side = (x2 - x1) * (y - y1) - (x - x1) * (y2 - y1);
+        if y1 <= y {
+            if y2 > y && side > 0.0 {
+                winding += 1;
+            }
+        } else if y2 <= y && side < 0.0 {
+            winding -= 1;
+        }
+    }
+    (distance_squared.sqrt(), winding != 0)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn signed_distance(
+    segments: &[LineSeg],
     width: u32,
     height: u32,
-) -> Vec<f32> {
-    let width = width as usize;
-    let height = height as usize;
-    let mut rows = vec![0.0; coverage.len()];
-    let mut input = vec![0.0; width.max(height)];
-    let mut output = vec![0.0; width.max(height)];
+    spread: f32,
+) -> Result<Vec<u8>, FontBakeError> {
+    let mut output = vec![0; checked_area(width, height)?];
+    if segments.is_empty() {
+        return Ok(output);
+    }
     for y in 0..height {
+        let sample_y = y as f32 + 0.5;
         for x in 0..width {
-            input[x] = if mask(coverage[y * width + x]) {
-                0.0
-            } else {
-                1.0e20
-            };
-        }
-        distance_transform_1d(&input[..width], &mut output[..width]);
-        rows[y * width..(y + 1) * width].copy_from_slice(&output[..width]);
-    }
-    let mut result = vec![0.0; coverage.len()];
-    for x in 0..width {
-        for y in 0..height {
-            input[y] = rows[y * width + x];
-        }
-        distance_transform_1d(&input[..height], &mut output[..height]);
-        for y in 0..height {
-            result[y * width + x] = output[y];
-        }
-    }
-    result
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn signed_distance(coverage: &[u8], width: u32, height: u32, spread: f32) -> Vec<u8> {
-    let to_ink = distance_transform(|sample| sample != 0, coverage, width, height);
-    let to_clear = distance_transform(|sample| sample != 255, coverage, width, height);
-    coverage
-        .iter()
-        .zip(to_ink.iter().zip(to_clear.iter()))
-        .map(|(coverage, (ink, clear))| {
-            let edge = f32::from(*coverage) / 255.0 - 0.5;
-            let distance = (clear.sqrt() - ink.sqrt() + edge).clamp(-spread, spread);
-            ((distance / spread * 127.5) + 127.5)
+            let sample_x = x as f32 + 0.5;
+            let (distance, inside) = contour_sample(segments, sample_x, sample_y);
+            let distance = distance.min(spread);
+            let signed = if inside { distance } else { -distance };
+            output[y as usize * width as usize + x as usize] = ((signed / spread * 127.5) + 127.5)
                 .round()
-                .clamp(0.0, 255.0) as u8
-        })
-        .collect()
+                .clamp(0.0, 255.0)
+                as u8;
+        }
+    }
+    Ok(output)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -402,17 +375,21 @@ fn rasterize_glyph(
     {
         return Err(FontBakeError::SizeOverflow);
     }
-    let area = checked_area(width, height)?;
     let mut builder = PathBuilder::new(scale, left as f32, top as f32);
-    let coverage = if face.outline_glyph(glyph_id, &mut builder).is_some() {
-        rasterize_to_coverage(&builder.finish(), width, height)?
+    let path = if face.outline_glyph(glyph_id, &mut builder).is_some() {
+        builder.finish()
     } else {
-        vec![0; area]
+        MirPath::new()
     };
+    let mut segments = Vec::new();
+    flatten_into(&path.cmds, None, &mut segments);
     let samples = match params.kind {
-        FontBakeKind::Coverage => quantize_coverage(&coverage, params.bit_depth),
+        FontBakeKind::Coverage => quantize_coverage(
+            &rasterize_to_coverage(&segments, width, height)?,
+            params.bit_depth,
+        ),
         FontBakeKind::SignedDistance => {
-            signed_distance(&coverage, width, height, f32::from(params.spread))
+            signed_distance(&segments, width, height, f32::from(params.spread))?
         }
     };
     Ok(GlyphBitmap {
@@ -714,13 +691,42 @@ mod tests {
         ));
     }
 
+    fn line(x1: f32, y1: f32, x2: f32, y2: f32) -> LineSeg {
+        LineSeg {
+            p1: Point::new(Fixed::from_f32(x1), Fixed::from_f32(y1)),
+            p2: Point::new(Fixed::from_f32(x2), Fixed::from_f32(y2)),
+        }
+    }
+
     #[test]
-    fn fractional_coverage_moves_the_distance_edge() {
-        let field = signed_distance(&[0, 64, 192, 255], 4, 1, 2.0);
-        assert!(field[0] < field[1]);
-        assert!(field[1] < 128);
-        assert!(field[2] > 128);
-        assert!(field[2] < field[3]);
+    fn segment_distance_preserves_subpixel_diagonals() {
+        let distance = point_segment_distance_squared(1.0, 2.0, &line(0.0, 0.0, 4.0, 4.0));
+        assert!((distance - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn segment_distance_handles_degenerate_edges() {
+        let distance = point_segment_distance_squared(5.0, 7.0, &line(2.0, 3.0, 2.0, 3.0));
+        assert!((distance - 25.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn contour_distance_encodes_inside_and_outside() {
+        let segments = [
+            line(1.0, 1.0, 5.0, 1.0),
+            line(5.0, 1.0, 5.0, 5.0),
+            line(5.0, 5.0, 1.0, 5.0),
+            line(1.0, 5.0, 1.0, 1.0),
+        ];
+        let field = signed_distance(&segments, 6, 6, 4.0).unwrap();
+        assert!(field[2 * 6 + 2] > 128);
+        assert!(field[0] < 128);
+        assert_eq!(field[2 * 6], field[2]);
+    }
+
+    #[test]
+    fn empty_contour_stays_clear() {
+        assert_eq!(signed_distance(&[], 3, 2, 2.0).unwrap(), vec![0; 6]);
     }
 
     #[test]
