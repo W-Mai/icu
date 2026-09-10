@@ -229,11 +229,7 @@ pub fn draw_indexed_canvas(ui: &mut egui::Ui, state: &mut crate::image_viewer::m
                 .indexes
                 .iter()
                 .map(|&idx| {
-                    let normalized = if max_index > 0 {
-                        idx as u32 * 255 / max_index
-                    } else {
-                        0
-                    };
+                    let normalized = (u32::from(idx) * 255).checked_div(max_index).unwrap_or(0);
                     let c = normalized as u8;
                     let pal_color = indexed
                         .palette
