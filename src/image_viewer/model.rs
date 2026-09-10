@@ -13,19 +13,17 @@ use std::path::Path;
 use std::time::Duration;
 use web_time::Instant;
 
-fn fixed_bits(value: icu_lib::mirx::types::Fixed) -> i32 {
-    i32::from_le_bytes(value.to_le_bytes())
-}
-
-fn fixed_from_bits(bits: i32) -> icu_lib::mirx::types::Fixed {
-    icu_lib::mirx::types::Fixed::from_le_bytes(bits.to_le_bytes())
-}
-
 fn fixed_midpoint(
     a: icu_lib::mirx::types::Fixed,
     b: icu_lib::mirx::types::Fixed,
 ) -> icu_lib::mirx::types::Fixed {
-    fixed_from_bits(((i64::from(fixed_bits(a)) + i64::from(fixed_bits(b))) / 2) as i32)
+    let raw = ((a.to_f64() + b.to_f64()) * 128.0).trunc() as i32;
+    icu_lib::mirx::types::Fixed::from_ratio(raw, 256)
+}
+
+fn offset_fixed(value: icu_lib::mirx::types::Fixed, delta: i32) -> icu_lib::mirx::types::Fixed {
+    let raw = (value.to_f64() * 256.0) as i32;
+    icu_lib::mirx::types::Fixed::from_ratio(raw.saturating_add(delta), 256)
 }
 
 #[derive(Clone, PartialEq)]
@@ -582,8 +580,8 @@ pub fn move_glyph_nodes(
             continue;
         };
         let target = icu_lib::mirx::types::Point::new(
-            fixed_from_bits(fixed_bits(point.x).saturating_add(delta.0)),
-            fixed_from_bits(fixed_bits(point.y).saturating_add(delta.1)),
+            offset_fixed(point.x, delta.0),
+            offset_fixed(point.y, delta.1),
         );
         moved |= move_glyph_node(outline, *node, target);
     }

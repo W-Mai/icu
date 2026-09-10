@@ -1380,9 +1380,8 @@ fn shift_cmd(
     min_y: f32,
     pad: f32,
 ) -> icu_lib::mirx::types::Point {
-    let fixed = |value: f32| {
-        icu_lib::mirx::types::Fixed::from_le_bytes(((value * 256.0).round() as i32).to_le_bytes())
-    };
+    let fixed =
+        |value: f32| icu_lib::mirx::types::Fixed::from_ratio((value * 256.0).round() as i32, 256);
     icu_lib::mirx::types::Point::new(
         fixed(p.x.to_f32() - min_x + pad),
         fixed(p.y.to_f32() - min_y + pad),

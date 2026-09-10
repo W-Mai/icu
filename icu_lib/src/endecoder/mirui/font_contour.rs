@@ -176,8 +176,8 @@ pub fn approximate_glyph_contour(
         }
         let to_point = |(x, y): Point| {
             mirx::types::Point::new(
-                mirx::types::Fixed::from_le_bytes(x.to_le_bytes()),
-                mirx::types::Fixed::from_le_bytes((height as i32 * 256 - y).to_le_bytes()),
+                mirx::types::Fixed::from_ratio(x, 256),
+                mirx::types::Fixed::from_ratio(height as i32 * 256 - y, 256),
             )
         };
         paths.push(mirx::scene::PathCmd::MoveTo(to_point(points[0])));
@@ -293,11 +293,11 @@ mod tests {
         let contour = approximate_glyph_contour(&font, 0, 0).unwrap();
         let y_values = contour.iter().filter_map(|command| match command {
             mirx::scene::PathCmd::MoveTo(point) | mirx::scene::PathCmd::LineTo(point) => {
-                Some(i32::from_le_bytes(point.y.to_le_bytes()))
+                Some(point.y.to_f64())
             }
             _ => None,
         });
-        assert!(y_values.into_iter().all(|y| y > 2 * 256));
+        assert!(y_values.into_iter().all(|y| y > 2.0));
     }
 
     #[test]
