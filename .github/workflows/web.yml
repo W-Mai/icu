@@ -98,6 +98,11 @@ jobs:
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/oranda/releases/latest/download/oranda-installer.sh | sh
           oranda build
+          mkdir -p public/assets
+          cp assets/icon-1024.png public/assets/icon-1024.png
+          # Oranda still renders the hidden auto-detected shell on the install page.
+          perl -0777 -i -pe 's@<div>\s*<h3>shell</h3>.*?</div>\s*</div>@@s' public/artifacts/index.html
+          ! grep -q 'icu_tool-installer.sh | sh' public/artifacts/index.html
 
       - name: Fetch shell installer
         if: steps.release.outputs.ready == 'true'
