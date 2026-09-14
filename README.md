@@ -63,8 +63,7 @@ brew install icu_tool
 ### Shell installer
 
 ```shell
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/W-Mai/icu/releases/latest/download/icu_tool-installer.sh | sh
+curl -fsSL https://i.to01.icu/install.sh | sh
 ```
 
 ### PowerShell installer

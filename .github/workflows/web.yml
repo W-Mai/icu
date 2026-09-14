@@ -51,23 +51,62 @@ on:
 jobs:
   web:
     name: Build and deploy site and docs
+    if: >-
+      ${{ github.event_name != 'workflow_run' ||
+          (github.event.workflow_run.conclusion == 'success' &&
+           github.event.workflow_run.event == 'push' &&
+           github.event.workflow_run.head_repository.full_name == github.repository &&
+           startsWith(github.event.workflow_run.head_branch, 'v')) }}
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve installer release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" != "workflow_run" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "download_path=latest/download" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          latest_tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name')"
+          if [[ "$RELEASE_TAG" != "$latest_tag" ]]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+          echo "download_path=download/${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
       # Setup
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        if: steps.release.outputs.ready == 'true'
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.release.outputs.ready == 'true'
       - uses: swatinem/rust-cache@v2
+        if: steps.release.outputs.ready == 'true'
 
       # If you use any mdbook plugins, here's the place to install them!
 
       # Install and run oranda (and mdbook)
       # This will write all output to ./public/ (including copying mdbook's output to there)
       - name: Install and run oranda
+        if: steps.release.outputs.ready == 'true'
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/oranda/releases/latest/download/oranda-installer.sh | sh
           oranda build
+
+      - name: Fetch shell installer
+        if: steps.release.outputs.ready == 'true'
+        env:
+          INSTALLER_DOWNLOAD_PATH: ${{ steps.release.outputs.download_path }}
+        run: |
+          curl -fsSL --retry 3 "https://github.com/${GITHUB_REPOSITORY}/releases/${INSTALLER_DOWNLOAD_PATH}/icu_tool-installer.sh" -o public/install.sh
+          test -s public/install.sh
+          chmod +x public/install.sh
       
       # Deploy to our gh-pages branch (creating it if it doesn't exist)
       # the "public" dir that oranda made above will become the root dir
@@ -79,7 +118,7 @@ jobs:
       - name: Deploy to Github Pages
         uses: JamesIves/github-pages-deploy-action@v4.4.1
         # ONLY if we're on main (so no PRs or feature branches allowed!)
-        if: ${{ github.ref == 'refs/heads/main' }}
+        if: ${{ github.ref == 'refs/heads/main' && steps.release.outputs.ready == 'true' }}
         with:
           branch: gh-pages
           # Gotta tell the action where to find oranda's output

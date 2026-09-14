@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 🐛 Serve the latest stable shell installer at `https://i.to01.icu/install.sh` after successful Release and site deployments.
+
 ## [v0.10.0] - 2026-08-29
 
 - 🎨 Align the Viewer resource list, canvas toolbar, checkerboard, and Inspector surfaces with the preview layout.
