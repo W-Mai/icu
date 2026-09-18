@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [v0.11.0] - 2026-09-18
+
 - 🐛 Serve the latest stable shell installer at `https://i.to01.icu/install.sh` after successful Release and site deployments.
 - 🐛 Generate MIRX signed-distance glyphs from outline distance and non-zero winding instead of raster-mask pixel centers.
 - ✨ Bake MIRX FONT assets from native subset faces with dense glyph-ID closure, variable atlas regions, A8 fractional-distance SDFs, conservative size ranges, and deterministic storage inspection.
