@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 🐛 Keep Windows and musl release builds independent from the native font subsetter and report unsupported font baking explicitly on those targets.
+
 ## [v0.11.0] - 2026-09-18
 
 - 🐛 Serve the latest stable shell installer at `https://i.to01.icu/install.sh` after successful Release and site deployments.

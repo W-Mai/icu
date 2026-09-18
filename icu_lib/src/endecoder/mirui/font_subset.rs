@@ -1,6 +1,8 @@
 use std::fmt;
 
+#[cfg(all(not(target_os = "windows"), not(target_env = "musl")))]
 use hb_subset::{sys, Blob, FontFace as HbFace, SubsetInput};
+#[cfg(all(not(target_os = "windows"), not(target_env = "musl")))]
 use ttf_parser::Face;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -101,6 +103,7 @@ pub enum FontSubsetError {
     UnknownVariationAxis([u8; 4]),
     DuplicateVariationAxis([u8; 4]),
     VariationOutOfRange([u8; 4]),
+    UnsupportedPlatform,
     SubsetFailed,
     MissingCodepoint(char),
 }
@@ -118,6 +121,9 @@ impl fmt::Display for FontSubsetError {
             Self::VariationOutOfRange(tag) => {
                 write!(f, "font variation axis {tag:?} is outside its range")
             }
+            Self::UnsupportedPlatform => {
+                f.write_str("font subsetting is unavailable on this platform")
+            }
             Self::SubsetFailed => f.write_str("font subsetting failed"),
             Self::MissingCodepoint(character) => {
                 write!(f, "font subset lost codepoint {character:?}")
@@ -128,6 +134,7 @@ impl fmt::Display for FontSubsetError {
 
 impl std::error::Error for FontSubsetError {}
 
+#[cfg(all(not(target_os = "windows"), not(target_env = "musl")))]
 pub fn subset_font(
     source: &[u8],
     characters: impl IntoIterator<Item = char>,
@@ -181,6 +188,19 @@ pub fn subset_font(
     })
 }
 
+#[cfg(any(target_os = "windows", target_env = "musl"))]
+pub fn subset_font(
+    _: &[u8],
+    characters: impl IntoIterator<Item = char>,
+    options: &FontSubsetOptions,
+) -> Result<FontSubset, FontSubsetError> {
+    if characters.into_iter().next().is_none() {
+        return Err(FontSubsetError::EmptyCharset);
+    }
+    validate_variations(options.variations())?;
+    Err(FontSubsetError::UnsupportedPlatform)
+}
+
 fn validate_variations(variations: &[FontVariation]) -> Result<(), FontSubsetError> {
     for (index, variation) in variations.iter().enumerate() {
         if !variation.value().is_finite() {
@@ -196,6 +216,7 @@ fn validate_variations(variations: &[FontVariation]) -> Result<(), FontSubsetErr
     Ok(())
 }
 
+#[cfg(all(not(target_os = "windows"), not(target_env = "musl")))]
 fn pin_variations(
     input: &mut SubsetInput,
     hb_face: &HbFace<'_>,
@@ -237,7 +258,7 @@ fn pin_variations(
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "windows"), not(target_env = "musl")))]
 mod tests {
     use super::*;
 

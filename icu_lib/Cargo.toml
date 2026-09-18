@@ -30,7 +30,7 @@ critical-section = { version = "1", features = ["std"] }
 ttf-parser = "0.25"
 usvg = { version = "0.47", default-features = false, features = ["text", "memmap-fonts"] }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "windows"), not(target_env = "musl")))'.dependencies]
 hb-subset = { version = "0.3.0", features = ["bundled"] }
 
 [dev-dependencies]

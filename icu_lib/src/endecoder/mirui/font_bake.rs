@@ -19,7 +19,7 @@ use mirx::reader::PayloadLimits;
 use ttf_parser::{Face, GlyphId as TtfGlyphId, OutlineBuilder};
 
 #[cfg(not(target_arch = "wasm32"))]
-use super::font_subset::{subset_font, FontSubsetOptions, FontVariation};
+use super::font_subset::{subset_font, FontSubsetError, FontSubsetOptions, FontVariation};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FontBakeKind {
@@ -88,6 +88,7 @@ pub enum FontBakeError {
     MissingFont,
     Container,
     Subset,
+    UnsupportedPlatform,
     NativeOnly,
 }
 
@@ -107,6 +108,7 @@ impl fmt::Display for FontBakeError {
             Self::MissingFont => "input contains no MIRX font face",
             Self::Container => "invalid MIRX container",
             Self::Subset => "font subsetting failed",
+            Self::UnsupportedPlatform => "font baking is unavailable on this platform",
             Self::NativeOnly => "font baking requires a native target",
         })
     }
@@ -493,8 +495,13 @@ fn bake_font_impl(ttf_bytes: &[u8], params: &FontBakeParams) -> Result<Font, Fon
     for variation in &params.variations {
         options = options.with_variation(variation.tag(), variation.value());
     }
-    let subset = subset_font(ttf_bytes, params.charset.iter().copied(), &options)
-        .map_err(|_| FontBakeError::Subset)?;
+    let subset =
+        subset_font(ttf_bytes, params.charset.iter().copied(), &options).map_err(|error| {
+            match error {
+                FontSubsetError::UnsupportedPlatform => FontBakeError::UnsupportedPlatform,
+                _ => FontBakeError::Subset,
+            }
+        })?;
     let face = Face::parse(subset.bytes(), 0).map_err(|_| FontBakeError::InvalidFont)?;
     let glyph_count = subset.glyph_count();
     if glyph_count == 0 {
