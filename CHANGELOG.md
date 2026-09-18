@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [v0.11.1] - 2026-09-18
+
 - 🐛 Keep Windows and musl release builds independent from the native font subsetter and report unsupported font baking explicitly on those targets.
 
 ## [v0.11.0] - 2026-09-18
