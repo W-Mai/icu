@@ -437,7 +437,10 @@ pub fn scene_to_svg(scene: &Scene, width: u32, height: u32) -> String {
             SceneOp::PopClip => {
                 svg.push_str("</g>");
             }
-            SceneOp::Arc { .. } | SceneOp::GlyphRun { .. } | SceneOp::Blit { .. } => {}
+            SceneOp::Arc { .. }
+            | SceneOp::GlyphRun { .. }
+            | SceneOp::PosedGlyphRun { .. }
+            | SceneOp::Blit { .. } => {}
         }
     }
     svg.push_str("</svg>");
@@ -637,6 +640,7 @@ mod tests {
             ops: vec![
                 SceneOp::GroupBegin {
                     transform: None,
+                    projective: None,
                     opacity: Some(128),
                     clip: None,
                     mask: None,

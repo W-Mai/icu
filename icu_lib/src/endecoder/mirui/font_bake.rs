@@ -382,7 +382,7 @@ fn rasterize_glyph(
         MirPath::new()
     };
     let mut segments = Vec::new();
-    flatten_into(&path.cmds, None, &mut segments);
+    flatten_into(path.commands(), None, &mut segments);
     let samples = match params.kind {
         FontBakeKind::Coverage => quantize_coverage(
             &rasterize_to_coverage(&segments, width, height)?,

@@ -223,6 +223,7 @@ pub fn op_label(op: &icu_lib::mirx::scene::SceneOp) -> &'static str {
         icu_lib::mirx::scene::SceneOp::Line { .. } => "Line",
         icu_lib::mirx::scene::SceneOp::Arc { .. } => "Arc",
         icu_lib::mirx::scene::SceneOp::GlyphRun { .. } => "GlyphRun",
+        icu_lib::mirx::scene::SceneOp::PosedGlyphRun { .. } => "PosedGlyphRun",
         icu_lib::mirx::scene::SceneOp::Blit { .. } => "Blit",
         icu_lib::mirx::scene::SceneOp::PushClip { .. } => "PushClip",
         icu_lib::mirx::scene::SceneOp::PopClip => "PopClip",

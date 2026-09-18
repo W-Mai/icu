@@ -181,6 +181,7 @@ fn walk_group(group: &usvg::Group, ops: &mut Vec<SceneOp>) {
     if push_group {
         ops.push(SceneOp::GroupBegin {
             transform: None,
+            projective: None,
             opacity: if group_opacity < 1.0 && group_opacity > 0.0 {
                 Some(group.opacity().to_u8())
             } else {

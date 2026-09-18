@@ -11,7 +11,7 @@ pub fn scene_dimensions(scene: &mirx::scene::Scene) -> Option<(u32, u32)> {
     let mut any = false;
     for op in &scene.ops {
         let mirui_op: mirui::render::scene::SceneOp = op.clone().into();
-        if let Some(bbox) = mirui::render::scene::bbox::op_bbox(&mirui_op) {
+        if let Ok(Some(bbox)) = mirui::render::scene::bbox::op_bbox(&mirui_op) {
             any = true;
             if bbox.x + bbox.w > max_x {
                 max_x = bbox.x + bbox.w;
